@@ -95,3 +95,26 @@ export interface Conversation {
     timestamp: string;
     metadata?: Record<string, any>;
   }
+
+  // Bulk Message Campaign represents a mass messaging effort
+export interface BulkMessageCampaign {
+  id: string;
+  name: string;
+  message: string;
+  recipients: {
+    contactIds?: string[];
+    listIds?: string[];
+    phoneNumbers?: string[];
+  };
+  scheduledTime?: string;
+  status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'failed';
+  stats?: {
+    total: number;
+    sent: number;
+    delivered: number;
+    failed: number;
+    responses: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}

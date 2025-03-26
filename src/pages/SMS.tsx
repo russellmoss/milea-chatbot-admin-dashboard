@@ -50,9 +50,26 @@ const SMS: React.FC = () => {
     }
   };
 
-  const handleSendMessage = (phoneNumber: string) => {
-    // TODO: Implement message sending
-    console.log('Sending message to:', phoneNumber);
+  const handleSendMessage = async (content: string, to?: string) => {
+    try {
+      // Find the contact if sending to a specific number
+      const recipientContact = contacts.find(c => c.phoneNumber === to);
+      
+      // Replace personalization tokens
+      let personalizedContent = content;
+      if (recipientContact) {
+        personalizedContent = personalizedContent
+          .replace(/{firstName}/g, recipientContact.firstName)
+          .replace(/{lastName}/g, recipientContact.lastName)
+          .replace(/{fullName}/g, `${recipientContact.firstName} ${recipientContact.lastName}`);
+      }
+      
+      // TODO: Implement actual message sending
+      console.log('Sending personalized message:', personalizedContent, 'to:', to);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
   };
 
   const handleToggleOptStatus = (contact: Contact, status: boolean) => {
@@ -114,7 +131,7 @@ const SMS: React.FC = () => {
       <div className="bg-white rounded-lg shadow">
         {activeTab === 'messaging' ? (
           <div className="p-6">
-            <MessagingInbox />
+            <MessagingInbox contacts={contacts} />
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3">
@@ -172,7 +189,10 @@ const SMS: React.FC = () => {
       {showBulkMessaging && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white rounded-lg p-6 max-w-4xl w-full">
-            <BulkMessaging onClose={() => setShowBulkMessaging(false)} />
+            <BulkMessaging 
+              onClose={() => setShowBulkMessaging(false)} 
+              contacts={contacts}
+            />
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import MessageDisplay from './MessageDisplay';
 import MessageComposer from './MessageComposer';
 import TemplateSelector from './TemplateSelector';
+import { Contact } from '../../types/sms';
 
 // Types
 export interface Conversation {
@@ -34,9 +35,10 @@ export interface MessageTemplate {
 interface MessagingInboxProps {
   twilioApiKey?: string;
   twilioAccountSid?: string;
+  contacts: Contact[];
 }
 
-const MessagingInbox: React.FC<MessagingInboxProps> = ({ twilioApiKey, twilioAccountSid }) => {
+const MessagingInbox: React.FC<MessagingInboxProps> = ({ twilioApiKey, twilioAccountSid, contacts }) => {
   // State
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -311,63 +313,66 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({ twilioApiKey, twilioAcc
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
             />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as 'all' | 'unread' | 'read')}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
             >
               <option value="all">All</option>
               <option value="unread">Unread</option>
               <option value="read">Read</option>
             </select>
           </div>
-          <button
-            onClick={handleNewConversation}
-            className="w-full px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            New Conversation
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
-            <div className="p-4 text-center text-gray-500">Loading conversations...</div>
+            <div className="flex items-center justify-center h-full">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
           ) : error ? (
-            <div className="p-4 text-center text-red-500">{error}</div>
+            <div className="p-4 text-center text-red-600">{error}</div>
+          ) : sortedConversations.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">No conversations found</div>
           ) : (
-            sortedConversations.map(conversation => (
-              <div
-                key={conversation.id}
-                onClick={() => selectConversation(conversation)}
-                className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 ${
-                  selectedConversation?.id === conversation.id ? 'bg-gray-50' : ''
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-medium">
-                      {conversation.customerName || conversation.phoneNumber}
-                    </h3>
-                    <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500">
-                      {format(new Date(conversation.lastMessageTime), 'MMM d, h:mm a')}
-                    </p>
+            <div className="divide-y divide-gray-200">
+              {sortedConversations.map((conversation) => (
+                <button
+                  key={conversation.id}
+                  onClick={() => setSelectedConversation(conversation)}
+                  className={`w-full p-4 text-left hover:bg-gray-50 focus:outline-none ${
+                    selectedConversation?.id === conversation.id ? 'bg-gray-50' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium text-gray-900">
+                        {conversation.customerName || conversation.phoneNumber}
+                      </div>
+                      <div className="text-sm text-gray-500">{conversation.phoneNumber}</div>
+                    </div>
                     {conversation.unread && (
-                      <span className="inline-block w-2 h-2 bg-primary rounded-full mt-1"></span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary text-white">
+                        New
+                      </span>
                     )}
                   </div>
-                </div>
-              </div>
-            ))
+                  <div className="mt-1">
+                    <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {format(new Date(conversation.lastMessageTime), 'MMM d, h:mm a')}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>
 
-      {/* Message Display */}
+      {/* Message Thread */}
       <div className="flex-1 flex flex-col">
         {selectedConversation ? (
           <>
@@ -403,10 +408,13 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({ twilioApiKey, twilioAcc
               onMarkAsRead={() => handleMarkAsRead(selectedConversation.id)}
             />
 
-            <MessageComposer
-              onSendMessage={handleSendMessage}
-              to={selectedConversation.phoneNumber}
-            />
+            <div className="p-4 border-t border-gray-200">
+              <MessageComposer
+                onSendMessage={handleSendMessage}
+                to={selectedConversation.phoneNumber}
+                contacts={contacts}
+              />
+            </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500">
