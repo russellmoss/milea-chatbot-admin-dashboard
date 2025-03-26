@@ -6,9 +6,10 @@ interface MessageDisplayProps {
   messages: Message[];
   customerName: string | null;
   phoneNumber: string;
+  onMarkAsRead: () => void;
 }
 
-const MessageDisplay: React.FC<MessageDisplayProps> = ({ messages, customerName, phoneNumber }) => {
+const MessageDisplay: React.FC<MessageDisplayProps> = ({ messages, customerName, phoneNumber, onMarkAsRead }) => {
   // Reference to the messages container for auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

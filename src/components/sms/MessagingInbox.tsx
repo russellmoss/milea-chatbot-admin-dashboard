@@ -62,14 +62,14 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({ twilioApiKey, twilioAcc
             id: 'conv1',
             phoneNumber: '+15551234567',
             customerName: 'John Smith',
-            lastMessage: 'I'm interested in booking a tasting for this Saturday',
+            lastMessage: "I'm interested in booking a tasting for this Saturday",
             lastMessageTime: '2023-05-15T14:30:00',
             unread: true,
             messages: [
               {
                 id: 'msg1',
                 direction: 'inbound',
-                content: 'Hello! I'm interested in booking a tasting for this Saturday',
+                content: "Hello! I'm interested in booking a tasting for this Saturday",
                 timestamp: '2023-05-15T14:30:00'
               },
               {
@@ -85,21 +85,21 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({ twilioApiKey, twilioAcc
             id: 'conv2',
             phoneNumber: '+15559876543',
             customerName: 'Sarah Johnson',
-            lastMessage: 'Thank you! I'll bring my receipt when I come to pick up my wine club shipment.',
+            lastMessage: "Thank you! I'll bring my receipt when I come to pick up my wine club shipment.",
             lastMessageTime: '2023-05-14T11:20:00',
             unread: false,
             messages: [
               {
                 id: 'msg3',
                 direction: 'outbound',
-                content: 'Hello Sarah, your wine club shipment for May is ready for pickup at the tasting room. We're open daily from 10 AM to 5 PM.',
+                content: "Hello Sarah, your wine club shipment for May is ready for pickup at the tasting room. We're open daily from 10 AM to 5 PM.",
                 timestamp: '2023-05-14T11:15:00',
                 status: 'read'
               },
               {
                 id: 'msg4',
                 direction: 'inbound',
-                content: 'Thank you! I'll bring my receipt when I come to pick up my wine club shipment.',
+                content: "Thank you! I'll bring my receipt when I come to pick up my wine club shipment.",
                 timestamp: '2023-05-14T11:20:00'
               }
             ]
@@ -133,19 +133,19 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({ twilioApiKey, twilioAcc
           {
             id: 'template2',
             name: 'Wine Club Pickup',
-            content: 'Hello {name}, your wine club shipment for {month} is ready for pickup at the tasting room. We're open daily from 10 AM to 5 PM.',
+            content: 'Hello {name}, your wine club shipment for {month} is ready for pickup at the tasting room. We\'re open daily from 10 AM to 5 PM.',
             category: 'Wine Club'
           },
           {
             id: 'template3',
             name: 'Event Reminder',
-            content: 'Reminder: You're registered for our {event} on {date} at {time}. We look forward to seeing you!',
+            content: 'Reminder: You\'re registered for our {event} on {date} at {time}. We look forward to seeing you!',
             category: 'Events'
           },
           {
             id: 'template4',
             name: 'Thank You',
-            content: 'Thank you for visiting Milea Estate Vineyard today! We hope you enjoyed your experience. Don't forget to follow us on social media and sign up for our newsletter for updates on events and new releases.',
+            content: 'Thank you for visiting Milea Estate Vineyard today! We hope you enjoyed your experience. Don\'t forget to follow us on social media and sign up for our newsletter for updates on events and new releases.',
             category: 'General'
           }
         ];
@@ -248,259 +248,196 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({ twilioApiKey, twilioAcc
   const handleMarkAsRead = (conversationId: string) => {
     setConversations(prevConversations => 
       prevConversations.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, unread: false } 
-          : conv
+        conv.id === conversationId ? { ...conv, unread: false } : conv
       )
     );
-
+    
     if (selectedConversation?.id === conversationId) {
-      setSelectedConversation(prev => 
-        prev ? { ...prev, unread: false } : null
-      );
+      setSelectedConversation(prev => prev ? { ...prev, unread: false } : null);
     }
   };
 
-  // Select a conversation and mark it as read
+  // Handle selecting a conversation
   const selectConversation = (conversation: Conversation) => {
     setSelectedConversation(conversation);
-    if (conversation.unread) {
-      handleMarkAsRead(conversation.id);
+    handleMarkAsRead(conversation.id);
+  };
+
+  // Handle applying a message template
+  const handleApplyTemplate = (template: MessageTemplate): string => {
+    if (selectedConversation) {
+      // Replace template variables with actual values
+      let content = template.content;
+      // Add logic to replace variables based on context
+      handleSendMessage(content);
+      return content;
     }
+    return '';
   };
 
-  // Handle applying a template
-  const handleApplyTemplate = (template: MessageTemplate) => {
-    // In a real implementation, you would replace placeholders with actual values
-    setShowTemplates(false);
-    return template.content;
-  };
-
-  // Export conversation to CSV
+  // Handle exporting conversation
   const handleExportConversation = () => {
     if (!selectedConversation) return;
     
-    // Format messages for CSV
-    const csvContent = [
-      ['Direction', 'Content', 'Timestamp', 'Status'].join(','),
-      ...selectedConversation.messages.map(msg => [
-        msg.direction,
-        `"${msg.content.replace(/"/g, '""')}"`, // Escape quotes in content
-        format(new Date(msg.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-        msg.status || ''
-      ].join(','))
-    ].join('\n');
+    const exportData = {
+      conversation: selectedConversation,
+      exportDate: new Date().toISOString()
+    };
     
-    // Create a Blob and download link
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    
-    // Set up and trigger download
-    link.href = url;
-    link.setAttribute('download', `conversation_${selectedConversation.phoneNumber}_${format(new Date(), 'yyyyMMdd')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-${selectedConversation.id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
-  // Create a new conversation
+  // Handle starting a new conversation
   const handleNewConversation = () => {
-    // In a real implementation, this would open a modal to enter phone number and message
-    const phoneNumber = prompt('Enter phone number (format: +12345678901):');
-    if (!phoneNumber) return;
-    
-    const initialMessage = prompt('Enter your message:');
-    if (!initialMessage) return;
-    
-    handleSendMessage(initialMessage, phoneNumber);
+    setSelectedConversation(null);
   };
 
   return (
-    <div className="h-[calc(100vh-200px)] min-h-[500px] flex border border-gray-200 rounded-lg overflow-hidden bg-white">
-      {/* Left sidebar - Conversation List */}
+    <div className="flex h-full">
+      {/* Conversation List */}
       <div className="w-1/3 border-r border-gray-200 flex flex-col">
         <div className="p-4 border-b border-gray-200">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Messages</h2>
-            <button 
-              onClick={handleNewConversation}
-              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown"
-            >
-              New Message
-            </button>
-          </div>
-          
-          <div className="relative">
+          <div className="flex items-center space-x-2 mb-4">
             <input
               type="text"
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-              </svg>
-            </div>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'unread' | 'read')}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">All</option>
+              <option value="unread">Unread</option>
+              <option value="read">Read</option>
+            </select>
           </div>
-          
-          <div className="flex space-x-2 mt-4">
-            <button
-              onClick={() => setFilterStatus('all')}
-              className={`px-3 py-1 text-sm rounded-md ${
-                filterStatus === 'all'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setFilterStatus('unread')}
-              className={`px-3 py-1 text-sm rounded-md ${
-                filterStatus === 'unread'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Unread
-            </button>
-            <button
-              onClick={() => setFilterStatus('read')}
-              className={`px-3 py-1 text-sm rounded-md ${
-                filterStatus === 'read'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Read
-            </button>
-          </div>
+          <button
+            onClick={handleNewConversation}
+            className="w-full px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            New Conversation
+          </button>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
-            <div className="flex justify-center items-center h-full">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-            </div>
+            <div className="p-4 text-center text-gray-500">Loading conversations...</div>
           ) : error ? (
-            <div className="flex justify-center items-center h-full">
-              <div className="text-red-500">{error}</div>
-            </div>
-          ) : sortedConversations.length === 0 ? (
-            <div className="flex justify-center items-center h-full text-gray-500">
-              No conversations found
-            </div>
+            <div className="p-4 text-center text-red-500">{error}</div>
           ) : (
-            <ul>
-              {sortedConversations.map((conversation) => (
-                <li 
-                  key={conversation.id}
-                  onClick={() => selectConversation(conversation)}
-                  className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 ${
-                    selectedConversation?.id === conversation.id ? 'bg-gray-100' : ''
-                  } ${
-                    conversation.unread ? 'font-semibold' : ''
-                  }`}
-                >
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium text-gray-900">
+            sortedConversations.map(conversation => (
+              <div
+                key={conversation.id}
+                onClick={() => selectConversation(conversation)}
+                className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 ${
+                  selectedConversation?.id === conversation.id ? 'bg-gray-50' : ''
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-medium">
                       {conversation.customerName || conversation.phoneNumber}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {format(new Date(conversation.lastMessageTime), 'MM/dd/yyyy h:mm a')}
-                    </span>
+                    </h3>
+                    <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
                   </div>
-                  <p className="text-sm text-gray-500 truncate mt-1">
-                    {conversation.lastMessage}
-                  </p>
-                  {conversation.unread && (
-                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full ml-1"></span>
-                  )}
-                </li>
-              ))}
-            </ul>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500">
+                      {format(new Date(conversation.lastMessageTime), 'MMM d, h:mm a')}
+                    </p>
+                    {conversation.unread && (
+                      <span className="inline-block w-2 h-2 bg-primary rounded-full mt-1"></span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>
-      
-      {/* Right side - Message Display and Composer */}
+
+      {/* Message Display */}
       <div className="flex-1 flex flex-col">
         {selectedConversation ? (
           <>
-            {/* Conversation header */}
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
-                  {selectedConversation.customerName || selectedConversation.phoneNumber}
-                </h3>
-                {selectedConversation.customerName && (
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-semibold">
+                    {selectedConversation.customerName || selectedConversation.phoneNumber}
+                  </h2>
                   <p className="text-sm text-gray-500">{selectedConversation.phoneNumber}</p>
-                )}
-              </div>
-              
-              <div className="flex space-x-2">
-                <button 
-                  onClick={handleExportConversation}
-                  className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                  title="Export conversation"
-                >
-                  <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Export
-                </button>
-                
-                <button 
-                  className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                  title="Message actions"
-                >
-                  <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                  </svg>
-                </button>
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setShowTemplates(!showTemplates)}
+                    className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Templates
+                  </button>
+                  <button
+                    onClick={handleExportConversation}
+                    className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Export
+                  </button>
+                </div>
               </div>
             </div>
-            
-            {/* Message display */}
-            <MessageDisplay 
-              messages={selectedConversation.messages} 
+
+            <MessageDisplay
+              messages={selectedConversation.messages}
               customerName={selectedConversation.customerName}
               phoneNumber={selectedConversation.phoneNumber}
+              onMarkAsRead={() => handleMarkAsRead(selectedConversation.id)}
             />
-            
-            {/* Message composer */}
-            <div className="p-4 border-t border-gray-200 bg-white">
-              <div className="flex space-x-2 mb-2">
-                <button 
-                  onClick={() => setShowTemplates(!showTemplates)}
-                  className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                  </svg>
-                  Templates
-                </button>
-              </div>
-              
-              {showTemplates && (
-                <TemplateSelector 
-                  templates={templates} 
-                  onSelectTemplate={handleApplyTemplate}
-                />
-              )}
-              
-              <MessageComposer onSendMessage={handleSendMessage} />
-            </div>
+
+            <MessageComposer
+              onSendMessage={handleSendMessage}
+              to={selectedConversation.phoneNumber}
+            />
           </>
         ) : (
-          <div className="flex-1 flex justify-center items-center text-gray-500">
-            Select a conversation to view messages
+          <div className="flex-1 flex items-center justify-center text-gray-500">
+            Select a conversation or start a new one
           </div>
         )}
       </div>
+
+      {/* Template Selector Modal */}
+      {showTemplates && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Message Templates</h2>
+              <button
+                onClick={() => setShowTemplates(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <TemplateSelector
+              templates={templates}
+              onSelectTemplate={handleApplyTemplate}
+              onClose={() => setShowTemplates(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

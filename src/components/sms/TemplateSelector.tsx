@@ -4,9 +4,10 @@ import { MessageTemplate } from './MessagingInbox';
 interface TemplateSelectorProps {
   templates: MessageTemplate[];
   onSelectTemplate: (template: MessageTemplate) => string;
+  onClose: () => void;
 }
 
-const TemplateSelector: React.FC<TemplateSelectorProps> = ({ templates, onSelectTemplate }) => {
+const TemplateSelector: React.FC<TemplateSelectorProps> = ({ templates, onSelectTemplate, onClose }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 

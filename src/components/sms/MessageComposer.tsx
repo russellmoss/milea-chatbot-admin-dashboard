@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 interface MessageComposerProps {
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, to?: string) => void;
   initialText?: string;
+  to?: string;
 }
 
-const MessageComposer: React.FC<MessageComposerProps> = ({ onSendMessage, initialText = '' }) => {
+const MessageComposer: React.FC<MessageComposerProps> = ({ onSendMessage, initialText = '', to }) => {
   const [message, setMessage] = useState(initialText);
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -32,7 +33,7 @@ const MessageComposer: React.FC<MessageComposerProps> = ({ onSendMessage, initia
     
     try {
       setIsSending(true);
-      await onSendMessage(message);
+      await onSendMessage(message, to);
       setMessage('');
     } catch (error) {
       console.error('Error sending message:', error);

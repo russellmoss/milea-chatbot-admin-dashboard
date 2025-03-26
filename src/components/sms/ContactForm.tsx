@@ -14,6 +14,7 @@ export interface Contact {
   lists?: string[];
   createdAt?: string;
   updatedAt?: string;
+  lastContact?: string;
 }
 
 interface ContactFormProps {
@@ -58,7 +59,8 @@ const ContactForm: React.FC<ContactFormProps> = ({
         birthdate: contact.birthdate || '',
         tags: contact.tags || [],
         notes: contact.notes || '',
-        lists: contact.lists || []
+        lists: contact.lists || [],
+        lastContact: contact.lastContact || ''
       });
     }
   }, [contact]);
