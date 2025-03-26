@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { Contact } from './ContactForm';
+import { Contact } from '../../types/sms';
 import { Message } from './MessagingInbox';
 
 interface ContactDetailProps {
   contact: Contact;
   messageHistory?: Message[];
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit: (contact: Contact) => void;
+  onDelete: (contact: Contact) => void;
   onSendMessage: (phoneNumber: string) => void;
   onAddToList?: () => void;
   onRemoveFromList?: () => void;
-  onToggleOptStatus: (status: boolean) => void;
+  onToggleOptStatus: (contact: Contact, status: boolean) => void;
   isLoading?: boolean;
 }
 
@@ -68,7 +68,7 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
   // Handle delete confirmation
   const handleDelete = () => {
     setShowDeleteConfirm(false);
-    onDelete();
+    onDelete(contact);
   };
 
   return (
@@ -92,7 +92,7 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
               Message
             </button>
             <button
-              onClick={onEdit}
+              onClick={() => onEdit(contact)}
               className="inline-flex items-center px-3 py-1 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-light hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-primary focus:ring-white"
             >
               <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -199,7 +199,7 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
                             </span>
                           )}
                           <button
-                            onClick={() => onToggleOptStatus(!contact.optIn)}
+                            onClick={() => onToggleOptStatus(contact, !contact.optIn)}
                             className="ml-2 text-sm text-primary hover:text-primary-dark"
                           >
                             Change

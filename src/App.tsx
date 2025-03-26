@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { SMSProvider } from './contexts/SMSContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './pages/Login';
 import DashboardLayout from './components/dashboard/DashboardLayout';
@@ -27,7 +28,14 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="feedback" element={<Feedback />} />
             <Route path="knowledge" element={<KnowledgeBase />} />
-            <Route path="sms" element={<SMS />} />
+            <Route 
+              path="sms" 
+              element={
+                <SMSProvider>
+                  <SMS />
+                </SMSProvider>
+              } 
+            />
             <Route path="analytics" element={<Analytics />} />
           </Route>
           

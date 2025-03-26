@@ -5,28 +5,28 @@ interface ContactListProps {
   contacts: Contact[];
   onSelectContact: (contact: Contact) => void;
   onCreateContact: () => void;
-  onImportContacts: () => void;
-  onCreateList: () => void;
+  onSelectList: (list: string) => void;
+  listNames: string[];
+  selectedList: string;
+  onImportContacts?: () => void;
+  onCreateList?: () => void;
   selectedContact?: Contact;
   isLoading?: boolean;
   error?: string | null;
-  listNames?: string[]; // Available contact lists
-  selectedList?: string; // Currently selected list
-  onSelectList?: (listName: string) => void; // Handler for list selection
 }
 
 const ContactList: React.FC<ContactListProps> = ({
   contacts,
   onSelectContact,
   onCreateContact,
+  onSelectList,
+  listNames,
+  selectedList,
   onImportContacts,
   onCreateList,
   selectedContact,
   isLoading = false,
-  error = null,
-  listNames = [],
-  selectedList = 'All Contacts',
-  onSelectList
+  error = null
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<'name' | 'phone' | 'date'>('name');
@@ -126,15 +126,17 @@ const ContactList: React.FC<ContactListProps> = ({
               </svg>
               New Contact
             </button>
-            <button
-              onClick={onImportContacts}
-              className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-              </svg>
-              Import
-            </button>
+            {onImportContacts && (
+              <button
+                onClick={onImportContacts}
+                className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+                Import
+              </button>
+            )}
           </div>
         </div>
         
@@ -159,7 +161,7 @@ const ContactList: React.FC<ContactListProps> = ({
             <select
               className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
               value={selectedList}
-              onChange={(e) => onSelectList && onSelectList(e.target.value)}
+              onChange={(e) => onSelectList(e.target.value)}
             >
               <option value="All Contacts">All Contacts</option>
               {listNames.map(listName => (
@@ -167,14 +169,16 @@ const ContactList: React.FC<ContactListProps> = ({
               ))}
             </select>
             
-            <button
-              onClick={onCreateList}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-            >
-              <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-            </button>
+            {onCreateList && (
+              <button
+                onClick={onCreateList}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+              >
+                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>
