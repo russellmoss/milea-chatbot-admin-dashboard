@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Chart as ChartJS, 
   CategoryScale, 
@@ -109,7 +109,18 @@ const QualityMetricsDashboard: React.FC = () => {
       }
     ]
   };
-  
+
+  // Common chart options
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+    },
+  };
+
   return (
     <div className="space-y-6">
       {/* Top metrics cards */}
@@ -178,29 +189,33 @@ const QualityMetricsDashboard: React.FC = () => {
         {/* Quality Index Trend */}
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h3 className="text-lg font-medium text-primary mb-4">Quality Index Trend</h3>
-          <Line data={qualityIndexData} options={{
-            responsive: true,
-            scales: {
-              y: {
-                beginAtZero: false,
-                min: 7,
-                max: 10
+          <div className="h-64">
+            <Line data={qualityIndexData} options={{
+              ...chartOptions,
+              scales: {
+                y: {
+                  beginAtZero: false,
+                  min: 7,
+                  max: 10
+                }
               }
-            }
-          }} />
+            }} />
+          </div>
         </div>
         
         {/* Response Time Trend */}
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h3 className="text-lg font-medium text-primary mb-4">Response Time Trend</h3>
-          <Bar data={responseTimeData} options={{
-            responsive: true,
-            scales: {
-              y: {
-                beginAtZero: true
+          <div className="h-64">
+            <Bar data={responseTimeData} options={{
+              ...chartOptions,
+              scales: {
+                y: {
+                  beginAtZero: true
+                }
               }
-            }
-          }} />
+            }} />
+          </div>
         </div>
         
         {/* Query Type Distribution */}
@@ -208,9 +223,9 @@ const QualityMetricsDashboard: React.FC = () => {
           <h3 className="text-lg font-medium text-primary mb-4">Query Type Distribution</h3>
           <div className="h-64">
             <Doughnut data={queryTypeData} options={{
-              responsive: true,
-              maintainAspectRatio: false,
+              ...chartOptions,
               plugins: {
+                ...chartOptions.plugins,
                 legend: {
                   position: 'right'
                 }
@@ -224,8 +239,7 @@ const QualityMetricsDashboard: React.FC = () => {
           <h3 className="text-lg font-medium text-primary mb-4">Performance by Category</h3>
           <div className="h-64">
             <Radar data={categoryPerformanceData} options={{
-              responsive: true,
-              maintainAspectRatio: false,
+              ...chartOptions,
               scales: {
                 r: {
                   min: 5,
@@ -251,84 +265,60 @@ const QualityMetricsDashboard: React.FC = () => {
                   Category
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quality Score
+                  Current Score
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Avg. Response Time
+                  Target Score
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Negative Feedback %
+                  Gap
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Trend
+                  Action Items
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               <tr>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="font-medium text-gray-900">Reservations</div>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  Reservations
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-yellow-600 bg-yellow-100 py-1 px-2 rounded-full text-xs font-medium">7.8/10</span>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  7.8/10
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  3.1s
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  8.5/10
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  14%
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                  -0.7
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-red-600">
-                  <span className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                    </svg>
-                    Declining
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="font-medium text-gray-900">Other Queries</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-yellow-600 bg-yellow-100 py-1 px-2 rounded-full text-xs font-medium">7.5/10</span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  2.8s
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  12%
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                  <span className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
-                    </svg>
-                    Stable
-                  </span>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <ul className="list-disc list-inside">
+                    <li>Improve booking flow clarity</li>
+                    <li>Add more reservation time slots</li>
+                    <li>Enhance confirmation process</li>
+                  </ul>
                 </td>
               </tr>
               <tr>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="font-medium text-gray-900">Events</div>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  Events
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-green-600 bg-green-100 py-1 px-2 rounded-full text-xs font-medium">8.3/10</span>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  8.3/10
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  2.5s
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  9.0/10
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  9%
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                  -0.7
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-green-600">
-                  <span className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                    </svg>
-                    Improving
-                  </span>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <ul className="list-disc list-inside">
+                    <li>Update event calendar</li>
+                    <li>Add more event details</li>
+                    <li>Improve ticket booking process</li>
+                  </ul>
                 </td>
               </tr>
             </tbody>

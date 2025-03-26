@@ -108,7 +108,7 @@ const SAMPLE_CONVERSATIONS = [
   }
 ];
 
-const ResponseCoach = () => {
+const ResponseCoach: React.FC = () => {
   const [filter, setFilter] = useState('all');
   const [selectedConversation, setSelectedConversation] = useState(SAMPLE_CONVERSATIONS[0]);
   const [improvedResponse, setImprovedResponse] = useState('');
