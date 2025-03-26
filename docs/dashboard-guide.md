@@ -1,170 +1,102 @@
 # WineAccess Dashboard Implementation Guide
 
-This guide provides a comprehensive, step-by-step approach to building the WineAccess dashboard, following the architecture specified in the design document. Since you've already completed Phases 1 and 2 (Project Setup, Authentication, and Dashboard Layout & Navigation), this guide continues with the remaining phases.
+This guide provides a comprehensive, step-by-step approach to building the WineAccess dashboard, following the architecture specified in the design document. Since you've already completed the initial setup with a sidebar containing Overview, Feedback, Knowledge Base, SMS, and Analytics options, this guide will help you expand and enhance each section to match the detailed requirements in the architecture document.
 
-## Phase 3: Overview Dashboard
+## Phase 3: Enhancing the Overview Dashboard
 
-### Step 1: Key Metrics Section
+Your current Dashboard.tsx has some basic elements in place. Let's enhance it to match the architecture document:
 
-1. Create metric card components
-   - Design reusable card component with trend indicators
-   - Implement the following metrics cards:
-     - Conversation Count (with trend indicator)
-     - Successful Resolutions (with trend indicator)
+### Step 1: Expand Key Metrics Section
+
+1. Update the existing metric cards
+   - Modify the three existing cards to match the architecture requirements:
+     - Conversation Count (with trend indicator) - Already implemented
+     - Successful Resolutions/Resolution Rate - Already implemented
+     - Data Capture Rate - Already implemented
+   - Add two additional metric cards:
      - Interaction Quality Index (with color-coded status)
-     - Data Capture Rate
      - Wine Club Conversion Rate
-   - Add hover effects that show additional details
+   - Enhance the cards with custom styling to match the WineAccess color scheme
 
-2. Implement time series graph
-   - Create an interactive chart component using Recharts
-   - Implement conversations and resolutions time series
-   - Add date range selector with presets (Last 7 days, Last 30 days, etc.)
-   - Include custom range option with date pickers
-   - Implement export buttons for CSV/PDF formats
+2. Improve the time series graph
+   - Update the existing Line chart to include more detailed data
+   - Add date range selector with the following options:
+     - Last 7 days
+     - Last 30 days
+     - Last quarter
+     - Custom date range
+   - Implement export functionality (CSV/PDF)
+   - Add tooltip enhancements for better data exploration
 
-### Step 2: Alerts Panel
+### Step 2: Create Alerts Panel
 
-1. Create alerts component
-   - Design priority-sorted alerts list with color-coding
-   - Implement filtering functionality by alert category
-   - Add "Mark as Read" and "Dismiss" actions
-   - Create click-through navigation to relevant sections
+1. Implement a dedicated alerts section
+   - Create a component for priority-sorted alerts
+   - Implement color-coding based on urgency levels
+   - Add functionality to navigate to relevant sections on click
+   - Create filter controls by category (Business, Knowledge, System)
 
-### Step 3: Quick Actions Panel
+### Step 3: Enhance Quick Actions
 
-1. Implement quick actions buttons
-   - Design action buttons for common tasks:
-     - Sync Knowledge Base
-     - Send Bulk Message
-     - View Recent Conversions
-     - Review Negative Feedback
-   - Add appropriate icons and hover effects
-   - Implement action handlers that navigate to the corresponding sections
+1. Update the existing Quick Actions panel
+   - Replace generic placeholder buttons with specific actions:
+     - Sync Knowledge Base (navigate to Knowledge Base section)
+     - Send Bulk Message (navigate to SMS section)
+     - View Recent Conversions (filter Dashboard view)
+     - Review Negative Feedback (navigate to Feedback section)
+   - Add appropriate icons and improve styling to match the design language
 
-## Phase 4: Business Section
+## Phase 4: Expand Feedback Section (Response Refinement)
 
-### Step 1: Data Capture Dashboard
-
-1. Implement key metrics display
-   - Create Data Capture Rate visualization with percentage and trend
-   - Add Net Capture metrics showing total emails/phones captured
-   - Implement month-over-month comparison chart
-
-2. Build contact list table
-   - Create a responsive data table component with the following features:
-     - Searchable by name/email/phone
-     - Sortable by any column
-     - Pagination controls
-     - Export functionality (CSV, Excel)
-   - Implement columns for Name, Email, Phone, Date Captured
-   - Add filter controls for date range
-
-3. Create conversion funnel visualization
-   - Implement a funnel chart showing progression from:
-     - Visitor → Captured Contact → Member
-   - Add percentage indicators at each stage
-   - Include hover state with detailed metrics
-
-### Step 2: Wine Club Conversion
-
-1. Create conversion metrics components
-   - Implement Club Conversion Rate card with percentage display
-   - Add Net Club Members count with trend indicator
-   - Create a time series chart showing conversion trends
-
-2. Build member table
-   - Implement a data table for converted members with:
-     - Sortable columns (Join Date, Membership Type, etc.)
-     - Filter controls
-     - Export functionality
-   - Add detailed view modal for member information
-
-3. Create membership distribution visualization
-   - Implement a pie or donut chart showing:
-     - Breakdown of different membership tiers
-     - Percentage and count for each tier
-   - Add interactive legend with hover effects
-
-### Step 3: Reservations Dashboard
-
-1. Create reservation metrics section
-   - Implement Reservation Rate percentage card
-   - Add Total Reservations counter with trend
-   - Create timeline chart highlighting peak reservation times
-
-2. Build comparison chart
-   - Implement bar chart comparing:
-     - Chatbot-driven reservations
-     - Direct website reservations
-   - Add toggles for different time periods
-
-3. Create click-through analysis visualization
-   - Design heatmap showing performance of reservation links
-   - Segment by context/location where links appear
-   - Include performance metrics and recommendations
-
-## Phase 5: Response Refinement Section
+Your current Feedback.tsx is a placeholder. Let's expand it to match the "Response Refinement" section in the architecture:
 
 ### Step 1: Quality Metrics Dashboard
 
 1. Create performance visualization components
-   - Implement detailed breakdown of Interaction Quality Index
-   - Add response time metrics with acceptable range indicators
-   - Create query type distribution chart (pie/donut)
-   - Implement color-coded visualization of:
-     - Top-performing response categories
-     - Problematic response categories
+   - Implement Interaction Quality Index breakdown chart
+   - Add response time metrics display
+   - Create query type distribution visualization (pie/donut chart)
+   - Add top-performing and problematic response categories
 
 2. Build trends analysis section
-   - Implement time-series chart for quality metrics over time
-   - Add benchmarking visualization (if available)
-   - Create anomaly detection indicators for unusual patterns
+   - Implement time-series charts for quality metrics
+   - Add benchmark comparison functionality
+   - Create anomaly detection indicators
 
 ### Step 2: Response Coach Interface
 
 1. Create email-like interface
-   - Implement sidebar with filter categories:
+   - Implement sidebar with filters:
      - Negative Ratings
      - Contact Requests
      - Knowledge Gaps
-   - Build conversation preview list with:
-     - Conversation snippet
-     - Rating/issue indicator
-     - Date/time stamp
+   - Build conversation preview list
 
-2. Build conversation panel
-   - Create component to display:
-     - Original user query
-     - Chatbot response with negative feedback
-     - User feedback (if provided)
-     - Conversation context (previous messages)
-   - Implement highlighting for problematic parts of responses
+2. Implement conversation panel
+   - Create component to display original query and response
+   - Add user feedback display
+   - Show conversation context
 
-3. Create training interface
-   - Implement rich text editor for ideal responses
-   - Add tagging system for issue classification
-   - Create submission button to add corrections to training set
-   - Add "Mark as Resolved" functionality to clear from queue
+3. Build training interface
+   - Implement response editor
+   - Add issue classification system
+   - Create submission controls for training data
 
-4. Implement response history section
-   - Create timeline visualization of improvements for similar queries
-   - Add before/after comparison view
-   - Implement metrics showing improvement over time
-
-### Step 3: Knowledge Gaps
+### Step 3: Knowledge Gaps Section
 
 1. Create detection dashboard
-   - Implement table of AI-identified knowledge gaps
-   - Add frequency and impact metrics for each gap
-   - Create domain/category suggestions for each gap
+   - Implement AI-identified knowledge gaps table
+   - Add frequency and impact metrics
+   - Create domain/category suggestions
 
 2. Build action panel
-   - Implement direct links to create missing knowledge content
-   - Add dismissal functionality for false positives
-   - Create status tracking for gap resolution
+   - Create direct links to knowledge content creation
+   - Implement false positive dismissal
+   - Add resolution status tracking
 
-## Phase 6: Knowledge Management
+## Phase 5: Expand Knowledge Base Section
+
+Your current KnowledgeBase.tsx is a placeholder. Let's expand it to match the architecture:
 
 ### Step 1: Domain Explorer
 
@@ -175,27 +107,27 @@ This guide provides a comprehensive, step-by-step approach to building the WineA
      - Visiting
      - Other main categories
    - Add file count and last updated indicators
-   - Create search functionality across all domains
-   - Implement drag-and-drop organization (if applicable)
+   - Create global search functionality
+   - Implement domain organization controls
 
 2. Build file browser
-   - Create list/grid toggle view for domain files
-   - Implement preview panel for content review
-   - Add metadata display (creation/modification dates)
-   - Create sorting and filtering controls
+   - Create list/grid toggle view for files
+   - Implement preview panel
+   - Add metadata display
+   - Create file sorting and filtering controls
 
 ### Step 2: Markdown Editor
 
 1. Implement rich text editor
    - Set up markdown editor with syntax highlighting
-   - Create side-by-side preview pane
-   - Add toolbar with common formatting options
+   - Create live preview pane
+   - Add formatting toolbar
    - Implement autosave functionality
 
 2. Create version history viewer
-   - Implement timeline of document versions
-   - Add diff viewer to highlight changes between versions
-   - Create restore functionality for previous versions
+   - Implement document version timeline
+   - Create diff viewer
+   - Add version restore functionality
 
 ### Step 3: Sync Controls
 
@@ -203,180 +135,239 @@ This guide provides a comprehensive, step-by-step approach to building the WineA
    - Implement last sync timestamps for:
      - Website content
      - Commerce7 Products
-   - Add health status indicators with color-coding
+   - Add health status indicators
 
 2. Build manual sync controls
    - Create sync buttons with progress indicators
-   - Implement schedule settings for automatic syncs
-   - Add confirmation dialogs for manual sync actions
+   - Implement scheduling options
+   - Add confirmation dialogs
 
 3. Implement sync history log
-   - Create table of recent sync operations
-   - Add success/failure indicators
-   - Implement expandable details showing changes
-   - Add revert functionality for problematic syncs
+   - Create recent syncs table
+   - Add status indicators
+   - Implement change details view
+   - Create revert functionality
 
-## Phase 7: Text Messaging
+## Phase 6: Expand SMS Section (Text Messaging)
+
+Your current SMS.tsx is a placeholder. Let's expand it to match the architecture:
 
 ### Step 1: Messaging Inbox
 
 1. Create email-like interface
-   - Implement left panel with conversation threads
-   - Build main panel for selected conversation
-   - Add search functionality for conversations
-   - Create filter controls (read/unread, archived)
+   - Implement conversation threads list
+   - Build message display panel
+   - Add search and filtering functionality
 
 2. Build conversation view
-   - Implement threaded message display with timestamps
-   - Create quick reply interface
-   - Add template selector for common responses
-   - Implement rich text formatting options
+   - Create threaded message display
+   - Implement quick reply interface
+   - Add template selector
+   - Create rich text formatting controls
 
-3. Create action toolbar
-   - Add Archive/Delete buttons
-   - Implement Mark as Read/Unread functionality
-   - Create "Add to Contact List" action
-   - Add export conversation functionality
+3. Implement action toolbar
+   - Add message management actions
+   - Create contact list integration
+   - Implement export functionality
 
 ### Step 2: Contact Lists Management
 
 1. Create list management interface
-   - Implement CRUD operations for contact lists
-   - Add bulk operations for contacts (add/remove)
+   - Implement CRUD operations for lists
+   - Add contact management controls
    - Create import/export functionality
-   - Add list merging capability
+   - Add list merging tools
 
 2. Build contact details view
-   - Create individual contact profiles
-   - Implement message history timeline
+   - Create contact profiles
+   - Implement message history
    - Add notes and tagging system
-   - Create opt-in/opt-out status controls
+   - Create opt-in/opt-out controls
 
 ### Step 3: Bulk Messaging
 
 1. Implement message composer
-   - Create rich text editor for messages
-   - Build template library with saved templates
-   - Add personalization token system (first name, etc.)
-   - Implement character count and segment calculator
+   - Create rich text editor
+   - Build template library
+   - Add personalization system
+   - Implement character counter
 
 2. Create recipient selection
    - Implement list-based targeting
-   - Add custom filter controls
-   - Create recipient preview count
-   - Add exclusion rules for recent contacts
+   - Add custom filtering
+   - Create recipient preview
+   - Implement exclusion rules
 
 3. Build scheduling controls
-   - Create immediate send option
-   - Implement date/time scheduler
-   - Add recurring message options
-   - Create time zone settings
+   - Create immediate/scheduled options
+   - Implement date/time picker
+   - Add recurring message settings
+   - Create time zone controls
 
 4. Implement campaign history
-   - Create table of past bulk messages
-   - Add performance metrics (delivery/open/response)
-   - Implement A/B testing results view (if applicable)
+   - Create past campaigns table
+   - Add performance metrics
+   - Implement detailed campaign view
 
-## Phase 8: Billing & Usage (Admin Only)
+## Phase 7: Expand Analytics Section
+
+Your current Analytics.tsx is a placeholder. Based on the architecture, this should cover business metrics in detail:
+
+### Step 1: Business Metrics Overview
+
+1. Create consolidated metrics dashboard
+   - Implement high-level KPIs from all business areas
+   - Add trend indicators for each metric
+   - Create period comparison functionality
+   - Build custom report creation tool
+
+### Step 2: Data Capture Analytics
+
+1. Implement capture metrics
+   - Create Data Capture Rate visualization
+   - Add Net Capture metrics with trends
+   - Implement month-over-month comparison
+   - Create conversion funnel visualization
+
+2. Build contact analytics
+   - Implement contacts table with advanced filtering
+   - Add demographic analysis (if available)
+   - Create contact source breakdown
+   - Implement export functionality
+
+### Step 3: Wine Club Conversion Analytics
+
+1. Create conversion visualization
+   - Implement Club Conversion Rate charts
+   - Add membership distribution
+   - Create time-based analysis tools
+   - Build membership tier breakdown
+
+### Step 4: Reservations Analytics
+
+1. Implement reservation metrics
+   - Create reservation timeline charts
+   - Add peak time visualization
+   - Implement comparison with direct bookings
+   - Create click-through analysis
+
+## Phase 8: Add Billing & Usage Section (Admin Only)
+
+This section isn't in your current sidebar but is in the architecture. Consider adding it with proper access controls:
 
 ### Step 1: Usage Dashboard
 
 1. Create usage visualization
-   - Implement current period consumption metrics
-   - Add usage bar showing percentage of allocation
-   - Create projected usage based on current trends
-   - Implement warning indicators for approaching limits
-
-2. Build historical usage section
-   - Create monthly consumption trends chart
-   - Add breakdown by interaction type
-   - Implement cost analysis visualization
+   - Implement consumption metrics
+   - Add usage progress bars
+   - Create trend projections
+   - Implement limit warnings
 
 ### Step 2: Payment Controls
 
-1. Create account balance section
-   - Implement current balance display
-   - Build "Add Funds" interface
+1. Create account management
+   - Implement balance display
+   - Build payment interface
    - Create payment method management
-
-2. Implement billing history
-   - Create table of past invoices/payments
-   - Add downloadable invoice functionality
-   - Implement subscription details display
+   - Add subscription controls
 
 ## Phase 9: Integration & Polishing
 
-### Step 1: API Integration Preparation
+### Step 1: Unified State Management
 
-1. Create service layer
-   - Implement API client for each dashboard section
-   - Create data transformation utilities
-   - Add error handling and retry logic
+1. Implement global state solution
+   - Set up Redux or Context API for shared state
+   - Create data fetching middleware
+   - Add caching strategies
+   - Implement optimistic updates
 
-2. Implement loading states
-   - Create consistent loading indicators
-   - Add skeleton screens for data-heavy components
-   - Implement error states with retry options
+2. Refine data flow
+   - Normalize data structures
+   - Add efficient update patterns
+   - Implement proper loading states
+   - Create error handling strategies
 
-### Step 2: Visual Polishing
+### Step 2: Visual Consistency
 
-1. Apply consistent styling
-   - Ensure all components follow the WineAccess design system:
+1. Apply the WineAccess design system
+   - Ensure consistent use of the color palette:
      - Background: #D8D1AE or #EFE8D4
      - Card backgrounds: #F9F4E9
      - Primary text: #715100
      - Headings and buttons: #5A3E00
      - Hover states: #3D2900
    - Verify font usage: 'Gilda Display' for headings, Inter for body
+   - Create shared component library
+   - Implement consistent spacing system
 
 2. Add animations and transitions
-   - Implement subtle loading transitions
-   - Add micro-interactions for better feedback
-   - Create smooth page transitions
+   - Create subtle loading indicators
+   - Implement micro-interactions
+   - Add page transitions
+   - Create feedback animations
 
-### Step 3: Testing & Optimization
+### Step 3: Responsive Optimization
 
-1. Implement comprehensive testing
+1. Enhance mobile experience
+   - Test and refine responsive layouts
+   - Create mobile-specific interaction patterns
+   - Optimize touch targets
+   - Implement responsive data visualizations
+
+## Phase 10: Testing & Documentation
+
+### Step 1: Comprehensive Testing
+
+1. Implement test suite
    - Create unit tests for key components
-   - Add integration tests for complex workflows
-   - Perform cross-browser testing
+   - Build integration tests for workflows
+   - Implement end-to-end testing
+   - Add performance testing
 
-2. Optimize performance
-   - Implement code splitting for faster initial load
-   - Add virtualization for large data tables
-   - Optimize bundle size
+### Step 2: Documentation
 
-3. Improve accessibility
-   - Ensure proper keyboard navigation
-   - Add screen reader support
-   - Implement appropriate ARIA attributes
+1. Create user documentation
+   - Implement in-app help system
+   - Create user guides for each section
+   - Add tooltips and contextual help
+   - Build video tutorials
 
-## Phase 10: Documentation & Handoff
-
-### Step 1: User Documentation
-
-1. Create admin guide
-   - Document each dashboard section
-   - Add step-by-step instructions for common tasks
-   - Create troubleshooting section
-
-2. Build in-app help
-   - Implement contextual help tooltips
-   - Add guided tours for new users
-   - Create searchable help documentation
-
-### Step 2: Developer Documentation
-
-1. Document codebase
-   - Create component documentation
-   - Add API integration details
-   - Document state management approach
-
-2. Prepare for backend integration
-   - Define expected API contracts
-   - Create mock service implementations
-   - Document authentication flow
+2. Add developer documentation
+   - Document component API
+   - Create architectural overview
+   - Add setup instructions
+   - Build contribution guidelines
 
 ---
 
-This implementation guide provides a detailed roadmap for completing the WineAccess dashboard according to the specified architecture. Each phase builds upon the previous ones, with a focus on creating a cohesive, user-friendly experience that meets all the requirements outlined in the dashboard architecture document.
+## Implementation Approach
+
+For each component in the phases above, follow this development workflow:
+
+1. **Create Component Structure**
+   - Build the component skeleton
+   - Define props and state
+   - Establish data flow
+
+2. **Implement Core Functionality**
+   - Add business logic
+   - Implement data manipulation
+   - Create interaction handlers
+
+3. **Style the Component**
+   - Apply WineAccess design system
+   - Implement responsive behavior
+   - Add accessibility features
+
+4. **Add Refinements**
+   - Implement loading states
+   - Add error handling
+   - Create animations
+   - Optimize performance
+
+5. **Test and Document**
+   - Write tests
+   - Add component documentation
+   - Create usage examples
+
+This implementation guide provides a detailed roadmap for enhancing your existing dashboard components to match the comprehensive architecture specified in the design document. Each phase builds upon your current setup, focusing on creating a cohesive, feature-rich dashboard that fully aligns with the WineAccess requirements.
