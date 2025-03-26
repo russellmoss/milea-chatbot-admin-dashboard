@@ -26,6 +26,7 @@ interface SMSContextState {
   campaigns: any[]; // Replace with proper Campaign type when available
   campaignsLoading: boolean;
   campaignsError: string | null;
+  lists: string[]; // Add lists property
 }
 
 // Define the context actions/functions
@@ -75,7 +76,8 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
     error: null,
     campaigns: [],
     campaignsLoading: false,
-    campaignsError: null
+    campaignsError: null,
+    lists: [] // Initialize empty lists array
   });
 
   // Load mock data
@@ -351,7 +353,8 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       error: null,
       campaigns: [],
       campaignsLoading: false,
-      campaignsError: null
+      campaignsError: null,
+      lists: []
     });
   }, []);
   
