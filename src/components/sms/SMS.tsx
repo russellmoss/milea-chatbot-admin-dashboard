@@ -41,63 +41,13 @@ const SMS: React.FC = () => {
     sendMessage,
     markConversationAsRead,
     handleArchiveToggle,
-    setSelectedConversation
+    setSelectedConversation,
+    fetchMessages,
+    isLoading
   } = useSMS();
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
   const [selectedFolder, setSelectedFolder] = useState('inbox');
   const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    if (!socket) return;
-
-    // Listen for new messages
-    socket.on('new-message', (message: Message) => {
-      // Update conversations with the new message
-      const updatedConversations = conversations.map(conv => {
-        if (conv.phoneNumber === (message as any).phoneNumber) {
-          return {
-            ...conv,
-            messages: [...conv.messages, message],
-            lastMessageAt: message.timestamp,
-            timestamp: message.timestamp,
-            unreadCount: message.direction === 'inbound' ? (conv.unreadCount || 0) + 1 : conv.unreadCount
-          };
-        }
-        return conv;
-      });
-      const updatedConversation = updatedConversations.find(conv => conv.phoneNumber === (message as any).phoneNumber) || null;
-      setSelectedConversation(updatedConversation);
-    });
-
-    // Listen for message read status updates
-    socket.on('message-read', (messageId: string) => {
-      const currentConversation = conversations.find(conv => conv.messages.some(msg => msg.id === messageId));
-      if (currentConversation) {
-        markConversationAsRead(currentConversation.id);
-      }
-    });
-
-    // Listen for message status updates
-    socket.on('message-status-update', ({ messageId, status }: { messageId: string; status: Message['status'] }) => {
-      // Update message status in the conversations
-      const updatedConversations = conversations.map(conv => {
-        const updatedMessages = conv.messages.map(msg =>
-          msg.id === messageId ? { ...msg, status } : msg
-        );
-        return {
-          ...conv,
-          messages: updatedMessages
-        };
-      });
-      setSelectedConversation(updatedConversations.find(conv => conv.messages.some(msg => msg.id === messageId)) || null);
-    });
-
-    return () => {
-      socket.off('new-message');
-      socket.off('message-read');
-      socket.off('message-status-update');
-    };
-  }, [socket, conversations, markConversationAsRead, setSelectedConversation]);
 
   const handleSendMessage = async (content: string) => {
     const currentConversation = conversations.find(conv => conv.id === selectedConversations.values().next().value);
@@ -163,6 +113,33 @@ const SMS: React.FC = () => {
         isExpanded={true}
       />
       <div className="flex-1 flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Messages</h2>
+          <button
+            onClick={fetchMessages}
+            disabled={isLoading}
+            className={`inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh Messages
+              </>
+            )}
+          </button>
+        </div>
         <ConversationList
           conversations={filteredConversations}
           selectedConversations={selectedConversations}

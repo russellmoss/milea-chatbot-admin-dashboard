@@ -6,6 +6,9 @@ import {
   Contact, 
   BulkMessageCampaign 
 } from '../types/sms';
+import io, { Socket } from 'socket.io-client';
+import { useSocket } from './SocketContext';
+import { useAuth } from './AuthContext';
 
 // Mock data for development purposes
 import { 
@@ -29,6 +32,7 @@ export interface SMSContextType {
   setConversations: (conversations: Conversation[]) => void;
   setSelectedConversation: (conversation: Conversation | null) => void;
   handleArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
+  fetchMessages: () => Promise<void>;
 }
 
 // Define the context actions/functions
@@ -38,6 +42,7 @@ interface SMSContextActions {
   createConversation: (phoneNumber: string, initialMessage: string) => Promise<void>;
   sendMessage: (content: string, to: string) => Promise<void>;
   markConversationAsRead: (conversationId: string) => Promise<void>;
+  addIncomingMessage: (message: Message & { phoneNumber: string }) => Promise<void>;
   
   // Contact actions
   selectContact: (contactId: string) => void;
@@ -54,6 +59,7 @@ interface SMSContextActions {
   
   // Reset state
   resetState: () => void;
+  fetchMessages: () => Promise<void>;
 }
 
 // Combine state and actions
@@ -96,30 +102,59 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
     createList: async () => {},
     addContactToList: async () => {},
     removeContactFromList: async () => {},
-    resetState: () => {}
+    resetState: () => {},
+    addIncomingMessage: async () => {},
+    fetchMessages: async () => {}
   });
 
-  // Load mock data
-  const loadMockData = useCallback(async () => {
-    try {
-      setState(prev => ({ ...prev, campaignsLoading: true }));
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setState(prev => ({
-        ...prev,
-        campaigns: [],
-        campaignsLoading: false
-      }));
-    } catch (error) {
-      console.error('Error loading mock data:', error);
-      setState(prev => ({
-        ...prev,
-        campaignsError: 'Failed to load campaigns',
-        campaignsLoading: false
-      }));
-    }
-  }, []);
-  
+  const { socket } = useSocket();
+  const { currentUser } = useAuth();
+
+  // Load initial messages
+  useEffect(() => {
+    const loadInitialMessages = async () => {
+      if (!currentUser) return;
+
+      try {
+        setState(prev => ({ ...prev, isLoading: true }));
+        
+        // Get the backend URL from environment variables or use ngrok URL
+        const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://milea-chatbot.ngrok.io';
+        
+        // Get the user's ID token
+        const token = await currentUser.getIdToken();
+        
+        // Fetch messages from the backend with authentication
+        const response = await fetch(`${backendUrl}/api/messages`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const messages = await response.json();
+        
+        setState(prev => ({
+          ...prev,
+          conversations: messages,
+          isLoading: false
+        }));
+      } catch (error) {
+        console.error('Error loading initial messages:', error);
+        setState(prev => ({
+          ...prev,
+          error: 'Failed to load messages',
+          isLoading: false
+        }));
+      }
+    };
+
+    loadInitialMessages();
+  }, [currentUser]);
+
   // Messaging actions
   const selectConversation = useCallback((conversationId: string) => {
     const conversation = state.conversations.find(c => c.id === conversationId) || null;
@@ -130,7 +165,7 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       markConversationAsRead(conversationId);
     }
   }, [state.conversations]);
-  
+
   const createConversation = useCallback(async (phoneNumber: string, initialMessage: string) => {
     try {
       // Simulate API call
@@ -174,17 +209,38 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       }));
     }
   }, []);
-  
+
   const sendMessage = useCallback(async (content: string, to: string) => {
+    if (!currentUser) return;
+
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      // In a real implementation, this would send the message via your API
-      console.log(`Sending message to ${to}: ${content}`);
+      // Get the backend URL from environment variables or use ngrok URL
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://milea-chatbot.ngrok.io';
+      
+      // Get the user's ID token
+      const token = await currentUser.getIdToken();
+      
+      // Send message to the backend with authentication
+      const response = await fetch(`${backendUrl}/api/send-sms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ to, body: content })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
       
       // Create a new message
       const newMessage: Message = {
-        id: `msg_${Date.now()}`,
+        id: result.messageId,
         direction: 'outbound',
         content,
         timestamp: new Date().toISOString(),
@@ -236,8 +292,8 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       }));
       console.error('Error sending message:', err);
     }
-  }, []);
-  
+  }, [currentUser]);
+
   const markConversationAsRead = useCallback(async (conversationId: string) => {
     try {
       setState(prev => ({
@@ -251,6 +307,141 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       }));
     } catch (error) {
       console.error('Error marking conversation as read:', error);
+    }
+  }, []);
+
+  const addIncomingMessage = useCallback(async (message: Message & { phoneNumber: string; conversationId?: string }) => {
+    try {
+      setState(prev => {
+        // Find existing conversation for this phone number
+        const existingConversationIndex = prev.conversations.findIndex(
+          conv => conv.phoneNumber === message.phoneNumber
+        );
+
+        let updatedConversations: Conversation[];
+        let updatedSelectedConversation = prev.selectedConversation;
+
+        if (existingConversationIndex !== -1) {
+          // Update existing conversation
+          updatedConversations = prev.conversations.map((conv, index) => {
+            if (index === existingConversationIndex) {
+              return {
+                ...conv,
+                messages: [...conv.messages, message],
+                lastMessageAt: message.timestamp,
+                timestamp: message.timestamp,
+                unreadCount: (conv.unreadCount ?? 0) + 1
+              };
+            }
+            return conv;
+          });
+
+          // Update selected conversation if it's the one receiving the message
+          if (prev.selectedConversation?.phoneNumber === message.phoneNumber) {
+            updatedSelectedConversation = updatedConversations[existingConversationIndex];
+          }
+        } else {
+          // Create new conversation
+          const newConversation: Conversation = {
+            id: message.conversationId || `conv_${Date.now()}`,
+            phoneNumber: message.phoneNumber,
+            customerName: null,
+            messages: [message],
+            unreadCount: 1,
+            lastMessageAt: message.timestamp,
+            timestamp: message.timestamp,
+            archived: false,
+            deleted: false
+          };
+
+          updatedConversations = [newConversation, ...prev.conversations];
+        }
+
+        return {
+          ...prev,
+          conversations: updatedConversations,
+          selectedConversation: updatedSelectedConversation
+        };
+      });
+    } catch (error) {
+      console.error('Error adding incoming message:', error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to process incoming message'
+      }));
+    }
+  }, []);
+
+  // Handle Socket.io events
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (message: Message & { phoneNumber: string }) => {
+      console.log('Received new message:', message);
+      addIncomingMessage(message);
+    };
+
+    const handleMessageRead = (messageId: string) => {
+      setState(prev => {
+        const conversation = prev.conversations.find(conv => 
+          conv.messages.some(msg => msg.id === messageId)
+        );
+        if (conversation) {
+          return {
+            ...prev,
+            conversations: prev.conversations.map(conv => 
+              conv.id === conversation.id ? { ...conv, unreadCount: 0 } : conv
+            ),
+            selectedConversation: prev.selectedConversation?.id === conversation.id
+              ? { ...prev.selectedConversation, unreadCount: 0 }
+              : prev.selectedConversation
+          };
+        }
+        return prev;
+      });
+    };
+
+    const handleMessageStatusUpdate = ({ messageId, status }: { messageId: string; status: Message['status'] }) => {
+      setState(prev => ({
+        ...prev,
+        conversations: prev.conversations.map(conv => ({
+          ...conv,
+          messages: conv.messages.map(msg =>
+            msg.id === messageId ? { ...msg, status } : msg
+          )
+        }))
+      }));
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('message-read', handleMessageRead);
+    socket.on('message-status-update', handleMessageStatusUpdate);
+
+    return () => {
+      socket.off('new-message', handleNewMessage);
+      socket.off('message-read', handleMessageRead);
+      socket.off('message-status-update', handleMessageStatusUpdate);
+    };
+  }, [socket, addIncomingMessage]);
+
+  // Load mock data
+  const loadMockData = useCallback(async () => {
+    try {
+      setState(prev => ({ ...prev, campaignsLoading: true }));
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setState(prev => ({
+        ...prev,
+        campaigns: [],
+        campaignsLoading: false
+      }));
+    } catch (error) {
+      console.error('Error loading mock data:', error);
+      setState(prev => ({
+        ...prev,
+        campaignsError: 'Failed to load campaigns',
+        campaignsLoading: false
+      }));
     }
   }, []);
   
@@ -383,7 +574,37 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       lists: []
     });
   }, [state]);
-  
+
+  const fetchMessages = useCallback(async () => {
+    try {
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+      
+      // Get the backend URL from environment variables or use ngrok URL
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://milea-chatbot.ngrok.io';
+      
+      // Fetch messages from the backend
+      const response = await fetch(`${backendUrl}/api/messages`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const messages = await response.json();
+      
+      // Update state with fetched messages
+      setState(prev => ({
+        ...prev,
+        conversations: messages,
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to fetch messages',
+        isLoading: false
+      }));
+    }
+  }, []);
+
   // Combine state and actions into context value
   const value: SMSContextTypeCombined = {
     ...state,
@@ -391,6 +612,7 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
     createConversation,
     sendMessage,
     markConversationAsRead,
+    addIncomingMessage,
     selectContact,
     createContact,
     updateContact,
@@ -400,7 +622,8 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
     createList,
     addContactToList,
     removeContactFromList,
-    resetState
+    resetState,
+    fetchMessages
   };
   
   return (
