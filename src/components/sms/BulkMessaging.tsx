@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSMSOperations } from '../../hooks/useSMSOperations';
 import { Contact, BulkMessageCampaign, MessageTemplate } from '../../types/sms';
+import { ScheduleSettings } from './SchedulingControls';
 import BulkMessageComposer from './BulkMessageComposer';
 import ContactList from './ContactList';
 import RecipientSelector from './RecipientSelector';
@@ -15,9 +16,10 @@ const RETRY_DELAY = 1000; // 1 second
 interface BulkMessagingProps {
   onClose: () => void;
   contacts: Contact[];
+  onSendBulkMessage: (message: string, recipients: string[], scheduleSettings?: ScheduleSettings) => Promise<boolean>;
 }
 
-const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts }) => {
+const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSendBulkMessage }) => {
   const { 
     lists,
     createList,
@@ -266,38 +268,45 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts }) => {
   }, []);
 
   // Send bulk message
-  const handleSendBulkMessage = async (message: string, recipients: string[]) => {
+  const handleSendBulkMessage = async (message: string, recipients: string[], scheduleSettings?: ScheduleSettings) => {
+    if (!message.trim() || recipients.length === 0) {
+      setErrors([{ field: 'message', message: 'Message and recipients are required' }]);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrors([]);
+
     try {
-      // Create a new campaign
-      const newCampaign: BulkMessageCampaign = {
-        id: `campaign_${Date.now()}`,
-        name: `Bulk Message - ${new Date().toLocaleString()}`,
-        message,
-        recipients: {
-          phoneNumbers: recipients
-        },
-        status: 'sending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      const success = await onSendBulkMessage(message, recipients, scheduleSettings);
+      if (success) {
+        // Update campaign status
+        setCampaign(prev => ({
+          ...prev,
+          message,
+          recipients: {
+            ...prev.recipients,
+            phoneNumbers: recipients
+          },
+          status: 'scheduled',
+          updatedAt: new Date().toISOString()
+        }));
 
-      // Simulate sending messages
-      console.log('Sending bulk message:', newCampaign);
+        // Add to campaigns list
+        setCampaigns(prev => [...prev, campaign]);
 
-      // In a real implementation, this would call a service to send messages
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Update campaigns
-      setCampaigns(prev => [newCampaign, ...prev]);
-
-      // Clear selected contacts
-      setSelectedContacts([]);
-
-      alert(`Message sent to ${recipients.length} recipients`);
-      onClose();
+        // Clear form
+        setMessage('');
+        setSelectedContacts([]);
+        setSelectedList('');
+      } else {
+        setErrors([{ field: 'message', message: 'Failed to send bulk message' }]);
+      }
     } catch (error) {
-      console.error('Failed to send bulk message:', error);
-      alert('Failed to send bulk message');
+      console.error('Error sending bulk message:', error);
+      setErrors([{ field: 'message', message: 'An error occurred while sending the message' }]);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

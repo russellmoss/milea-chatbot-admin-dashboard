@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSMSOperations } from '../hooks/useSMSOperations';
-import { Contact } from '../types/sms';
+import { Contact, BulkMessageCampaign } from '../types/sms';
 import { ScheduleSettings } from '../components/sms/SchedulingControls';
 import ContactList from '../components/sms/ContactList';
 import ContactDetail from '../components/sms/ContactDetail';
@@ -8,6 +8,7 @@ import ContactForm from '../components/sms/ContactForm';
 import BulkMessaging from '../components/sms/BulkMessaging';
 import MessagingInbox from '../components/sms/MessagingInbox';
 import SchedulingBulkMessage from '../components/sms/SchedulingBulkMessage';
+import CampaignManagement from '../components/sms/CampaignManagement';
 
 const SMS: React.FC = () => {
   const {
@@ -25,7 +26,7 @@ const SMS: React.FC = () => {
     error
   } = useSMSOperations();
 
-  const [activeTab, setActiveTab] = useState<'messaging' | 'contacts'>('messaging');
+  const [activeTab, setActiveTab] = useState<'messaging' | 'contacts' | 'campaigns'>('messaging');
   const [showContactForm, setShowContactForm] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | undefined>(undefined);
   const [showBulkMessaging, setShowBulkMessaging] = useState(false);
@@ -100,6 +101,24 @@ const SMS: React.FC = () => {
         console.log(`Setting up recurring message with pattern:`, scheduleSettings.recurringPattern);
       }
       
+      // Create a new campaign record
+      const newCampaign: BulkMessageCampaign = {
+        id: `camp_${Date.now()}`,
+        name: `Campaign ${new Date().toLocaleDateString()}`,
+        message,
+        recipients: {
+          phoneNumbers: recipients
+        },
+        status: scheduleSettings?.type === 'immediate' ? 'sending' : 'scheduled',
+        scheduledTime: scheduleSettings?.scheduledDate && scheduleSettings?.scheduledTime
+          ? `${scheduleSettings.scheduledDate}T${scheduleSettings.scheduledTime}`
+          : undefined,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      console.log('Created new campaign:', newCampaign);
+      
       // Return success
       return true;
     } catch (error) {
@@ -160,6 +179,16 @@ const SMS: React.FC = () => {
           >
             Contacts
           </button>
+          <button
+            onClick={() => setActiveTab('campaigns')}
+            className={`${
+              activeTab === 'campaigns'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Campaigns
+          </button>
         </nav>
       </div>
 
@@ -169,7 +198,7 @@ const SMS: React.FC = () => {
           <div className="p-6">
             <MessagingInbox contacts={contacts} />
           </div>
-        ) : (
+        ) : activeTab === 'contacts' ? (
           <div className="grid grid-cols-1 lg:grid-cols-3">
             {/* Contact List */}
             <div className="border-r border-gray-200">
@@ -202,6 +231,13 @@ const SMS: React.FC = () => {
               )}
             </div>
           </div>
+        ) : (
+          <div className="p-6">
+            <CampaignManagement 
+              contacts={contacts} 
+              onSendBulkMessage={handleBulkMessageSend}
+            />
+          </div>
         )}
       </div>
 
@@ -228,6 +264,7 @@ const SMS: React.FC = () => {
             <BulkMessaging 
               onClose={() => setShowBulkMessaging(false)} 
               contacts={contacts}
+              onSendBulkMessage={handleBulkMessageSend}
             />
           </div>
         </div>
