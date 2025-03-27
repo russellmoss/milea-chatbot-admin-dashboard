@@ -7,6 +7,7 @@ interface ConversationHeaderProps {
   onViewContact?: () => void; // Optional - for viewing contact details
   onBlock?: () => void; // Optional - for blocking a number
   onAddToList?: () => void; // Optional - for adding to a contact list
+  onArchiveToggle: (conversationId: string, archived: boolean) => void;
 }
 
 const ConversationHeader: React.FC<ConversationHeaderProps> = ({
@@ -14,7 +15,8 @@ const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   onExport,
   onViewContact,
   onBlock,
-  onAddToList
+  onAddToList,
+  onArchiveToggle
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -125,6 +127,22 @@ const ConversationHeader: React.FC<ConversationHeaderProps> = ({
             </div>
           )}
         </div>
+        <button
+          onClick={() => onArchiveToggle(conversation.id, !conversation.archived)}
+          className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${
+            conversation.archived ? 'text-primary' : 'text-gray-400'
+          }`}
+          title={conversation.archived ? 'Unarchive conversation' : 'Archive conversation'}
+        >
+          <svg 
+            className="w-5 h-5" 
+            xmlns="http://www.w3.org/2000/svg" 
+            viewBox="0 0 20 20" 
+            fill="currentColor"
+          >
+            <path d="M3 7v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+        </button>
       </div>
     </div>
   );

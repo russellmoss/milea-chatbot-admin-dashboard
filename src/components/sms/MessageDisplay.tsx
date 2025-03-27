@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { Message, Conversation } from '../../types/sms';
 import { markMessageAsRead } from '../../services/smsService';
 import { toast } from 'react-hot-toast';
+import MessageActions from './MessageActions';
 
 interface MessageDisplayProps {
   messages: Message[];
@@ -11,6 +12,7 @@ interface MessageDisplayProps {
   onMarkAsRead: (updatedConversation: Conversation) => void;
   conversation: Conversation;
   onArchive?: (conversation: Conversation) => void;
+  onMessageAction: (action: string, messageId: string) => void;
 }
 
 const MessageDisplay: React.FC<MessageDisplayProps> = ({ 
@@ -19,7 +21,8 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   phoneNumber, 
   onMarkAsRead,
   conversation,
-  onArchive
+  onArchive,
+  onMessageAction
 }) => {
   // Reference to the messages container for auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -28,9 +31,12 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   // State for tracking message read status changes
   const [readStatusChanges, setReadStatusChanges] = useState<Set<string>>(new Set());
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
   }, [messages]);
 
   // Handle keyboard shortcuts
@@ -248,45 +254,31 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
             <div
               key={message.id}
               className={`flex ${
-                message.direction === 'inbound' ? 'justify-start' : 'justify-end'
+                message.direction === 'outbound' ? 'justify-end' : 'justify-start'
               }`}
-              onClick={() => message.direction === 'inbound' && !message.read && handleMessageRead(message.id)}
             >
               <div
-                className={`max-w-[70%] rounded-lg p-3 transition-all duration-300 ${
-                  message.direction === 'inbound'
-                    ? message.read
-                      ? 'bg-gray-100' // Read inbound messages
-                      : 'bg-blue-50 border border-blue-100 cursor-pointer hover:bg-blue-100' // Unread inbound messages
-                    : message.read
-                      ? 'bg-primary/10' // Read outbound messages
-                      : 'bg-primary/20 border border-primary/30' // Unread outbound messages
-                } ${
-                  readStatusChanges.has(message.id)
-                    ? 'ring-2 ring-blue-500 ring-opacity-50'
-                    : ''
+                className={`max-w-[70%] rounded-lg p-3 ${
+                  message.direction === 'outbound'
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-100 text-gray-900'
                 }`}
               >
-                <p className="text-sm text-gray-800">{message.content}</p>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs text-gray-500">
-                    {new Date(message.timestamp).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  <MessageActions
+                    message={message}
+                    onAction={(action) => onMessageAction(action, message.id)}
+                  />
+                </div>
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-xs opacity-75">
+                    {format(new Date(message.timestamp), 'h:mm a')}
                   </span>
-                  {message.direction === 'outbound' && (
-                    <div className="flex items-center space-x-1 ml-2">
-                      {getStatusIcon(message)}
-                      <span className={`text-xs ${
-                        message.readAt ? 'text-blue-600' : 'text-gray-500'
-                      }`}>
-                        {getStatusText(message)}
-                      </span>
-                    </div>
-                  )}
-                  {message.direction === 'inbound' && !message.read && (
-                    <span className="text-xs text-blue-500 ml-2">New</span>
+                  {message.direction === 'outbound' && message.status && (
+                    <span className="text-xs opacity-75 capitalize">
+                      {message.status}
+                    </span>
                   )}
                 </div>
               </div>

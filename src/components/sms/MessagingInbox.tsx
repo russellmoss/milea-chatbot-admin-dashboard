@@ -20,6 +20,9 @@ export interface MessageTemplate {
   name: string;
   content: string;
   category: string;
+  variables: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface DateRange {
@@ -217,6 +220,15 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
   const [newMessage, setNewMessage] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(() => {
+    const saved = localStorage.getItem('sidebarExpanded');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // Save sidebar state to localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarExpanded', JSON.stringify(isSidebarExpanded));
+  }, [isSidebarExpanded]);
 
   // Filter conversations based on selected folder and search query
   const filteredConversations = useMemo(() => {
@@ -619,176 +631,132 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="flex h-full">
-        {/* Folder Navigation */}
-        <FolderSidebar
-          folders={FOLDERS}
-          conversations={conversations}
-          selectedFolder={selectedFolder}
-          onFolderSelect={setSelectedFolder}
-          onArchiveToggle={handleArchiveToggle}
-          onDrop={handleDrop}
-        />
-
-        {/* Conversations List */}
-        <div className="w-80 border-r border-gray-200 bg-white">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {FOLDERS.find(f => f.id === selectedFolder)?.label || 'Conversations'}
-              </h2>
-              {selectedConversation && selectedConversation.unreadCount > 0 && (
-                <button
-                  onClick={handleMarkAllAsRead}
-                  className="text-sm text-primary hover:text-primary/80"
-                >
-                  Mark all as read
-                </button>
-              )}
-            </div>
-            <input
-              type="text"
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            />
-          </div>
-
-          {/* Batch Action Bar */}
-          {selectedConversations.size > 0 && (
-            <div className="px-4 py-2 bg-primary/5 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={selectedConversations.size === filteredConversations.length}
-                  onChange={handleSelectAll}
-                  className="rounded border-gray-300 text-primary focus:ring-primary/20"
-                />
-                <span className="text-sm text-gray-600">
-                  {selectedConversations.size} selected
-                </span>
-              </div>
-              <button
-                onClick={handleBatchArchive}
-                className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
+      <div className="h-full flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              title={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              <svg
+                className={`w-5 h-5 text-gray-600 transform transition-transform duration-200 ${
+                  isSidebarExpanded ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+                />
+              </svg>
+            </button>
+            <h2 className="text-xl font-semibold text-gray-900">
+              {selectedFolder === 'inbox' ? 'Inbox' : 
+               selectedFolder === 'archive' ? 'Archive' : 'Deleted'}
+            </h2>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+              <svg
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+          </div>
+          {selectedConversations.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">
+                {selectedConversations.size} selected
+              </span>
+              <button
+                onClick={handleArchiveSelected}
+                className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+              >
                 Archive Selected
               </button>
             </div>
           )}
-
-          <div className="overflow-y-auto h-[calc(100vh-8rem)]">
-            {filteredConversations.map((conversation: Conversation) => (
-              <DraggableConversationItem
-                key={conversation.id}
-                conversation={conversation}
-                onSelect={handleConversationSelect}
-                onCheckboxSelect={handleCheckboxSelect}
-                onArchiveToggle={handleArchiveToggle}
-                isSelected={selectedConversation?.id === conversation.id}
-                isChecked={selectedConversations.has(conversation.id)}
-              />
-            ))}
-          </div>
         </div>
 
-        {/* Message Display */}
-        <div className="flex-1 bg-gray-50">
-          {selectedConversation ? (
-            <div className="flex-1 flex flex-col">
-              <ConversationHeader 
-                conversation={selectedConversation}
-                onExport={handleExport}
-                onViewContact={handleViewContact}
-                onBlock={handleBlock}
-                onAddToList={handleAddToList}
-              />
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {selectedConversation.messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.direction === 'inbound' ? 'justify-start' : 'justify-end'}`}
-                  >
-                    <div
-                      className={`max-w-[70%] rounded-lg p-3 ${
-                        message.direction === 'inbound'
-                          ? 'bg-gray-100 text-gray-900'
-                          : 'bg-primary text-white'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                        <MessageActions
-                          message={message}
-                          onDelete={handleMessageDelete}
-                          onEdit={handleMessageEdit}
-                          onCopy={handleMessageCopy}
-                          onForward={handleMessageForward}
-                          onResend={handleMessageResend}
-                          onViewDetails={handleMessageViewDetails}
-                        />
-                      </div>
-                      <p className="text-xs mt-1 opacity-75">
-                        {format(new Date(message.timestamp), 'MMM d, h:mm a')}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-gray-200 p-4">
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="Type your message..."
-                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!newMessage.trim()}
-                    className="px-4 py-2 bg-primary text-white rounded-md hover:bg-darkBrown disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Send
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              Select a conversation to view messages
-            </div>
-          )}
-        </div>
-
-        {/* Template Selector Modal */}
-        {showTemplates && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Message Templates</h2>
-                <button
-                  onClick={() => setShowTemplates(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <TemplateSelector
-                templates={templates}
-                onSelectTemplate={handleApplyTemplate}
-                onClose={() => setShowTemplates(false)}
-              />
-            </div>
+        {/* Main Content Area */}
+        <div className="grid grid-cols-[auto_1fr_1fr] flex-1 overflow-hidden">
+          {/* Sidebar Column */}
+          <div className="relative">
+            <FolderSidebar
+              folders={FOLDERS}
+              conversations={conversations}
+              selectedFolder={selectedFolder}
+              onFolderSelect={setSelectedFolder}
+              onArchiveToggle={handleArchiveToggle}
+              onDrop={handleDrop}
+              isExpanded={isSidebarExpanded}
+            />
           </div>
-        )}
+
+          {/* Conversations List */}
+          <div className="flex flex-col min-w-0 border-r border-gray-200">
+            <ConversationList
+              conversations={filteredConversations}
+              selectedConversations={selectedConversations}
+              onConversationSelect={handleConversationSelect}
+              onArchiveToggle={handleArchiveToggle}
+              searchQuery={searchQuery}
+            />
+          </div>
+
+          {/* Message Display */}
+          <div className="flex flex-col min-w-0">
+            {selectedConversation ? (
+              <>
+                <ConversationHeader
+                  conversation={selectedConversation}
+                  onArchiveToggle={handleArchiveToggle}
+                  onExport={handleExport}
+                  onViewContact={handleViewContact}
+                  onBlock={handleBlock}
+                  onAddToList={handleAddToList}
+                />
+                <MessageDisplay
+                  messages={selectedConversation.messages}
+                  onMessageAction={handleMessageAction}
+                  customerName={selectedConversation.customerName}
+                  phoneNumber={selectedConversation.phoneNumber}
+                  onMarkAsRead={handleMarkAsRead}
+                  conversation={selectedConversation}
+                />
+                <MessageComposer
+                  onSend={handleSendMessage}
+                  onTemplateSelect={handleApplyTemplate}
+                  templates={templates}
+                />
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-gray-500">
+                Select a conversation to view messages
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </DndProvider>
   );

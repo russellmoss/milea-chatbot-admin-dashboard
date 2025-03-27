@@ -34,6 +34,9 @@ export interface MessageTemplate {
     name: string;
     content: string;
     category: string;
+    variables: string[];
+    createdAt: string;
+    updatedAt: string;
 }
   
 // Contact represents a customer or lead in the contact database

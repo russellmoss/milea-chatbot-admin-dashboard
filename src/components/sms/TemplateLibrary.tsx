@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageTemplate } from './MessagingInbox';
+import { MessageTemplate } from '../../types/sms';
 
 // Template Editor Modal
 interface TemplateEditorProps {
@@ -30,6 +30,12 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({
     }
   }, [isOpen, template]);
 
+  // Extract variables from content
+  const extractVariables = (text: string): string[] => {
+    const matches = text.match(/\{(\w+)\}/g);
+    return matches ? matches.map(v => v.slice(1, -1)) : [];
+  };
+
   // Validate and save template
   const handleSave = () => {
     // Basic validation
@@ -47,7 +53,10 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({
     onSave({
       name: name.trim(),
       content: content.trim(),
-      category
+      category,
+      variables: extractVariables(content),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
   };
 
@@ -143,25 +152,37 @@ const TemplateLibrary: React.FC = () => {
       id: 'template1',
       name: 'Tasting Confirmation',
       content: 'Your tasting reservation for {date} at {time} is confirmed. We look forward to welcoming you to Milea Estate Vineyard!',
-      category: 'Reservations'
+      category: 'Reservations',
+      variables: ['date', 'time'],
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
     },
     {
       id: 'template2',
       name: 'Wine Club Pickup',
       content: 'Hello {name}, your wine club shipment for {month} is ready for pickup at the tasting room. We\'re open daily from 10 AM to 5 PM.',
-      category: 'Wine Club'
+      category: 'Wine Club',
+      variables: ['name', 'month'],
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
     },
     {
       id: 'template3',
       name: 'Event Reminder',
       content: 'Reminder: You\'re registered for our {event} on {date} at {time}. We look forward to seeing you!',
-      category: 'Events'
+      category: 'Events',
+      variables: ['event', 'date', 'time'],
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
     },
     {
       id: 'template4',
       name: 'Thank You',
       content: 'Thank you for visiting Milea Estate Vineyard today! We hope you enjoyed your experience. Don\'t forget to follow us on social media and sign up for our newsletter for updates on events and new releases.',
-      category: 'General'
+      category: 'General',
+      variables: [],
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
     }
   ]);
 

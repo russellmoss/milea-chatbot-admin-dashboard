@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Conversation } from '../../types/sms';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -20,6 +20,7 @@ interface FolderSidebarProps {
   onFolderSelect: (folderId: string) => void;
   onArchiveToggle: (conversationId: string, archived: boolean) => void;
   onDrop: (conversationId: string, targetFolder: string) => void;
+  isExpanded: boolean;
 }
 
 const FolderSidebar: React.FC<FolderSidebarProps> = ({
@@ -28,9 +29,10 @@ const FolderSidebar: React.FC<FolderSidebarProps> = ({
   selectedFolder,
   onFolderSelect,
   onArchiveToggle,
-  onDrop
+  onDrop,
+  isExpanded
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const collapseTimeoutRef = useRef<NodeJS.Timeout>();
   const isArchiveView = selectedFolder === 'archive';
   const archivedConversations = conversations.filter(conv => conv.archived && !conv.deleted);
   const archivedCount = archivedConversations.length;
@@ -47,7 +49,6 @@ const FolderSidebar: React.FC<FolderSidebarProps> = ({
                 onArchiveToggle(conversation.id, false);
                 toast.dismiss(t.id);
               } catch (error) {
-                // Error is already handled by the service
                 toast.dismiss(t.id);
               }
             }}
@@ -70,26 +71,39 @@ const FolderSidebar: React.FC<FolderSidebarProps> = ({
   };
 
   return (
-    <div className="relative flex h-full">
-      {/* Collapsible Sidebar */}
-      <div 
-        className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 transition-all duration-300 ease-in-out z-10
-          ${isExpanded ? 'w-64' : 'w-12'}`}
-        onMouseEnter={() => setIsExpanded(true)}
-        onMouseLeave={() => setIsExpanded(false)}
-      >
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className={`text-lg font-semibold text-gray-900 transition-opacity duration-300
-              ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
-              Folders
-            </h2>
-            <div className={`${isExpanded ? 'opacity-0' : 'opacity-100'}`}>
-              <svg className="w-6 h-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </div>
+    <div className="h-full flex">
+      {/* Base Sidebar with Icons */}
+      <div className="w-12 h-full bg-white border-r border-gray-200">
+        <div className="p-2">
+          <div className="flex items-center justify-center mb-4">
+            <svg className="w-6 h-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
           </div>
+          <div className="space-y-2">
+            {folders.map((folder) => (
+              <div
+                key={folder.id}
+                className="flex items-center justify-center p-2"
+                onClick={() => onFolderSelect(folder.id)}
+              >
+                <div className={`${selectedFolder === folder.id ? 'text-primary' : 'text-gray-600'}`}>
+                  {folder.icon}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Expandable Overlay */}
+      <div 
+        className={`absolute left-12 top-0 h-full bg-white border-r border-gray-200 shadow-lg z-50
+          transform transition-all duration-300 ease-in-out
+          ${isExpanded ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'}`}
+      >
+        <div className="p-4 w-64">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Folders</h2>
           <div className="space-y-2">
             {folders.map((folder) => (
               <DroppableFolder
@@ -103,11 +117,6 @@ const FolderSidebar: React.FC<FolderSidebarProps> = ({
             ))}
           </div>
         </div>
-      </div>
-
-      {/* Main Content Area - Add margin to account for sidebar */}
-      <div className={`flex-1 transition-all duration-300 ease-in-out ${isExpanded ? 'ml-64' : 'ml-12'}`}>
-        {/* Your main content here */}
       </div>
 
       {/* Archive Panel */}
