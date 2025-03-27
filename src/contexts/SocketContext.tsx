@@ -52,7 +52,16 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       auth: {
         token: currentUser.getIdToken()
       },
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      forceNew: true,
+      secure: process.env.NODE_ENV === 'production',
+      rejectUnauthorized: false,
+      withCredentials: true
     });
 
     newSocket.on('connect', () => {

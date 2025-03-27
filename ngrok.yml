@@ -1,0 +1,6 @@
+version: 2
+tunnels:
+  backend:
+    proto: http
+    addr: 3001
+    host_header: localhost:3001 
