@@ -748,6 +748,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                   onSend={handleSendMessage}
                   onTemplateSelect={handleApplyTemplate}
                   templates={templates}
+                  recipientPhone={selectedConversation.phoneNumber}
                 />
               </>
             ) : (

@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react';
 import { useSMS } from '../contexts/SMSContext';
 import contactService from '../services/ContactService';
-import twilioService from '../services/TwilioService';
+import { sendSMS } from '../services/TwilioService';
 import { 
   Contact, 
   Conversation, 
   Message, 
   MessageTemplate, 
-  ContactList 
+  ContactList,
+  BulkMessageCampaign
 } from '../types/sms';
 
 // Custom hook for SMS-related operations

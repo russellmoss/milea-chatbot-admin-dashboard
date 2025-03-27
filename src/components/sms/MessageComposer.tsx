@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { MessageTemplate } from '../../types/sms';
+import { sendSMS } from '../../services/TwilioService';
 import TemplateSelector from './TemplateSelector';
 
 interface MessageComposerProps {
   onSend: (message: string) => Promise<void>;
   onTemplateSelect: (template: MessageTemplate) => string;
   templates: MessageTemplate[];
+  recipientPhone: string; // Add this prop
 }
 
 const MessageComposer: React.FC<MessageComposerProps> = ({
   onSend,
   onTemplateSelect,
-  templates
+  templates,
+  recipientPhone
 }) => {
   const [message, setMessage] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
@@ -23,6 +26,9 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
 
     setIsSending(true);
     try {
+      // Send message via Twilio service
+      await sendSMS(recipientPhone, message.trim());
+      // Then update UI
       await onSend(message.trim());
       setMessage('');
     } catch (error) {
