@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Message } from './MessagingInbox';
+import { Message } from '../../types/sms';
 
 interface MessageActionsProps {
   message: Message;
-  onDelete?: () => void;
+  onDelete: (messageId: string) => void;
+  onEdit: (messageId: string, content: string) => void;
   onCopy?: () => void;
   onForward?: () => void;
   onResend?: () => void;
@@ -13,12 +14,15 @@ interface MessageActionsProps {
 const MessageActions: React.FC<MessageActionsProps> = ({
   message,
   onDelete,
+  onEdit,
   onCopy,
   onForward,
   onResend,
   onViewDetails
 }) => {
   const [showActions, setShowActions] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(message.content);
 
   const toggleActions = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -34,6 +38,19 @@ const MessageActions: React.FC<MessageActionsProps> = ({
   const handleCopyText = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText(message.content);
+    setShowActions(false);
+  };
+
+  const handleDelete = () => {
+    onDelete(message.id);
+    setShowActions(false);
+  };
+
+  const handleEdit = () => {
+    if (editedContent.trim() !== message.content) {
+      onEdit(message.id, editedContent);
+    }
+    setIsEditing(false);
     setShowActions(false);
   };
 
@@ -113,18 +130,55 @@ const MessageActions: React.FC<MessageActionsProps> = ({
               </button>
             )}
 
-            {onDelete && (
+            <button
+              onClick={() => {
+                setIsEditing(true);
+                setShowActions(false);
+              }}
+              className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+              role="menuitem"
+            >
+              Edit
+            </button>
+
+            <button
+              onClick={handleDelete}
+              className="flex items-center w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-gray-100 hover:text-red-900"
+              role="menuitem"
+            >
+              <svg className="mr-3 h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isEditing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Message</h3>
+            <textarea
+              value={editedContent}
+              onChange={(e) => setEditedContent(e.target.value)}
+              className="w-full h-32 p-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+              placeholder="Edit your message..."
+            />
+            <div className="mt-4 flex justify-end space-x-3">
               <button
-                onClick={handleAction(onDelete)}
-                className="flex items-center w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-gray-100 hover:text-red-900"
-                role="menuitem"
+                onClick={() => setIsEditing(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
               >
-                <svg className="mr-3 h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                Delete
+                Cancel
               </button>
-            )}
+              <button
+                onClick={handleEdit}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-darkBrown"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

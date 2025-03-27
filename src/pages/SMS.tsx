@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSMSOperations } from '../hooks/useSMSOperations';
-import { Contact, BulkMessageCampaign } from '../types/sms';
+import { useSMS } from '../contexts/SMSContext';
+import { Contact, BulkMessageCampaign, Conversation } from '../types/sms';
 import { ScheduleSettings } from '../components/sms/SchedulingControls';
 import ContactList from '../components/sms/ContactList';
 import ContactDetail from '../components/sms/ContactDetail';
@@ -25,6 +26,12 @@ const SMS: React.FC = () => {
     isLoading,
     error
   } = useSMSOperations();
+
+  const {
+    conversations,
+    selectConversation,
+    markConversationAsRead
+  } = useSMS();
 
   const [activeTab, setActiveTab] = useState<'messaging' | 'contacts' | 'campaigns'>('messaging');
   const [showContactForm, setShowContactForm] = useState(false);
@@ -127,6 +134,14 @@ const SMS: React.FC = () => {
     }
   };
 
+  const handleConversationSelect = (conversation: Conversation) => {
+    selectConversation(conversation.id);
+  };
+
+  const handleMarkAsRead = (conversation: Conversation) => {
+    markConversationAsRead(conversation.id);
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
@@ -196,7 +211,12 @@ const SMS: React.FC = () => {
       <div className="bg-white rounded-lg shadow">
         {activeTab === 'messaging' ? (
           <div className="p-6">
-            <MessagingInbox contacts={contacts} />
+            <MessagingInbox 
+              contacts={contacts}
+              conversations={conversations}
+              onConversationSelect={handleConversationSelect}
+              onMarkAsRead={handleMarkAsRead}
+            />
           </div>
         ) : activeTab === 'contacts' ? (
           <div className="grid grid-cols-1 lg:grid-cols-3">

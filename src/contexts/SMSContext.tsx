@@ -14,8 +14,7 @@ import {
   MOCK_CONTACTS 
 } from './mockSMSData';
 
-// Define the context state shape
-interface SMSContextState {
+export interface SMSContextType {
   conversations: Conversation[];
   contacts: Contact[];
   templates: MessageTemplate[];
@@ -27,6 +26,9 @@ interface SMSContextState {
   campaignsLoading: boolean;
   campaignsError: string | null;
   lists: string[]; // Add lists property
+  setConversations: (conversations: Conversation[]) => void;
+  setSelectedConversation: (conversation: Conversation | null) => void;
+  handleArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
 }
 
 // Define the context actions/functions
@@ -55,10 +57,10 @@ interface SMSContextActions {
 }
 
 // Combine state and actions
-type SMSContextType = SMSContextState & SMSContextActions;
+type SMSContextTypeCombined = SMSContextType & SMSContextActions;
 
 // Create the context
-const SMSContext = createContext<SMSContextType | undefined>(undefined);
+const SMSContext = createContext<SMSContextTypeCombined | undefined>(undefined);
 
 // Create the provider component
 interface SMSProviderProps {
@@ -66,7 +68,7 @@ interface SMSProviderProps {
 }
 
 export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
-  const [state, setState] = useState<SMSContextState>({
+  const [state, setState] = useState<SMSContextTypeCombined>({
     conversations: MOCK_CONVERSATIONS,
     contacts: MOCK_CONTACTS,
     templates: MOCK_TEMPLATES,
@@ -77,7 +79,24 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
     campaigns: [],
     campaignsLoading: false,
     campaignsError: null,
-    lists: [] // Initialize empty lists array
+    lists: [],
+    setConversations: () => {},
+    setSelectedConversation: () => {},
+    handleArchiveToggle: async () => {},
+    selectConversation: () => {},
+    createConversation: async () => {},
+    sendMessage: async () => {},
+    markConversationAsRead: async () => {},
+    selectContact: () => {},
+    createContact: async () => {},
+    updateContact: async () => {},
+    deleteContact: async () => {},
+    toggleContactOptIn: async () => {},
+    selectList: () => {},
+    createList: async () => {},
+    addContactToList: async () => {},
+    removeContactFromList: async () => {},
+    resetState: () => {}
   });
 
   // Load mock data
@@ -106,8 +125,8 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
     const conversation = state.conversations.find(c => c.id === conversationId) || null;
     setState(prev => ({ ...prev, selectedConversation: conversation }));
     
-    // If conversation is unread, mark it as read
-    if (conversation?.unread) {
+    // If conversation has unread messages, mark it as read
+    if (conversation && (conversation.unreadCount ?? 0) > 0) {
       markConversationAsRead(conversationId);
     }
   }, [state.conversations]);
@@ -118,23 +137,26 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       setState(prev => ({ ...prev, campaignsLoading: true }));
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Create a new conversation
+      // Create a new message
       const newMessage: Message = {
         id: `msg_${Date.now()}`,
         direction: 'outbound',
         content: initialMessage,
         timestamp: new Date().toISOString(),
-        status: 'sent'
+        status: 'sent',
+        read: false
       };
       
       const newConversation: Conversation = {
         id: `conv_${Date.now()}`,
         phoneNumber,
         customerName: null,
-        lastMessage: initialMessage,
-        lastMessageTime: newMessage.timestamp,
-        unread: false,
-        messages: [newMessage]
+        messages: [newMessage],
+        unreadCount: 0,
+        lastMessageAt: newMessage.timestamp,
+        timestamp: newMessage.timestamp,
+        archived: false,
+        deleted: false
       };
       
       setState(prev => ({
@@ -160,13 +182,14 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       // In a real implementation, this would send the message via your API
       console.log(`Sending message to ${to}: ${content}`);
       
-      // Create a new message with proper status type
+      // Create a new message
       const newMessage: Message = {
         id: `msg_${Date.now()}`,
         direction: 'outbound',
         content,
         timestamp: new Date().toISOString(),
-        status: 'sent' as const
+        status: 'sent',
+        read: false
       };
 
       // Update conversations with the new message
@@ -175,9 +198,9 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
           if (conv.phoneNumber === to) {
             return {
               ...conv,
-              lastMessage: content,
-              lastMessageTime: newMessage.timestamp,
-              messages: [...conv.messages, newMessage]
+              messages: [...conv.messages, newMessage],
+              lastMessageAt: newMessage.timestamp,
+              timestamp: newMessage.timestamp
             };
           }
           return conv;
@@ -189,10 +212,12 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
             id: `conv_${Date.now()}`,
             phoneNumber: to,
             customerName: null,
-            lastMessage: content,
-            lastMessageTime: newMessage.timestamp,
-            unread: false,
-            messages: [newMessage]
+            messages: [newMessage],
+            unreadCount: 0,
+            lastMessageAt: newMessage.timestamp,
+            timestamp: newMessage.timestamp,
+            archived: false,
+            deleted: false
           };
           updatedConversations.push(newConversation);
         }
@@ -218,10 +243,10 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       setState(prev => ({
         ...prev,
         conversations: prev.conversations.map(c => 
-          c.id === conversationId ? { ...c, unread: false } : c
+          c.id === conversationId ? { ...c, unreadCount: 0 } : c
         ),
         selectedConversation: prev.selectedConversation?.id === conversationId
-          ? { ...prev.selectedConversation, unread: false }
+          ? { ...prev.selectedConversation, unreadCount: 0 }
           : prev.selectedConversation
       }));
     } catch (error) {
@@ -344,6 +369,7 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
   // Reset state (useful for testing or logout)
   const resetState = useCallback(() => {
     setState({
+      ...state,
       conversations: [],
       contacts: [],
       templates: [],
@@ -356,10 +382,10 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
       campaignsError: null,
       lists: []
     });
-  }, []);
+  }, [state]);
   
   // Combine state and actions into context value
-  const value: SMSContextType = {
+  const value: SMSContextTypeCombined = {
     ...state,
     selectConversation,
     createConversation,
@@ -385,10 +411,18 @@ export const SMSProvider: React.FC<SMSProviderProps> = ({ children }) => {
 };
 
 // Custom hook to use SMS context
-export const useSMS = (): SMSContextType => {
+export const useSMS = (): SMSContextTypeCombined => {
   const context = useContext(SMSContext);
   if (context === undefined) {
     throw new Error('useSMS must be used within an SMSProvider');
+  }
+  return context;
+};
+
+export const useSMSContext = () => {
+  const context = useContext(SMSContext);
+  if (context === undefined) {
+    throw new Error('useSMSContext must be used within an SMSProvider');
   }
   return context;
 };

@@ -3,7 +3,7 @@
 // Conversation represents a thread of messages with a single contact
 export interface Conversation {
     id: string;
-    customerName?: string;
+    customerName: string | null;
     phoneNumber: string;
     messages: Message[];
     unreadCount: number;
@@ -11,6 +11,7 @@ export interface Conversation {
     timestamp: string;
     archived: boolean;
     deleted: boolean;
+    archivedAt?: string | null;
 }
   
 // Message represents a single text message in a conversation
@@ -19,11 +20,12 @@ export interface Message {
     direction: 'inbound' | 'outbound';
     content: string;
     timestamp: string;
-    status?: 'sent' | 'delivered' | 'read' | 'failed';
+    status?: 'sent' | 'delivered' | 'read' | 'failed' | 'pending';
     mediaUrls?: string[];
     read: boolean;
     readAt?: string; // Timestamp when the message was read by the recipient
     readBy?: string; // Phone number or identifier of who read the message
+    error?: string; // Error message if the message failed to send
 }
   
 // MessageTemplate represents a reusable message template
@@ -129,4 +131,5 @@ export interface Folder {
   label: string;
   icon: React.ReactNode;
   filter: (conversation: Conversation) => boolean;
+  getBadgeCount: (conversations: Conversation[]) => number;
 }

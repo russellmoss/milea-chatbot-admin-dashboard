@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Contact } from '../../types/sms';
-import { Message } from './MessagingInbox';
+import { Contact, Message } from '../../types/sms';
 
 interface ContactDetailProps {
   contact: Contact;
@@ -311,25 +310,27 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
                           {format(new Date(date), 'MMMM d, yyyy')}
                         </div>
                         <div className="divide-y divide-gray-200">
-                          {groupedMessages[date].map(message => (
+                          {groupedMessages[date].map((message: Message) => (
                             <div key={message.id} className="px-4 py-3">
                               <div className="flex justify-between">
                                 <div className={`flex items-center text-xs ${
-                                  message.direction === 'inbound' ? 'text-green-600' : 'text-blue-600'
+                                  message.direction === 'outbound' ? 'text-primary' : 'text-gray-500'
                                 }`}>
-                                  {message.direction === 'inbound' ? 'Received' : 'Sent'}
-                                  <span className="mx-1">•</span>
-                                  {formatMessageTime(message.timestamp)}
+                                  {message.direction === 'outbound' ? 'Sent' : 'Received'} at{' '}
+                                  {format(new Date(message.timestamp), 'h:mm a')}
                                 </div>
                                 {message.status && (
-                                  <span className="text-xs text-gray-500">
-                                    {message.status}
+                                  <span className={`text-xs ${
+                                    message.status === 'sent' ? 'text-green-500' :
+                                    message.status === 'delivered' ? 'text-blue-500' :
+                                    message.status === 'read' ? 'text-purple-500' :
+                                    'text-red-500'
+                                  }`}>
+                                    {message.status.charAt(0).toUpperCase() + message.status.slice(1)}
                                   </span>
                                 )}
                               </div>
-                              <div className="mt-1 text-sm text-gray-900">
-                                {message.content}
-                              </div>
+                              <p className="mt-1 text-sm text-gray-900">{message.content}</p>
                             </div>
                           ))}
                         </div>

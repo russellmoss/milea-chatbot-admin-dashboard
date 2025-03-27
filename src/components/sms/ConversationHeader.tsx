@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Conversation } from './MessagingInbox';
+import { Conversation } from '../../types/sms';
 
 interface ConversationHeaderProps {
   conversation: Conversation;
