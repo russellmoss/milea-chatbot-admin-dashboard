@@ -1,21 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
-import MessageActions from './MessageActions';
+import SchedulingControls, { ScheduleSettings, TimeZoneType } from './SchedulingControls';
+import { Contact } from '../../types/sms';
 
 interface BulkMessageComposerProps {
-  onSendBulkMessage: (content: string, recipients: string[]) => Promise<void>;
+  onSendBulkMessage: (message: string, recipients: string[], scheduleSettings?: ScheduleSettings) => Promise<void>;
+  availableRecipients: string[];
   initialText?: string;
-  availableRecipients?: string[];
 }
 
-const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({ 
-  onSendBulkMessage, 
-  initialText = '',
-  availableRecipients = []
+const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
+  onSendBulkMessage,
+  availableRecipients,
+  initialText = ''
 }) => {
   const [message, setMessage] = useState(initialText);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [showRecipientsModal, setShowRecipientsModal] = useState(false);
+  const [showSchedulingModal, setShowSchedulingModal] = useState(false);
+  const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettings>({
+    type: 'immediate',
+    timeZone: 'America/New_York' as TimeZoneType
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
@@ -34,9 +40,13 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
     
     try {
       setIsSending(true);
-      await onSendBulkMessage(message, selectedRecipients);
+      await onSendBulkMessage(message, selectedRecipients, scheduleSettings);
       setMessage('');
       setSelectedRecipients([]);
+      setScheduleSettings({
+        type: 'immediate',
+        timeZone: 'America/New_York' as TimeZoneType
+      });
     } catch (error) {
       console.error('Error sending bulk message:', error);
       alert('Failed to send bulk message. Please try again.');
@@ -104,8 +114,58 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
     setSelectedRecipients([]);
   };
 
+  // Handler for schedule settings change
+  const handleScheduleSettingsChange = (settings: ScheduleSettings) => {
+    setScheduleSettings(settings);
+  };
+
+  // Format schedule information for display
+  const formatScheduleInfo = () => {
+    if (scheduleSettings.type === 'immediate') {
+      return 'Message will be sent immediately';
+    }
+    
+    if (scheduleSettings.type === 'scheduled') {
+      if (scheduleSettings.scheduledDate && scheduleSettings.scheduledTime) {
+        const scheduledDateTime = new Date(`${scheduleSettings.scheduledDate}T${scheduleSettings.scheduledTime}`);
+        return `Scheduled for ${scheduledDateTime.toLocaleString(undefined, {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: 'numeric',
+          timeZoneName: 'short',
+          timeZone: scheduleSettings.timeZone
+        })}`;
+      }
+      return 'Scheduled for later (date and time not set)';
+    }
+    
+    if (scheduleSettings.type === 'recurring') {
+      const pattern = scheduleSettings.recurringPattern;
+      if (pattern) {
+        let text = `Recurring ${pattern.type}`;
+        if (pattern.type === 'weekly' && pattern.daysOfWeek?.length) {
+          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          text += ` on ${pattern.daysOfWeek.map(d => days[d]).join(', ')}`;
+        }
+        if (pattern.type === 'monthly' && pattern.dayOfMonth) {
+          text += ` on day ${pattern.dayOfMonth}`;
+        }
+        if (pattern.interval && pattern.interval > 1) {
+          text += ` every ${pattern.interval} ${pattern.type === 'daily' ? 'days' : pattern.type === 'weekly' ? 'weeks' : 'months'}`;
+        }
+        return text;
+      }
+      return 'Recurring message (pattern not set)';
+    }
+    
+    return 'Schedule not configured';
+  };
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg">
+    <div className="space-y-4">
       {/* Recipient Selection Modal */}
       {showRecipientsModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -168,6 +228,41 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
                 className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Scheduling Modal */}
+      {showSchedulingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Message Scheduling</h3>
+              <button 
+                onClick={() => setShowSchedulingModal(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-4">
+              <SchedulingControls 
+                initialSettings={scheduleSettings}
+                onChange={handleScheduleSettingsChange}
+              />
+            </div>
+            
+            <div className="p-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setShowSchedulingModal(false)}
+                className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark"
+              >
+                Apply Schedule
               </button>
             </div>
           </div>
@@ -285,25 +380,44 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
         className="w-full p-3 border-0 focus:ring-0 focus:outline-none resize-none min-h-[150px]"
       />
       
+      {/* Time Zone Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Time Zone
+        </label>
+        <select
+          value={scheduleSettings.timeZone}
+          onChange={(e) => setScheduleSettings(prev => ({
+            ...prev,
+            timeZone: e.target.value as TimeZoneType
+          }))}
+          className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+        >
+          <option value="America/New_York">Eastern Time (ET)</option>
+          <option value="America/Chicago">Central Time (CT)</option>
+          <option value="America/Denver">Mountain Time (MT)</option>
+          <option value="America/Los_Angeles">Pacific Time (PT)</option>
+          <option value="America/Anchorage">Alaska Time (AKT)</option>
+          <option value="Pacific/Honolulu">Hawaii Time (HST)</option>
+          <option value="UTC">Universal Time (UTC)</option>
+          <option value="Europe/London">London (GMT)</option>
+        </select>
+      </div>
+      
       {/* Message Footer */}
       <div className="p-4 border-t border-gray-200 flex justify-between items-center">
         <div className="flex items-center space-x-4">
-          {/* Scheduling Options */}
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="scheduleMessage"
-              checked={false} // TODO: Implement scheduling state
-              onChange={() => {}} // TODO: Implement scheduling toggle
-              className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mr-2"
-            />
-            <label 
-              htmlFor="scheduleMessage" 
-              className="text-sm text-gray-700"
-            >
-              Schedule Message
-            </label>
-          </div>
+          {/* Scheduling Button */}
+          <button
+            type="button"
+            onClick={() => setShowSchedulingModal(true)}
+            className="inline-flex items-center text-sm text-primary hover:text-primary-dark"
+          >
+            <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {scheduleSettings.type === 'immediate' ? 'Schedule Message' : 'Edit Schedule'}
+          </button>
           
           {/* Template Selector */}
           <button
@@ -315,6 +429,16 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
             </svg>
             Use Template
           </button>
+          
+          {/* Schedule Display */}
+          {scheduleSettings.type !== 'immediate' && (
+            <div className="text-sm text-gray-600 flex items-center">
+              <svg className="h-4 w-4 mr-1 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              {formatScheduleInfo()}
+            </div>
+          )}
         </div>
         
         <div className="flex items-center space-x-2">
@@ -332,66 +456,14 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
                 : 'bg-primary text-white hover:bg-primary-dark'
             }`}
           >
-            {isSending ? 'Sending...' : `Send to ${selectedRecipients.length} Recipients`}
+            {isSending ? 'Sending...' : scheduleSettings.type === 'immediate' 
+              ? `Send to ${selectedRecipients.length} Recipients` 
+              : scheduleSettings.type === 'scheduled'
+                ? 'Schedule Message'
+                : 'Set Up Recurring Messages'}
           </button>
         </div>
       </div>
-      
-      {/* Scheduling Modal */}
-      {false && ( // TODO: Implement actual scheduling logic
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Schedule Bulk Message</h3>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Send Date and Time
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="date"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                  <input
-                    type="time"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                </div>
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Time Zone
-                </label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option>Pacific Time (PST)</option>
-                  <option>Mountain Time (MST)</option>
-                  <option>Central Time (CST)</option>
-                  <option>Eastern Time (EST)</option>
-                </select>
-              </div>
-              
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
-                >
-                  Schedule
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

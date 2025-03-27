@@ -1,372 +1,330 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Contact, Message, Conversation } from '../../types/sms';
-
-interface ExclusionRule {
-  type: 'tag' | 'list' | 'optIn' | 'createdBefore' | 'neverContacted' | 'lastContactedBefore';
-  value?: string | boolean | Date;
-}
-
-interface ContactHistory {
-  phoneNumber: string;
-  lastContacted: Date;
-  contactCount: number;
-  lastMessageType: 'inbound' | 'outbound' | 'none';
-}
+import { Contact } from '../../types/sms';
 
 interface RecipientSelectorProps {
   contacts: Contact[];
   lists: string[];
   onRecipientsSelected: (recipients: Contact[]) => void;
-  conversations?: Conversation[];
+  initialSelectedContacts?: Contact[];
 }
 
 const RecipientSelector: React.FC<RecipientSelectorProps> = ({ 
   contacts, 
   lists, 
   onRecipientsSelected,
-  conversations = []
+  initialSelectedContacts = []
 }) => {
   // State for filtering and selection
-  const [selectedList, setSelectedList] = useState<string>('');
+  const [selectedListId, setSelectedListId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filterOptions, setFilterOptions] = useState<{
-    optIn?: boolean;
-    tags?: string[];
-    createdAfter?: string;
-  }>({});
-  const [exclusionRules, setExclusionRules] = useState<ExclusionRule[]>([]);
-  const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
+  const [optInFilter, setOptInFilter] = useState<boolean | null>(true); // Default to opted-in contacts
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<Contact[]>(initialSelectedContacts);
 
-  // Filtering criteria
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
-
-  // Contact history tracking
-  const contactHistory = useMemo(() => {
-    const history: Record<string, ContactHistory> = {};
-    
+  // Get all available tags from contacts
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
     contacts.forEach(contact => {
-      history[contact.phoneNumber] = {
-        phoneNumber: contact.phoneNumber,
-        lastContacted: new Date(0),
-        contactCount: 0,
-        lastMessageType: 'none'
-      };
-    });
-
-    // Process conversations
-    conversations.forEach(conversation => {
-      const phoneNumber = conversation.phoneNumber;
-      if (phoneNumber && history[phoneNumber]) {
-        const lastMessage = conversation.messages[conversation.messages.length - 1];
-        if (lastMessage) {
-          const messageDate = new Date(lastMessage.timestamp);
-          const currentHistory = history[phoneNumber];
-          
-          if (messageDate > currentHistory.lastContacted) {
-            currentHistory.lastContacted = messageDate;
-            currentHistory.lastMessageType = lastMessage.direction;
-          }
-          currentHistory.contactCount += conversation.messages.length;
-        }
+      if (contact.tags) {
+        contact.tags.forEach(tag => tagSet.add(tag));
       }
     });
-
-    return history;
-  }, [contacts, conversations]);
-
-  // Extract unique tags from contacts
-  useEffect(() => {
-    const tagSet = new Set<string>();
-    contacts.forEach(contact => 
-      contact.tags?.forEach(tag => tagSet.add(tag))
-    );
-    setAvailableTags(Array.from(tagSet));
+    return Array.from(tagSet).sort();
   }, [contacts]);
 
   // Filter contacts based on selected criteria
   const filteredContacts = useMemo(() => {
     return contacts.filter(contact => {
-      // List filtering - early return if list filter is active
-      if (selectedList && (!contact.lists || !contact.lists.includes(selectedList))) {
+      // List filtering
+      if (selectedListId !== 'all' && (!contact.lists || !contact.lists.includes(selectedListId))) {
         return false;
-      }
-
-      // Search query filtering - early return if no match
-      if (searchQuery && searchQuery.length > 0) {
-        const searchQueryLower = searchQuery.toLowerCase();
-        const matchesSearch = 
-          contact.firstName.toLowerCase().includes(searchQueryLower) ||
-          contact.lastName.toLowerCase().includes(searchQueryLower) ||
-          contact.phoneNumber.includes(searchQueryLower) ||
-          (contact.email && contact.email.toLowerCase().includes(searchQueryLower));
-        
-        if (!matchesSearch) return false;
       }
 
       // Opt-in filtering
-      if (filterOptions.optIn !== undefined && 
-          contact.optIn !== filterOptions.optIn) {
+      if (optInFilter !== null && contact.optIn !== optInFilter) {
         return false;
       }
 
-      // Tags filtering - early return if no match
-      if (filterOptions.tags && filterOptions.tags.length > 0) {
-        const contactTags = contact.tags || [];
-        if (!filterOptions.tags.every(tag => contactTags.includes(tag))) {
+      // Tag filtering
+      if (selectedTags.length > 0) {
+        if (!contact.tags) return false;
+        if (!selectedTags.every(tag => contact.tags?.includes(tag))) {
           return false;
         }
       }
 
-      // Created after filtering
-      if (filterOptions.createdAfter && contact.createdAt) {
-        const contactDate = new Date(contact.createdAt);
-        if (contactDate < new Date(filterOptions.createdAfter)) {
-          return false;
-        }
+      // Search query filtering
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        return (
+          contact.firstName.toLowerCase().includes(query) ||
+          contact.lastName.toLowerCase().includes(query) ||
+          contact.phoneNumber.includes(query) ||
+          (contact.email && contact.email.toLowerCase().includes(query))
+        );
       }
 
-      // Enhanced exclusion rules filtering
-      const isExcluded = exclusionRules.some(rule => {
-        switch (rule.type) {
-          case 'tag':
-            return contact.tags?.includes(rule.value as string);
-          case 'list':
-            return contact.lists?.includes(rule.value as string);
-          case 'optIn':
-            return contact.optIn === rule.value;
-          case 'createdBefore':
-            return contact.createdAt && 
-              new Date(contact.createdAt) < new Date(rule.value as string);
-          case 'neverContacted':
-            return contactHistory[contact.phoneNumber]?.contactCount === 0;
-          case 'lastContactedBefore':
-            const lastContacted = contactHistory[contact.phoneNumber]?.lastContacted;
-            return lastContacted && lastContacted < new Date(rule.value as string);
-          default:
-            return false;
-        }
-      });
-
-      return !isExcluded;
+      return true;
     });
-  }, [contacts, selectedList, searchQuery, filterOptions, exclusionRules, contactHistory]);
+  }, [contacts, selectedListId, optInFilter, selectedTags, searchQuery]);
 
-  // Add an exclusion rule
-  const addExclusionRule = (rule: ExclusionRule) => {
-    setExclusionRules(prev => [...prev, rule]);
+  // When filtered contacts change, update the parent component
+  useEffect(() => {
+    onRecipientsSelected(selectedContacts);
+  }, [selectedContacts, onRecipientsSelected]);
+
+  // Select all contacts in the filtered list
+  const handleSelectAll = () => {
+    setSelectedContacts(filteredContacts);
   };
 
-  // Remove an exclusion rule
-  const removeExclusionRule = (ruleToRemove: ExclusionRule) => {
-    setExclusionRules(prev => 
-      prev.filter(rule => 
-        !(rule.type === ruleToRemove.type && rule.value === ruleToRemove.value)
-      )
+  // Clear all selections
+  const handleClearAll = () => {
+    setSelectedContacts([]);
+  };
+
+  // Toggle a specific contact selection
+  const toggleContactSelection = (contact: Contact) => {
+    setSelectedContacts(prevSelected => {
+      const isSelected = prevSelected.some(c => c.id === contact.id);
+      if (isSelected) {
+        return prevSelected.filter(c => c.id !== contact.id);
+      } else {
+        return [...prevSelected, contact];
+      }
+    });
+  };
+
+  // Toggle a tag filter
+  const toggleTagFilter = (tag: string) => {
+    setSelectedTags(prevTags => 
+      prevTags.includes(tag)
+        ? prevTags.filter(t => t !== tag)
+        : [...prevTags, tag]
     );
   };
 
-  // Render exclusion rules section
-  const renderExclusionRules = () => (
-    <div className="mt-4">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium text-gray-900">
-          Exclusion Rules
-        </h3>
-        <button
-          onClick={() => setExclusionRules([])}
-          className="text-sm text-red-600 hover:text-red-800"
-        >
-          Clear All Rules
-        </button>
-      </div>
-      
-      {/* Exclusion Rule Selector */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-        {/* Tag Exclusion */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Exclude by Tag
-          </label>
-          <select
-            onChange={(e) => {
-              const tag = e.target.value;
-              if (tag) {
-                addExclusionRule({ type: 'tag', value: tag });
-              }
-            }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          >
-            <option value="">Select a tag</option>
-            {availableTags.map(tag => (
-              <option key={tag} value={tag}>{tag}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* List Exclusion */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Exclude by List
-          </label>
-          <select
-            onChange={(e) => {
-              const list = e.target.value;
-              if (list) {
-                addExclusionRule({ type: 'list', value: list });
-              }
-            }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          >
-            <option value="">Select a list</option>
-            {lists.map(list => (
-              <option key={list} value={list}>{list}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Opt-in Exclusion */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Exclude by Opt-in Status
-          </label>
-          <select
-            onChange={(e) => {
-              const optIn = e.target.value === 'true';
-              addExclusionRule({ type: 'optIn', value: optIn });
-            }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          >
-            <option value="">Select opt-in status</option>
-            <option value="true">Opted In</option>
-            <option value="false">Opted Out</option>
-          </select>
-        </div>
-
-        {/* Created Before Exclusion */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Exclude Contacts Created Before
-          </label>
-          <input
-            type="date"
-            onChange={(e) => {
-              const date = e.target.value;
-              if (date) {
-                addExclusionRule({ type: 'createdBefore', value: date });
-              }
-            }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        {/* Last Contacted Before Exclusion */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Exclude Not Contacted Since
-          </label>
-          <input
-            type="date"
-            onChange={(e) => {
-              const date = e.target.value;
-              if (date) {
-                addExclusionRule({ type: 'lastContactedBefore', value: date });
-              }
-            }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        {/* Never Contacted Exclusion with Count */}
-        <div>
-          <button
-            onClick={() => addExclusionRule({ type: 'neverContacted' })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center justify-between"
-          >
-            <span>Exclude Never Contacted</span>
-            <span className="text-sm text-gray-500">
-              ({contacts.filter(c => contactHistory[c.phoneNumber]?.contactCount === 0).length})
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* Active Exclusion Rules with Enhanced UI */}
-      {exclusionRules.length > 0 && (
-        <div className="mt-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">
-            Active Exclusion Rules ({exclusionRules.length})
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            {exclusionRules.map((rule, index) => (
-              <div 
-                key={index}
-                className="inline-flex items-center px-3 py-1 rounded-full bg-red-100 text-red-800 text-xs group"
-              >
-                <span className="mr-1">
-                  {rule.type === 'tag' && `Exclude Tag: ${rule.value}`}
-                  {rule.type === 'list' && `Exclude List: ${rule.value}`}
-                  {rule.type === 'optIn' && `Exclude Opt-in: ${rule.value ? 'Opted In' : 'Opted Out'}`}
-                  {rule.type === 'createdBefore' && `Exclude Before: ${rule.value}`}
-                  {rule.type === 'neverContacted' && 'Exclude Never Contacted'}
-                  {rule.type === 'lastContactedBefore' && `Exclude Not Contacted Since: ${rule.value}`}
-                </span>
-                <button
-                  onClick={() => removeExclusionRule(rule)}
-                  className="ml-1 text-red-600 hover:text-red-800 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Remove rule"
-                >
-                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Exclusion Summary */}
-      <div className="mt-4 p-3 bg-gray-50 rounded-md">
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Exclusion Summary</h4>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <span className="text-gray-600">Total Contacts:</span>
-            <span className="ml-2 font-medium">{contacts.length}</span>
-          </div>
-          <div>
-            <span className="text-gray-600">Excluded Contacts:</span>
-            <span className="ml-2 font-medium text-red-600">
-              {contacts.length - filteredContacts.length}
-            </span>
-          </div>
-          <div>
-            <span className="text-gray-600">Available Contacts:</span>
-            <span className="ml-2 font-medium text-green-600">
-              {filteredContacts.length}
-            </span>
-          </div>
-          <div>
-            <span className="text-gray-600">Never Contacted:</span>
-            <span className="ml-2 font-medium">
-              {contacts.filter(c => contactHistory[c.phoneNumber]?.contactCount === 0).length}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Rest of the component remains the same as in the previous implementation
-  // (Toggle contact selection, select all, clear all, etc.)
+  // Check if a contact is selected
+  const isContactSelected = (contact: Contact) => {
+    return selectedContacts.some(c => c.id === contact.id);
+  };
 
   return (
-    <div className="space-y-4">
-      {/* Existing search and filter components */}
-      
-      {/* New Exclusion Rules Section */}
-      {renderExclusionRules()}
+    <div className="space-y-6">
+      {/* Filters section */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Filter Recipients</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Search */}
+          <div>
+            <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+              Search Contacts
+            </label>
+            <input
+              type="text"
+              id="search"
+              placeholder="Search by name, email, phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            />
+          </div>
 
-      {/* Existing recipient list and preview components */}
+          {/* List filter */}
+          <div>
+            <label htmlFor="listFilter" className="block text-sm font-medium text-gray-700 mb-1">
+              List
+            </label>
+            <select
+              id="listFilter"
+              value={selectedListId}
+              onChange={(e) => setSelectedListId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+            >
+              <option value="all">All Contacts</option>
+              {lists.map(list => (
+                <option key={list} value={list}>{list}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Opt-in status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Opt-in Status
+            </label>
+            <div className="flex space-x-4">
+              <label className="inline-flex items-center">
+                <input
+                  type="radio"
+                  checked={optInFilter === true}
+                  onChange={() => setOptInFilter(true)}
+                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700">Opted In</span>
+              </label>
+              <label className="inline-flex items-center">
+                <input
+                  type="radio"
+                  checked={optInFilter === false}
+                  onChange={() => setOptInFilter(false)}
+                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700">Opted Out</span>
+              </label>
+              <label className="inline-flex items-center">
+                <input
+                  type="radio"
+                  checked={optInFilter === null}
+                  onChange={() => setOptInFilter(null)}
+                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700">All</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tags
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {availableTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => toggleTagFilter(tag)}
+                  className={`px-2 py-1 text-xs rounded-full ${
+                    selectedTags.includes(tag)
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+              {availableTags.length === 0 && (
+                <span className="text-sm text-gray-500">No tags available</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recipient selection */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            Available Recipients ({filteredContacts.length})
+          </h3>
+          <div className="flex space-x-2">
+            <button
+              onClick={handleSelectAll}
+              className="px-3 py-1 text-sm bg-primary text-white rounded hover:bg-darkBrown"
+            >
+              Select All
+            </button>
+            <button
+              onClick={handleClearAll}
+              className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+
+        {/* Recipient list */}
+        <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-md">
+          {filteredContacts.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">
+              No contacts match your filters
+            </div>
+          ) : (
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={filteredContacts.length > 0 && filteredContacts.every(contact => isContactSelected(contact))}
+                      onChange={handleSelectAll}
+                      className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                    />
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phone Number
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredContacts.map(contact => (
+                  <tr 
+                    key={contact.id} 
+                    className={isContactSelected(contact) ? 'bg-blue-50' : 'hover:bg-gray-50'}
+                    onClick={() => toggleContactSelection(contact)}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={isContactSelected(contact)}
+                        onChange={() => toggleContactSelection(contact)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {contact.firstName} {contact.lastName}
+                      </div>
+                      {contact.tags && contact.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {contact.tags.slice(0, 2).map(tag => (
+                            <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                              {tag}
+                            </span>
+                          ))}
+                          {contact.tags.length > 2 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                              +{contact.tags.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {contact.phoneNumber}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {contact.optIn ? (
+                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                          Opted In
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                          Opted Out
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Selected count */}
+        <div className="mt-4 text-right">
+          <span className="text-sm text-gray-700">
+            {selectedContacts.length} of {filteredContacts.length} contacts selected
+          </span>
+        </div>
+      </div>
     </div>
   );
 };
