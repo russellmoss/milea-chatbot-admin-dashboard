@@ -120,12 +120,78 @@ const MessagingInbox: React.FC = () => {
     dateRange: null
   });
 
-  // Add new state for resizing and collapsing the message composer
-  const [isComposerExpanded, setIsComposerExpanded] = useState(false);
-  const [composerWidth, setComposerWidth] = useState(400); // Default width in pixels
+  // Load composer state from localStorage
+  const [isComposerExpanded, setIsComposerExpanded] = useState(() => {
+    const saved = localStorage.getItem('composerExpanded');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [composerWidth, setComposerWidth] = useState(() => {
+    const savedWidth = localStorage.getItem('composerWidth');
+    return savedWidth ? parseInt(savedWidth, 10) : 400;
+  });
   const [isResizing, setIsResizing] = useState(false);
   const [startX, setStartX] = useState(0);
   const [startWidth, setStartWidth] = useState(0);
+
+  // Save composer state to localStorage
+  useEffect(() => {
+    localStorage.setItem('composerExpanded', JSON.stringify(isComposerExpanded));
+  }, [isComposerExpanded]);
+
+  // Handle resize start
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    setStartX(e.clientX);
+    setStartWidth(composerWidth);
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleResizeEnd);
+  };
+
+  // Handle resize move
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!isResizing) return;
+    
+    const diff = e.clientX - startX; // Changed to negative diff for right-to-left movement
+    const newWidth = Math.max(300, Math.min(800, startWidth - diff));
+    
+    // Add resistance near the edges
+    if (newWidth < 350) {
+      const resistance = (350 - newWidth) * 0.5;
+      setComposerWidth(Math.max(300, startWidth - diff - resistance));
+    } else if (newWidth > 750) {
+      const resistance = (newWidth - 750) * 0.5;
+      setComposerWidth(Math.min(800, startWidth - diff + resistance));
+    } else {
+      setComposerWidth(newWidth);
+    }
+  };
+
+  // Handle resize end
+  const handleResizeEnd = () => {
+    setIsResizing(false);
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleResizeEnd);
+  };
+
+  // Handle composer expanded state changes
+  const handleComposerExpandedChange = (expanded: boolean) => {
+    console.log('MessagingInbox: Composer expanded state changed', {
+      oldState: isComposerExpanded,
+      newState: expanded
+    });
+    setIsComposerExpanded(expanded);
+  };
+
+  // Handle composer width changes
+  const handleComposerWidthChange = (width: number) => {
+    console.log('MessagingInbox: Composer width changed', {
+      oldWidth: composerWidth,
+      newWidth: width
+    });
+    setComposerWidth(width);
+    localStorage.setItem('composerWidth', width.toString());
+  };
 
   // Load initial data
   useEffect(() => {
@@ -203,7 +269,9 @@ const MessagingInbox: React.FC = () => {
   }, [conversations, selectedFolder, filters]);
 
   // Handle conversation selection
-  const handleConversationSelect = async (conversation: Conversation, event: React.MouseEvent) => {
+  const handleConversationSelect = useCallback(async (conversation: Conversation, event: React.MouseEvent) => {
+    if (!conversation) return;
+
     console.log('MessagingInbox: Conversation selected', {
       id: conversation.id,
       phoneNumber: conversation.phoneNumber,
@@ -248,7 +316,7 @@ const MessagingInbox: React.FC = () => {
         toast.error('Failed to mark conversation as read');
       }
     }
-  };
+  }, [selectedConversations, markConversationAsRead]);
 
   // Handle sending a new message
   const handleSendMessage = async (content: string): Promise<void> => {
@@ -490,31 +558,6 @@ const MessagingInbox: React.FC = () => {
     console.log('Add to list');
   };
 
-  // Handle resize start
-  const handleResizeStart = (e: React.MouseEvent) => {
-    setIsResizing(true);
-    setStartX(e.clientX);
-    setStartWidth(composerWidth);
-    document.addEventListener('mousemove', handleResizeMove);
-    document.addEventListener('mouseup', handleResizeEnd);
-  };
-
-  // Handle resize move
-  const handleResizeMove = (e: MouseEvent) => {
-    if (!isResizing) return;
-    
-    const diff = startX - e.clientX;
-    const newWidth = Math.max(300, Math.min(800, startWidth + diff));
-    setComposerWidth(newWidth);
-  };
-
-  // Handle resize end
-  const handleResizeEnd = () => {
-    setIsResizing(false);
-    document.removeEventListener('mousemove', handleResizeMove);
-    document.removeEventListener('mouseup', handleResizeEnd);
-  };
-
   // Handle message selection
   const handleMessageSelect = (messageId: string) => {
     if (!selectedConversation) return;
@@ -726,81 +769,106 @@ const MessagingInbox: React.FC = () => {
             />
 
             {selectedConversation ? (
-              <div className="flex-1 flex flex-col border-l">
-                <ConversationHeader
-                  conversation={selectedConversation}
-                  onArchiveToggle={handleArchiveToggle}
-                  onDelete={() => handleDeleteConversation(selectedConversation.id)}
-                  onExport={handleExportConversation}
-                  onViewContact={handleViewContact}
-                  onBlock={handleBlockContact}
-                  onAddToList={handleAddToList}
-                />
-                <MessageDisplay
-                  messages={selectedConversation.messages}
-                  customerName={selectedConversation.customerName}
-                  phoneNumber={selectedConversation.phoneNumber}
-                  conversation={selectedConversation}
-                  onMarkAsRead={handleMarkAsRead}
-                  onMessageSelect={handleMessageSelect}
-                  onMessageAction={handleMessageAction}
-                />
-                <div 
-                  className={`relative border-t transition-all duration-300 ${
-                    isComposerExpanded ? 'w-full z-50' : 'w-auto'
+              <div 
+                className={`flex-1 flex flex-col border-l relative ${
+                  isComposerExpanded ? 'fixed top-0 right-0 h-screen z-50 bg-white' : ''
+                }`}
+                style={{ 
+                  width: isComposerExpanded ? `${composerWidth}px` : 'auto',
+                  transition: 'width 300ms ease-in-out',
+                  right: isComposerExpanded ? 0 : 'auto'
+                }}
+              >
+                {/* Backdrop when expanded */}
+                {isComposerExpanded && (
+                  <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                    onClick={() => setIsComposerExpanded(false)}
+                  />
+                )}
+
+                {/* Resize handle */}
+                <div
+                  className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize group ${
+                    isResizing ? 'bg-primary/30' : ''
                   }`}
-                  style={{ width: isComposerExpanded ? `${composerWidth}px` : 'auto' }}
+                  onMouseDown={handleResizeStart}
+                  title="Drag to resize"
                 >
-                  {/* Backdrop when expanded */}
-                  {isComposerExpanded && (
-                    <div 
-                      className="fixed inset-0 bg-black bg-opacity-50 z-40"
-                      onClick={() => setIsComposerExpanded(false)}
-                    />
-                  )}
-
-                  {/* Resize handle */}
-                  <div
-                    className={`absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-primary/20 transition-colors ${
-                      isResizing ? 'bg-primary/30' : ''
-                    }`}
-                    onMouseDown={handleResizeStart}
-                    title="Drag to resize"
-                  />
+                  {/* Visual indicator */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors duration-200 ${
+                    isResizing 
+                      ? 'bg-primary' 
+                      : 'bg-gray-300 group-hover:bg-primary/50'
+                  }`} />
                   
-                  {/* Toggle button */}
-                  <button
-                    onClick={() => setIsComposerExpanded(!isComposerExpanded)}
-                    className="absolute right-2 top-2 p-1 rounded-full hover:bg-gray-100 transition-colors"
-                    title={isComposerExpanded ? "Collapse composer" : "Expand composer"}
-                  >
-                    <svg
-                      className={`w-4 h-4 transform transition-transform duration-200 ${
-                        isComposerExpanded ? 'rotate-180' : ''
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </button>
+                  {/* Constraint indicators */}
+                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-2 h-8 flex items-center justify-center transition-opacity duration-200 ${
+                    isResizing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}>
+                    <div className="w-1 h-6 bg-gray-400 rounded-full" />
+                  </div>
+                </div>
 
-                  {/* Message Composer */}
-                  <MessageComposer
-                    onSend={handleSendMessage}
-                    onTemplateSelect={handleTemplateSelect}
-                    templates={templates}
-                    recipientPhone={selectedConversation.phoneNumber}
-                    conversationId={selectedConversation.id}
-                    isExpanded={isComposerExpanded}
-                    width={composerWidth}
+                {/* Toggle button */}
+                <button
+                  onClick={() => setIsComposerExpanded(!isComposerExpanded)}
+                  className="absolute right-2 top-2 p-1 rounded-full hover:bg-gray-100 transition-colors z-50"
+                  title={isComposerExpanded ? "Collapse composer" : "Expand composer"}
+                >
+                  <svg
+                    className={`w-4 h-4 transform transition-transform duration-200 ${
+                      isComposerExpanded ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+
+                {/* Message container */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <ConversationHeader
+                    conversation={selectedConversation}
+                    onArchiveToggle={handleArchiveToggle}
+                    onDelete={() => handleDeleteConversation(selectedConversation.id)}
+                    onExport={handleExportConversation}
+                    onViewContact={handleViewContact}
+                    onBlock={handleBlockContact}
+                    onAddToList={handleAddToList}
                   />
+                  <MessageDisplay
+                    messages={selectedConversation.messages}
+                    customerName={selectedConversation.customerName}
+                    phoneNumber={selectedConversation.phoneNumber}
+                    conversation={selectedConversation}
+                    onMarkAsRead={handleMarkAsRead}
+                    onMessageSelect={handleMessageSelect}
+                    onMessageAction={handleMessageAction}
+                  />
+                  <div className="relative border-t">
+                    <MessageComposer
+                      onSend={handleSendMessage}
+                      onTemplateSelect={handleTemplateSelect}
+                      templates={templates}
+                      recipientPhone={selectedConversation.phoneNumber}
+                      conversationId={selectedConversation.id}
+                      isExpanded={isComposerExpanded}
+                      width={composerWidth}
+                      onWidthChange={handleComposerWidthChange}
+                      onExpandedChange={handleComposerExpandedChange}
+                      onCancel={() => setIsComposerExpanded(false)}
+                      conversation={selectedConversation}
+                      onToggleExpand={() => setIsComposerExpanded(!isComposerExpanded)}
+                    />
+                  </div>
                 </div>
               </div>
             ) : (

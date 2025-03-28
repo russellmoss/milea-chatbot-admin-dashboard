@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageTemplate } from '../../types/sms';
 import { useMessage } from '../../contexts/MessageContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -11,20 +11,32 @@ interface MessageComposerProps {
   conversationId?: string;
   isExpanded?: boolean;
   width?: number;
+  onWidthChange?: (width: number) => void;
+  onExpandedChange?: (expanded: boolean) => void;
+  onCancel: () => void;
+  initialMessage?: string;
+  conversation: { id: string };
+  onToggleExpand: () => void;
 }
 
-const MessageComposer: React.FC<MessageComposerProps> = ({
+export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
   onSend,
   onTemplateSelect,
   templates,
   recipientPhone,
   conversationId = '',
   isExpanded = false,
-  width = 400
+  width = 400,
+  onWidthChange,
+  onExpandedChange,
+  onCancel,
+  initialMessage = '',
+  conversation,
+  onToggleExpand
 }) => {
   const { draftMessages, setDraftMessage, clearDraftMessage } = useMessage();
   const { isConnected } = useSocket();
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initialMessage);
   const [showTemplates, setShowTemplates] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,9 +51,11 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
       conversationId,
       templatesCount: templates.length,
       isConnected,
-      hasDraft: !!draftMessages[conversationId || '']
+      hasDraft: !!draftMessages[conversationId || ''],
+      isExpanded,
+      width
     });
-  }, [recipientPhone, conversationId, templates.length, isConnected, draftMessages]);
+  }, [recipientPhone, conversationId, templates.length, isConnected, draftMessages, isExpanded, width]);
 
   // Load draft message if exists
   useEffect(() => {
@@ -51,6 +65,8 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
         draftLength: draftMessages[conversationId].length
       });
       setMessage(draftMessages[conversationId]);
+    } else {
+      setMessage('');
     }
   }, [conversationId, draftMessages]);
 
@@ -62,6 +78,17 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
     }
   }, [message]);
 
+  // Cleanup function
+  useEffect(() => {
+    return () => {
+      if (message.trim()) {
+        setDraftMessage(conversation.id, message);
+      } else {
+        clearDraftMessage(conversation.id);
+      }
+    };
+  }, [message, conversation.id, setDraftMessage, clearDraftMessage]);
+
   // Handle message change
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newMessage = e.target.value;
@@ -71,11 +98,6 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
       hasDraft: !!draftMessages[conversationId || '']
     });
     setMessage(newMessage);
-    
-    // Save draft
-    if (conversationId) {
-      setDraftMessage(conversationId, newMessage);
-    }
   };
 
   // Handle template selection
@@ -87,58 +109,37 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
     onTemplateSelect(templateId);
   };
 
-  // Handle message submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    console.log('MessageComposer: Attempting to send message', {
-      messageLength: message.length,
-      conversationId,
-      recipientPhone,
-      isConnected
-    });
+  // Handle send
+  const handleSend = useCallback(async () => {
+    if (!message.trim() || isSending) return;
 
-    if (!message.trim() || isSending || !isConnected) {
-      console.log('MessageComposer: Send prevented', {
-        reason: !message.trim() ? 'empty message' : 
-                isSending ? 'already sending' : 'not connected',
-        messageLength: message.length,
-        isSending,
-        isConnected
-      });
-      return;
-    }
-
+    setIsSending(true);
     try {
-      setIsSending(true);
-      console.log('MessageComposer: Sending message');
       await onSend(message);
-      
-      console.log('MessageComposer: Message sent successfully');
       setMessage('');
-      
-      if (conversationId) {
-        clearDraftMessage(conversationId);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
       }
     } catch (error) {
-      console.error('MessageComposer: Error sending message', {
-        error,
-        messageLength: message.length,
-        conversationId
-      });
+      console.error('Error sending message:', error);
     } finally {
       setIsSending(false);
     }
-  };
+  }, [message, isSending, onSend]);
 
-  // Handle key press events
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Send on Enter without shift
+  // Handle cancel
+  const handleCancel = useCallback(() => {
+    setMessage('');
+    onCancel();
+  }, [onCancel]);
+
+  // Handle key press
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      handleSend();
     }
-  };
+  }, [handleSend]);
 
   // Handle attachment button click
   const handleAttachmentClick = () => {
@@ -147,14 +148,32 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
     console.log('Attachment button clicked');
   };
 
+  // Handle width changes
+  useEffect(() => {
+    if (onWidthChange) {
+      onWidthChange(width);
+    }
+  }, [width, onWidthChange]);
+
+  // Handle expanded state changes
+  useEffect(() => {
+    if (onExpandedChange) {
+      onExpandedChange(isExpanded);
+    }
+  }, [isExpanded, onExpandedChange]);
+
   return (
     <div 
       className={`border-t border-gray-200 bg-white p-4 transition-all duration-300 ${
-        isExpanded ? 'fixed top-0 right-0 h-screen' : ''
+        isExpanded ? 'shadow-lg' : ''
       }`}
-      style={{ width: isExpanded ? `${width}px` : 'auto' }}
+      style={{ 
+        width: isExpanded ? `${width}px` : 'auto',
+        minWidth: isExpanded ? '300px' : 'auto',
+        maxWidth: isExpanded ? '800px' : 'auto'
+      }}
     >
-      <form onSubmit={handleSubmit} className="flex flex-col space-y-2">
+      <form onSubmit={handleSend} className="flex flex-col space-y-2">
         {/* Formatting toolbar */}
         <div className="flex items-center space-x-2 pb-2">
           <button
@@ -264,6 +283,6 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
       )}
     </div>
   );
-};
+});
 
 export default MessageComposer;

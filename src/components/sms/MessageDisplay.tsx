@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { Message, Conversation } from '../../types/sms';
 import MessageActions from './MessageActions';
+import { useMessage } from '../../contexts/MessageContext';
 
 interface MessageDisplayProps {
   messages: Message[];
@@ -13,15 +14,20 @@ interface MessageDisplayProps {
   onMessageSelect: (messageId: string) => void;
 }
 
-const MessageDisplay: React.FC<MessageDisplayProps> = ({ 
-  messages, 
-  customerName, 
-  phoneNumber, 
+export const MessageDisplay: React.FC<MessageDisplayProps> = React.memo(({
+  messages,
+  customerName,
+  phoneNumber,
   onMarkAsRead,
   conversation,
   onMessageAction,
   onMessageSelect
 }) => {
+  const { setDraftMessage, clearDraftMessage } = useMessage();
+  const [isComposerExpanded, setIsComposerExpanded] = useState(false);
+  const [composerWidth, setComposerWidth] = useState(400);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -61,6 +67,44 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
     }
   }, [conversation, onMarkAsRead]);
 
+  // Cleanup function for event listeners
+  useEffect(() => {
+    return () => {
+      if (resizeRef.current) {
+        window.removeEventListener('mousemove', handleResizeMove);
+        window.removeEventListener('mouseup', handleResizeEnd);
+      }
+    };
+  }, []);
+
+  // Handle resize start
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    window.addEventListener('mousemove', handleResizeMove);
+    window.addEventListener('mouseup', handleResizeEnd);
+  }, []);
+
+  // Handle resize move
+  const handleResizeMove = useCallback((e: MouseEvent) => {
+    if (!isResizing || !resizeRef.current) return;
+
+    const newWidth = window.innerWidth - e.clientX;
+    setComposerWidth(Math.min(Math.max(newWidth, 300), 800));
+  }, [isResizing]);
+
+  // Handle resize end
+  const handleResizeEnd = useCallback(() => {
+    setIsResizing(false);
+    window.removeEventListener('mousemove', handleResizeMove);
+    window.removeEventListener('mouseup', handleResizeEnd);
+  }, []);
+
+  // Handle composer toggle
+  const handleComposerToggle = useCallback(() => {
+    setIsComposerExpanded(prev => !prev);
+  }, []);
+
   // Handle scroll events to determine if we should auto-scroll
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -83,14 +127,11 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   };
 
   // Handle message selection
-  const handleMessageSelect = (messageId: string) => {
-    console.log('MessageDisplay: Message selected', {
-      messageId,
-      previousSelection: selectedMessageId
-    });
-    setSelectedMessageId(messageId);
-    onMessageSelect(messageId);
-  };
+  const handleMessageSelect = useCallback((message: Message) => {
+    if (onMessageSelect) {
+      onMessageSelect(message.id);
+    }
+  }, [onMessageSelect]);
 
   // Handle message action
   const handleAction = (action: string, messageId: string) => {
@@ -170,7 +211,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
               <div 
                 key={message.id}
                 className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                onClick={() => handleMessageSelect(message.id)}
+                onClick={() => handleMessageSelect(message)}
               >
                 <div className={`relative max-w-[75%] px-4 py-2 rounded-lg shadow-sm ${
                   message.direction === 'outbound'
@@ -222,6 +263,6 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
       <div ref={messagesEndRef} />
     </div>
   );
-};
+});
 
 export default MessageDisplay;

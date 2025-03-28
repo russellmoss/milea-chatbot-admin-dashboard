@@ -217,6 +217,9 @@ const SMS: React.FC = () => {
                 templates={templates}
                 recipientPhone={currentConversation.phoneNumber}
                 conversationId={currentConversation.id}
+                onCancel={() => {}}
+                conversation={currentConversation}
+                onToggleExpand={() => {}}
               />
             </div>
           ) : (
