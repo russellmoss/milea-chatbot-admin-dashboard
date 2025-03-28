@@ -3,13 +3,30 @@
 # dependencies
 /node_modules
 /backend/node_modules
+/.pnp
+.pnp.js
 
 # environment variables
 .env
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
+/backend/.env
+/backend/.env.local
+/backend/.env.development
+/backend/.env.development.local
+/backend/.env.test
+/backend/.env.test.local
+/backend/.env.production
+/backend/.env.production.local
+
+# keep example files
+!.env.example
+!backend/.env.example
 
 # build files
 /build
@@ -41,6 +58,7 @@ ngrok.yml
 .env.development.local
 .env.test.local
 .env.production.local
+.env
 
 # Firebase
 .firebase/
@@ -51,6 +69,8 @@ firebase-credentials.json
 google-services.json
 GoogleService-Info.plist
 src/config/firebase.ts
+src/firebase-config.ts
+backend/firebase-credentials.json
 
 # IDE specific files
 *.swp

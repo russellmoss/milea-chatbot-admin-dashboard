@@ -57,21 +57,30 @@ export const MOCK_CONVERSATIONS: Conversation[] = [
         direction: 'inbound',
         content: "Hello! I'm interested in booking a tasting for this Saturday",
         timestamp: '2023-05-15T14:30:00',
-        read: false
+        read: false,
+        status: 'received'
       },
       {
         id: 'msg2',
         direction: 'outbound',
-        content: 'Hi John! Thank you for your interest. We have openings at 11 AM, 1 PM, and 3 PM this Saturday. Would any of those times work for you?',
+        content: "Hi John! We'd be happy to help you book a tasting. What time were you thinking?",
         timestamp: '2023-05-15T14:35:00',
-        status: 'delivered',
-        read: true
+        read: true,
+        status: 'delivered'
+      },
+      {
+        id: 'msg3',
+        direction: 'inbound',
+        content: "How about 2 PM?",
+        timestamp: '2023-05-15T14:40:00',
+        read: true,
+        status: 'received'
       }
     ],
     archived: false,
     deleted: false,
     unreadCount: 1,
-    lastMessageAt: '2023-05-15T14:35:00',
+    lastMessageAt: '2023-05-15T14:40:00',
     timestamp: '2023-05-15T14:30:00'
   },
   {
@@ -80,19 +89,12 @@ export const MOCK_CONVERSATIONS: Conversation[] = [
     customerName: 'Sarah Johnson',
     messages: [
       {
-        id: 'msg3',
-        direction: 'outbound',
-        content: "Hello Sarah, your wine club shipment for May is ready for pickup at the tasting room. We're open daily from 10 AM to 5 PM.",
-        timestamp: '2023-05-14T11:15:00',
-        status: 'read',
-        read: true
-      },
-      {
         id: 'msg4',
         direction: 'inbound',
         content: "Thank you! I'll bring my receipt when I come to pick up my wine club shipment.",
         timestamp: '2023-05-14T11:20:00',
-        read: true
+        read: true,
+        status: 'received'
       }
     ],
     archived: false,
@@ -111,7 +113,8 @@ export const MOCK_CONVERSATIONS: Conversation[] = [
         direction: 'inbound',
         content: 'Great event last weekend!',
         timestamp: '2023-05-10T16:45:00',
-        read: true
+        read: true,
+        status: 'received'
       }
     ],
     archived: true,
@@ -130,7 +133,8 @@ export const MOCK_CONVERSATIONS: Conversation[] = [
         direction: 'inbound',
         content: 'Spam message',
         timestamp: '2023-05-01T09:15:00',
-        read: true
+        read: true,
+        status: 'received'
       }
     ],
     archived: false,

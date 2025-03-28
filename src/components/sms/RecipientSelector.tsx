@@ -3,7 +3,7 @@ import { Contact } from '../../types/sms';
 
 interface RecipientSelectorProps {
   contacts: Contact[];
-  lists: string[];
+  lists: string[];  // Array of list IDs or names
   onRecipientsSelected: (recipients: Contact[]) => void;
   initialSelectedContacts?: Contact[];
 }

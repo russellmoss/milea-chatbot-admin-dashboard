@@ -11,7 +11,8 @@ export interface Conversation {
     timestamp: string;
     archived: boolean;
     deleted: boolean;
-    archivedAt?: string | null;
+    archivedAt?: string;
+    userId?: string;
 }
   
 // Message represents a single text message in a conversation
@@ -19,13 +20,15 @@ export interface Message {
     id: string;
     direction: 'inbound' | 'outbound';
     content: string;
+    phoneNumber?: string;
     timestamp: string;
-    status?: 'sent' | 'delivered' | 'read' | 'failed' | 'pending';
-    mediaUrls?: string[];
+    status: 'sent' | 'delivered' | 'failed' | 'received' | 'read';
     read: boolean;
-    readAt?: string; // Timestamp when the message was read by the recipient
-    readBy?: string; // Phone number or identifier of who read the message
-    error?: string; // Error message if the message failed to send
+    userId?: string;
+    conversationId?: string;
+    readAt?: string;
+    readBy?: string;
+    error?: string;
 }
   
 // MessageTemplate represents a reusable message template
@@ -33,26 +36,28 @@ export interface MessageTemplate {
     id: string;
     name: string;
     content: string;
-    category: string;
     variables: string[];
+    category: string;
     createdAt: string;
     updatedAt: string;
+    userId?: string;
 }
   
 // Contact represents a customer or lead in the contact database
 export interface Contact {
-    id?: string;
+    id: string;
     firstName: string;
     lastName: string;
     phoneNumber: string;
     email?: string;
-    birthdate?: string;
-    tags?: string[];
-    notes?: string;
     optIn: boolean;
-    lists?: string[];
-    createdAt?: string;
-    updatedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+    userId?: string;
+    lists?: string[];  // Array of list IDs that this contact belongs to
+    tags?: string[];   // Array of tags associated with the contact
+    birthdate?: string;  // Optional birthdate field
+    notes?: string;    // Optional notes field
 }
   
 // ContactList represents a grouping of contacts
@@ -60,9 +65,10 @@ export interface ContactList {
     id: string;
     name: string;
     description?: string;
-    contactCount: number;
+    contacts: string[];
     createdAt: string;
     updatedAt: string;
+    userId?: string;
 }
   
 // ContactImportResult represents the result of a contact import operation
@@ -135,4 +141,26 @@ export interface Folder {
   icon: React.ReactNode;
   filter: (conversation: Conversation) => boolean;
   getBadgeCount: (conversations: Conversation[]) => number;
+}
+
+export interface Campaign {
+  id: string;
+  name: string;
+  description?: string;
+  message: string;
+  status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'failed';
+  scheduledAt?: string;
+  sentAt?: string;
+  completedAt?: string;
+  recipientCount: number;
+  sentCount: number;
+  failedCount: number;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+}
+
+export interface DateRange {
+  from: Date;
+  to: Date;
 }

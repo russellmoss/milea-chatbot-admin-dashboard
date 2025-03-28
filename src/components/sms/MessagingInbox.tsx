@@ -1,34 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import MessageDisplay from './MessageDisplay';
 import MessageComposer from './MessageComposer';
 import TemplateSelector from './TemplateSelector';
 import FolderSidebar from './FolderSidebar';
-import { Contact, Conversation, Message, Folder } from '../../types/sms';
-import { markMessagesAsRead, markMessageAsRead, archiveConversation, unarchiveConversation, toggleConversationArchive } from '../../services/smsService';
+import { Conversation, Message, Folder, DateRange, MessageTemplate } from '../../types/sms';
 import { toast } from 'react-hot-toast';
-import { useSMSContext } from '../../contexts/SMSContext';
+import { useSMS } from '../../contexts/SMSContext';
+import { useSocket } from '../../contexts/SocketContext';
+import { useAuth } from '../../contexts/AuthContext';
 import ConversationList from './ConversationList';
 import ConversationHeader from './ConversationHeader';
 import MessageActions from './MessageActions';
-
-// Types
-export interface MessageTemplate {
-  id: string;
-  name: string;
-  content: string;
-  category: string;
-  variables: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface DateRange {
-  from: Date;
-  to: Date;
-}
 
 const FOLDERS: Folder[] = [
   {
@@ -66,144 +51,36 @@ const FOLDERS: Folder[] = [
   }
 ];
 
-interface MessagingInboxProps {
-  twilioApiKey?: string;
-  twilioAccountSid?: string;
-  contacts: Contact[];
-  conversations: Conversation[];
-  onConversationSelect: (conversation: Conversation) => void;
-  onMarkAsRead: (conversation: Conversation) => void;
+interface ConversationHeaderProps {
+  conversation: Conversation;
+  onArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
+  onDelete: (conversationId: string) => Promise<void>;
+  onExport: () => void;
+  onViewContact: () => void;
+  onBlock: () => void;
+  onAddToList: () => void;
 }
 
-// Draggable Conversation Item Component
-const DraggableConversationItem: React.FC<{
-  conversation: Conversation;
-  onSelect: (conversation: Conversation, event: React.MouseEvent) => void;
-  onCheckboxSelect: (conversationId: string, event: React.ChangeEvent<HTMLInputElement>) => void;
-  onArchiveToggle: (conversationId: string, archived: boolean) => void;
-  isSelected: boolean;
-  isChecked: boolean;
-}> = ({ conversation, onSelect, onCheckboxSelect, onArchiveToggle, isSelected, isChecked }) => {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: 'CONVERSATION',
-    item: { id: conversation.id, currentFolder: conversation.archived ? 'archive' : 'inbox' },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  }));
+const MessagingInbox: React.FC = () => {
+  const { user } = useAuth();
+  const { socket, isConnected } = useSocket();
+  const { 
+    conversations, 
+    setConversations, 
+    selectedConversation, 
+    setSelectedConversation,
+    sendMessage,
+    markConversationAsRead,
+    markMessageAsRead,
+    archiveConversation,
+    unarchiveConversation,
+    deleteConversation,
+    isLoading,
+    error: contextError,
+    templates,
+    handleArchiveToggle
+  } = useSMS();
 
-  return (
-    <div
-      ref={drag}
-      onClick={(e) => onSelect(conversation, e)}
-      className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors duration-150 ${
-        isSelected ? 'bg-gray-50' : ''
-      } ${isDragging ? 'opacity-50' : ''}`}
-    >
-      <div className="flex items-center gap-3">
-        <input
-          type="checkbox"
-          checked={isChecked}
-          onChange={(e) => onCheckboxSelect(conversation.id, e)}
-          onClick={(e) => e.stopPropagation()}
-          className="rounded border-gray-300 text-primary focus:ring-primary/20"
-        />
-        <div className="flex-1">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center flex-1">
-              <h3 className="font-medium text-gray-900">
-                {conversation.customerName || conversation.phoneNumber}
-              </h3>
-              {conversation.unreadCount > 0 && (
-                <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
-                  {conversation.unreadCount}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onArchiveToggle(conversation.id, !conversation.archived);
-              }}
-              className={`p-1 rounded-full hover:bg-gray-100 transition-colors duration-150 ${
-                conversation.archived ? 'text-primary' : 'text-gray-400'
-              }`}
-              title={conversation.archived ? 'Unarchive conversation' : 'Archive conversation'}
-            >
-              <svg 
-                className="w-5 h-5" 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 20 20" 
-                fill="currentColor"
-              >
-                <path d="M3 7v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-sm text-gray-500 truncate">
-            {conversation.messages[conversation.messages.length - 1]?.content || 'No messages'}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            {format(new Date(conversation.lastMessageAt), 'MMM d, h:mm a')}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Droppable Folder Component
-const DroppableFolder: React.FC<{
-  folder: Folder;
-  isSelected: boolean;
-  onSelect: (folderId: string) => void;
-  onDrop: (conversationId: string, targetFolder: string) => void;
-}> = ({ folder, isSelected, onSelect, onDrop }) => {
-  const [{ isOver }, drop] = useDrop(() => ({
-    accept: 'CONVERSATION',
-    drop: (item: { id: string; currentFolder: string }) => {
-      if (item.currentFolder !== folder.id) {
-        onDrop(item.id, folder.id);
-      }
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
-  }));
-
-  return (
-    <div
-      ref={drop}
-      onClick={() => onSelect(folder.id)}
-      className={`flex items-center gap-3 px-4 py-2 cursor-pointer rounded-lg transition-colors duration-150 ${
-        isSelected ? 'bg-primary/10 text-primary' : 'text-gray-600 hover:bg-gray-100'
-      } ${isOver ? 'bg-primary/20' : ''}`}
-    >
-      {folder.icon}
-      <span className="font-medium">{folder.label}</span>
-    </div>
-  );
-};
-
-// Update the MessageDisplay props interface
-interface MessageDisplayProps {
-  messages: Message[];
-  customerName: string | null;
-  phoneNumber: string;
-  onMarkAsRead: (conversation: Conversation) => void;
-  conversation: Conversation;
-  onArchive: (conversationId: string, archived: boolean) => Promise<void>;
-}
-
-const MessagingInbox: React.FC<MessagingInboxProps> = ({
-  twilioApiKey,
-  twilioAccountSid,
-  contacts,
-  conversations: initialConversations,
-  onConversationSelect,
-  onMarkAsRead
-}) => {
-  const { conversations, setConversations, selectedConversation, setSelectedConversation } = useSMSContext();
   const [selectedFolder, setSelectedFolder] = useState('inbox');
   const [searchQuery, setSearchQuery] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
@@ -214,21 +91,82 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
     from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     to: new Date()
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
-  const [newMessage, setNewMessage] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(() => {
     const saved = localStorage.getItem('sidebarExpanded');
     return saved ? JSON.parse(saved) : false;
   });
+  const [error, setError] = useState<string | null>(null);
 
   // Save sidebar state to localStorage
   useEffect(() => {
     localStorage.setItem('sidebarExpanded', JSON.stringify(isSidebarExpanded));
   }, [isSidebarExpanded]);
+
+  // Handle real-time updates from socket
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleNewMessage = (message: Message) => {
+      setConversations((prevConversations: Conversation[]) => {
+        const conversationIndex = prevConversations.findIndex(
+          (conv: Conversation) => conv.phoneNumber === message.phoneNumber
+        );
+
+        if (conversationIndex === -1) {
+          // New conversation
+          const newConversation: Conversation = {
+            id: Date.now().toString(),
+            customerName: null,
+            phoneNumber: message.phoneNumber || '',
+            messages: [message],
+            lastMessageAt: message.timestamp,
+            timestamp: message.timestamp,
+            unreadCount: 1,
+            archived: false,
+            deleted: false,
+            userId: user?.uid
+          };
+          return [...prevConversations, newConversation];
+        }
+
+        // Update existing conversation
+        const updatedConversations = [...prevConversations];
+        const conversation = updatedConversations[conversationIndex];
+        conversation.messages.push(message);
+        conversation.lastMessageAt = message.timestamp;
+        conversation.unreadCount += 1;
+        updatedConversations[conversationIndex] = conversation;
+        return updatedConversations;
+      });
+    };
+
+    const handleMessageStatusUpdate = (data: { messageId: string; status: Message['status'] }) => {
+      setConversations((prevConversations: Conversation[]) => {
+        return prevConversations.map((conv: Conversation) => {
+          const messageIndex = conv.messages.findIndex((msg: Message) => msg.id === data.messageId);
+          if (messageIndex !== -1) {
+            const updatedMessages = [...conv.messages];
+            updatedMessages[messageIndex] = {
+              ...updatedMessages[messageIndex],
+              status: data.status
+            };
+            return { ...conv, messages: updatedMessages };
+          }
+          return conv;
+        });
+      });
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('message-status-update', handleMessageStatusUpdate);
+
+    return () => {
+      socket.off('new-message', handleNewMessage);
+      socket.off('message-status-update', handleMessageStatusUpdate);
+    };
+  }, [socket, isConnected, setConversations, user?.uid]);
 
   // Filter conversations based on selected folder and search query
   const filteredConversations = useMemo(() => {
@@ -245,43 +183,8 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
     });
   }, [conversations, selectedFolder, searchQuery]);
 
-  // Handle batch archive
-  const handleBatchArchive = async () => {
-    try {
-      const loadingToast = toast.loading(`Archiving ${selectedConversations.size} conversations...`);
-      
-      // Archive each selected conversation
-      for (const conversationId of Array.from(selectedConversations)) {
-        await toggleConversationArchive(conversationId, true);
-      }
-
-      // Update conversations list
-      const updatedConversations = conversations.map((conv: Conversation) => 
-        selectedConversations.has(conv.id) 
-          ? { ...conv, archived: true }
-          : conv
-      );
-      setConversations(updatedConversations);
-
-      // Clear selection
-      setSelectedConversations(new Set());
-      
-      // Clear selected conversation if it was archived
-      if (selectedConversation && selectedConversations.has(selectedConversation.id)) {
-        setSelectedConversation(null);
-      }
-
-      toast.dismiss(loadingToast);
-      toast.success(`Archived ${selectedConversations.size} conversations`);
-    } catch (error) {
-      console.error('Error in batch archive:', error);
-      toast.error('Failed to archive some conversations');
-    }
-  };
-
   // Handle conversation selection
-  const handleConversationSelect = (conversation: Conversation, event: React.MouseEvent) => {
-    // If shift key is pressed, toggle selection
+  const handleConversationSelect = async (conversation: Conversation, event: React.MouseEvent) => {
     if (event.shiftKey) {
       event.preventDefault();
       const newSelection = new Set(selectedConversations);
@@ -294,134 +197,120 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
       return;
     }
 
-    // Otherwise, select the conversation normally
+    // Clear any existing selection
+    setSelectedConversations(new Set());
+    
+    // Set the selected conversation
     setSelectedConversation(conversation);
-    onConversationSelect(conversation);
     
     if (conversation.unreadCount > 0) {
-      const updatedConversation = markMessagesAsRead(conversation);
-      onMarkAsRead(updatedConversation);
-    }
-  };
-
-  // Handle checkbox selection
-  const handleCheckboxSelect = (conversationId: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    event.stopPropagation();
-    const newSelection = new Set(selectedConversations);
-    if (newSelection.has(conversationId)) {
-      newSelection.delete(conversationId);
-    } else {
-      newSelection.add(conversationId);
-    }
-    setSelectedConversations(newSelection);
-  };
-
-  // Handle select all
-  const handleSelectAll = () => {
-    if (selectedConversations.size === filteredConversations.length) {
-      setSelectedConversations(new Set());
-    } else {
-      const newSelection = new Set<string>();
-      filteredConversations.forEach((conv: Conversation) => {
-        newSelection.add(conv.id);
-      });
-      setSelectedConversations(newSelection);
-    }
-  };
-
-  // Handle marking all messages as read
-  const handleMarkAllAsRead = () => {
-    if (!selectedConversation) return;
-    
-    try {
-      const updatedConversation = markMessagesAsRead(selectedConversation);
-      onMarkAsRead(updatedConversation);
-    } catch (error) {
-      toast.error('Failed to mark messages as read');
-      console.error('Error marking messages as read:', error);
+      try {
+        await markConversationAsRead(conversation.id);
+      } catch (error) {
+        console.error('Error marking conversation as read:', error);
+        toast.error('Failed to mark conversation as read');
+      }
     }
   };
 
   // Handle sending a new message
-  const handleSendMessage = async () => {
-    if (!selectedConversation || !newMessage.trim()) return;
+  const handleSendMessage = async (content: string): Promise<void> => {
+    if (!selectedConversation || !content.trim() || !isConnected) return;
 
-    if (!twilioApiKey || !twilioAccountSid) {
-      toast.error('Twilio credentials not configured');
-      return;
-    }
+    // Create a new message object with initial status
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      content,
+      direction: 'outbound' as const,
+      timestamp: new Date().toISOString(),
+      read: true,
+      status: 'sent' // Initial status, will be updated by server
+    };
+
+    // Update the conversation with the new message
+    setConversations(prevConversations => {
+      return prevConversations.map(conv => {
+        if (conv.id === selectedConversation.id) {
+          return {
+            ...conv,
+            messages: [...conv.messages, newMessage],
+            lastMessageAt: newMessage.timestamp,
+            unreadCount: 0
+          };
+        }
+        return conv;
+      });
+    });
 
     try {
-      const existingConversation = conversations.find(
-        conv => conv.phoneNumber === selectedConversation.phoneNumber
-      );
+      // Send the message and wait for response
+      const response = await sendMessage(selectedConversation.phoneNumber, content, selectedConversation.id);
+      
+      // Update the message with the server response
+      setConversations(prevConversations => {
+        return prevConversations.map(conv => {
+          if (conv.id === selectedConversation.id) {
+            return {
+              ...conv,
+              messages: conv.messages.map(msg => 
+                msg.id === newMessage.id ? { ...msg, status: response.status } : msg
+              )
+            };
+          }
+          return conv;
+        });
+      });
 
-      const newMessageObj: Message = {
-        id: Date.now().toString(),
-        direction: 'outbound',
-        content: newMessage,
-        timestamp: new Date().toISOString(),
-        status: 'sent',
-        read: false
-      };
-
-      if (existingConversation) {
-        const updatedConversation: Conversation = {
-          ...existingConversation,
-          messages: [...existingConversation.messages, newMessageObj],
-          lastMessageAt: newMessageObj.timestamp,
-          timestamp: newMessageObj.timestamp
-        };
-
-        const updatedConversations = conversations.map(conv => 
-          conv.id === existingConversation.id ? updatedConversation : conv
-        );
-        setConversations(updatedConversations);
-        setSelectedConversation(updatedConversation);
-      } else {
-        const contact = contacts.find(c => c.phoneNumber === selectedConversation.phoneNumber);
-        const customerName = contact ? `${contact.firstName} ${contact.lastName}` : null;
-        
-        const newConversation: Conversation = {
-          id: Date.now().toString(),
-          customerName,
-          phoneNumber: selectedConversation.phoneNumber,
-          messages: [newMessageObj],
-          lastMessageAt: newMessageObj.timestamp,
-          timestamp: newMessageObj.timestamp,
-          unreadCount: 0,
-          archived: false,
-          deleted: false
-        };
-
-        setConversations([...conversations, newConversation]);
-        setSelectedConversation(newConversation);
-      }
-      setNewMessage('');
+      toast.success('Message sent successfully');
     } catch (error) {
       console.error('Error sending message:', error);
+      // Update the message status to failed
+      setConversations(prevConversations => {
+        return prevConversations.map(conv => {
+          if (conv.id === selectedConversation.id) {
+            return {
+              ...conv,
+              messages: conv.messages.map(msg => 
+                msg.id === newMessage.id ? { ...msg, status: 'failed' } : msg
+              )
+            };
+          }
+          return conv;
+        });
+      });
       toast.error('Failed to send message');
     }
   };
 
   // Handle marking a conversation as read
-  const handleMarkAsRead = (conversation: Conversation) => {
-    const updatedConversation = markMessagesAsRead(conversation);
-    onMarkAsRead(updatedConversation);
-    
-    if (selectedConversation?.id === conversation.id) {
-      setSelectedConversation(updatedConversation);
+  const handleMarkAsRead = async () => {
+    if (!selectedConversation) return;
+    try {
+      await markConversationAsRead(selectedConversation.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark conversation as read');
+    }
+  };
+
+  // Handle conversation deletion
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      await deleteConversation(conversationId);
+      
+      // Clear selection if deleting selected conversation
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+      }
+
+      toast.success('Conversation deleted successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete conversation');
     }
   };
 
   // Handle applying a message template
-  const handleApplyTemplate = (template: MessageTemplate): string => {
-    if (!selectedConversation) return template.content;
-    
-    let content = template.content;
-    // Add logic to replace variables based on context
-    handleSendMessage();
-    return content;
+  const handleApplyTemplate = (templateId: string) => {
+    // TODO: Implement template application
   };
 
   // Handle dropping a conversation into a folder
@@ -432,8 +321,8 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
 
       // Determine the action based on the target folder
       const actions = {
-        inbox: () => toggleConversationArchive(conversationId, false),
-        archive: () => toggleConversationArchive(conversationId, true),
+        inbox: () => handleArchiveToggle(conversationId, false),
+        archive: () => handleArchiveToggle(conversationId, true),
         deleted: () => {
           // Implement delete functionality
           toast.error('Delete functionality not implemented');
@@ -447,66 +336,6 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
     } catch (error) {
       console.error('Error handling drop:', error);
       toast.error('Failed to move conversation');
-    }
-  };
-
-  // Update the handleArchiveToggle function to handle both single and batch operations
-  const handleArchiveToggle = (conversationId: string, archived: boolean) => {
-    const conversation = conversations.find(conv => conv.id === conversationId);
-    if (!conversation) return;
-    
-    const updatedConversations = conversations.map(conv => 
-      conv.id === conversationId ? { ...conv, archived } : conv
-    );
-    setConversations(updatedConversations);
-
-    // If the conversation is currently selected and we're archiving it,
-    // clear the selection
-    if (selectedConversation?.id === conversationId && archived) {
-      setSelectedConversation(null);
-    }
-
-    // Show toast notification with undo button when archiving
-    if (archived) {
-      toast.custom((t) => (
-        <div
-          className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
-        >
-          <div className="flex-1 w-0 p-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0 pt-0.5">
-                <svg className="h-10 w-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  Conversation archived
-                </p>
-                <p className="mt-1 text-sm text-gray-500">
-                  {conversation.customerName || conversation.phoneNumber}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="flex border-l border-gray-200">
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                handleArchiveToggle(conversationId, false);
-              }}
-              className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-primary hover:text-darkBrown focus:outline-none"
-            >
-              Undo
-            </button>
-          </div>
-        </div>
-      ), {
-        duration: 5000,
-        position: 'bottom-right',
-      });
     }
   };
 
@@ -568,52 +397,32 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
   };
 
   const handleExport = () => {
-    if (!selectedConversation) return;
-    // In a real implementation, this would export the conversation
-    toast('Export functionality coming soon');
+    // TODO: Implement export functionality
   };
 
   const handleViewContact = () => {
-    if (!selectedConversation) return;
-    // In a real implementation, this would show contact details
-    toast('Contact details coming soon');
+    // TODO: Implement contact view functionality
   };
 
   const handleBlock = () => {
-    if (!selectedConversation) return;
-    // In a real implementation, this would block the number
-    toast('Block functionality coming soon');
+    // TODO: Implement block functionality
   };
 
   const handleAddToList = () => {
-    if (!selectedConversation) return;
-    // In a real implementation, this would add to a contact list
-    toast('Add to list functionality coming soon');
+    // TODO: Implement add to list functionality
   };
 
-  const handleMessageAction = (action: string, messageId: string) => {
-    if (!selectedConversation) return;
-
-    const updatedConversations = conversations.map(conv => {
-      if (conv.id === selectedConversation.id) {
-        return {
-          ...conv,
-          messages: conv.messages.map(msg => {
-            if (msg.id === messageId) {
-              return {
-                ...msg,
-                status: action === 'resend' ? 'pending' : msg.status,
-                error: action === 'resend' ? undefined : msg.error
-              };
-            }
-            return msg;
-          })
-        };
+  const handleMessageAction = async (messageId: string, action: string) => {
+    try {
+      switch (action) {
+        case 'mark-read':
+          await markMessageAsRead(messageId);
+          break;
+        // Add more message actions as needed
       }
-      return conv;
-    });
-
-    setConversations(updatedConversations);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to perform message action');
+    }
   };
 
   const handleArchiveSelected = () => {
@@ -632,76 +441,93 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="h-full flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              title={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
-            >
-              <svg
-                className={`w-5 h-5 text-gray-600 transform transition-transform duration-200 ${
-                  isSidebarExpanded ? 'rotate-180' : ''
-                }`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            <h2 className="text-xl font-semibold text-gray-900">
-              {selectedFolder === 'inbox' ? 'Inbox' : 
-               selectedFolder === 'archive' ? 'Archive' : 'Deleted'}
-            </h2>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search conversations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              />
-              <svg
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </div>
-          </div>
-          {selectedConversations.size > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">
-                {selectedConversations.size} selected
-              </span>
+        <div className="flex-none border-b border-gray-200 p-4">
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+              <span className="block sm:inline">{error}</span>
               <button
-                onClick={handleArchiveSelected}
-                className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+                className="absolute top-0 bottom-0 right-0 px-4 py-3"
+                onClick={() => setError(null)}
               >
-                Archive Selected
+                <span className="sr-only">Dismiss</span>
+                <svg className="fill-current h-4 w-4" role="button" viewBox="0 0 20 20">
+                  <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z" />
+                </svg>
               </button>
             </div>
           )}
+
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                title={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
+              >
+                <svg
+                  className={`w-5 h-5 text-gray-600 transform transition-transform duration-200 ${
+                    isSidebarExpanded ? 'rotate-180' : ''
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+              </button>
+              <h2 className="text-xl font-semibold text-gray-900">
+                {selectedFolder === 'inbox' ? 'Inbox' : 
+                 selectedFolder === 'archive' ? 'Archive' : 'Deleted'}
+              </h2>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search conversations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+                <svg
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+            </div>
+            {selectedConversations.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">
+                  {selectedConversations.size} selected
+                </span>
+                <button
+                  onClick={handleArchiveSelected}
+                  className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+                >
+                  Archive Selected
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Main Content Area */}
-        <div className="grid grid-cols-[auto_1fr_1fr] flex-1 overflow-hidden">
+        <div className="flex-1 grid grid-cols-[auto_1fr_1fr] overflow-hidden">
           {/* Sidebar Column */}
-          <div className="relative">
+          <div className="relative border-r border-gray-200">
             <FolderSidebar
               folders={FOLDERS}
               conversations={conversations}
@@ -725,12 +551,13 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
           </div>
 
           {/* Message Display */}
-          <div className="flex flex-col min-w-0">
+          <div className="flex-1 flex flex-col min-w-0">
             {selectedConversation ? (
               <>
                 <ConversationHeader
                   conversation={selectedConversation}
                   onArchiveToggle={handleArchiveToggle}
+                  onDelete={handleDeleteConversation}
                   onExport={handleExport}
                   onViewContact={handleViewContact}
                   onBlock={handleBlock}
@@ -745,10 +572,11 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                   conversation={selectedConversation}
                 />
                 <MessageComposer
-                  onSend={handleSendMessage}
                   onTemplateSelect={handleApplyTemplate}
                   templates={templates}
                   recipientPhone={selectedConversation.phoneNumber}
+                  conversationId={selectedConversation.id}
+                  onSend={handleSendMessage}
                 />
               </>
             ) : (

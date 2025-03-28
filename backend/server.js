@@ -1,8 +1,9 @@
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const twilio = require('twilio');
+const { db, handleFirestoreError } = require('./config/firebase-admin');
 const dotenv = require('dotenv');
 const admin = require('firebase-admin');
 
@@ -10,24 +11,30 @@ const admin = require('firebase-admin');
 dotenv.config();
 
 // Initialize Firebase Admin
-const serviceAccount = require('./firebase-credentials.json');
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-const db = admin.firestore();
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    storageBucket: `${process.env.FIREBASE_PROJECT_ID}.firebasestorage.app`
+  });
+}
 
 const app = express();
 const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
 
-// Configure CORS for both Express and Socket.io
-const corsOptions = {
+// Middleware
+app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  methods: ['GET', 'POST'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
-
-app.use(cors(corsOptions));
+  credentials: true
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Firebase Authentication Middleware
 const authenticateUser = async (req, res, next) => {
@@ -47,32 +54,7 @@ const authenticateUser = async (req, res, next) => {
   }
 };
 
-const io = socketIo(server, {
-  cors: corsOptions,
-  path: '/socket.io',
-  transports: ['websocket', 'polling']
-});
-
-// Socket.io authentication middleware
-io.use(async (socket, next) => {
-  try {
-    const token = socket.handshake.auth.token;
-    if (!token) {
-      return next(new Error('Authentication error'));
-    }
-
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    socket.user = decodedToken;
-    next();
-  } catch (error) {
-    next(new Error('Authentication error'));
-  }
-});
-
-// Middleware
-app.use(express.json());
-
-// Twilio client setup
+// Initialize Twilio client
 const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
@@ -80,192 +62,249 @@ const twilioClient = twilio(
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
-  console.log('New client connected');
-  
+  console.log('Client connected:', socket.id);
+
   socket.on('disconnect', () => {
-    console.log('Client disconnected');
+    console.log('Client disconnected:', socket.id);
   });
 
-  socket.on('error', (error) => {
-    console.error('Socket error:', error);
-  });
-
-  // Handle message read status updates
-  socket.on('mark-message-read', async (messageId) => {
+  // Handle message read status
+  socket.on('markMessageRead', async ({ messageId, conversationId }) => {
     try {
-      // Update message in Firestore
       const messageRef = db.collection('messages').doc(messageId);
-      await messageRef.update({
-        read: true,
-        readAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      await messageRef.update({ read: true });
+
+      // Update conversation unread count
+      const conversationRef = db.collection('conversations').doc(conversationId);
+      const conversation = await conversationRef.get();
+      const currentUnread = conversation.data().unreadCount;
       
-      // Emit to all clients
-      io.emit('message-read', messageId);
+      if (currentUnread > 0) {
+        await conversationRef.update({
+          unreadCount: currentUnread - 1
+        });
+      }
+
+      // Emit update to all connected clients
+      io.emit('messageRead', { messageId, conversationId });
     } catch (error) {
-      console.error('Error marking message as read:', error);
+      handleFirestoreError(error, 'mark message as read');
     }
   });
 });
 
-// Webhook endpoint to receive SMS
-app.post('/api/receive-sms', async (req, res) => {
-  const { From, To, Body, MessageSid } = req.body;
-  
-  console.log(`Received message from ${From}: ${Body}`);
-  
+// Helper function to create or update conversation
+async function handleConversation(phoneNumber, message) {
   try {
-    // Format the message consistently
-    const message = {
-      id: MessageSid,
-      direction: 'inbound',
-      content: Body,
-      phoneNumber: From,
-      timestamp: new Date().toISOString(),
-      read: false,
-      status: 'received'
-    };
-
-    // Store message in Firestore
-    const messageRef = await db.collection('messages').add({
-      ...message,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    // Get or create conversation
-    const conversationQuery = await db.collection('conversations')
-      .where('phoneNumber', '==', From)
+    // Find existing conversation
+    const conversationsRef = db.collection('conversations');
+    const querySnapshot = await conversationsRef
+      .where('phoneNumber', '==', phoneNumber)
+      .where('deleted', '==', false)
       .limit(1)
       .get();
 
     let conversationId;
-    if (conversationQuery.empty) {
+    let conversationRef;
+
+    if (!querySnapshot.empty) {
+      // Update existing conversation
+      conversationId = querySnapshot.docs[0].id;
+      conversationRef = conversationsRef.doc(conversationId);
+      await conversationRef.update({
+        lastMessageAt: new Date().toISOString(),
+        unreadCount: admin.firestore.FieldValue.increment(1)
+      });
+    } else {
       // Create new conversation
-      const conversationRef = await db.collection('conversations').add({
-        phoneNumber: From,
-        messages: [messageRef.id],
+      conversationRef = await conversationsRef.add({
+        phoneNumber,
+        messages: [],
         unreadCount: 1,
-        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        lastMessageAt: new Date().toISOString(),
+        timestamp: new Date().toISOString(),
         archived: false,
-        deleted: false
+        deleted: false,
+        userId: 'system' // Replace with actual user ID when auth is implemented
       });
       conversationId = conversationRef.id;
-    } else {
-      // Update existing conversation
-      const conversationDoc = conversationQuery.docs[0];
-      conversationId = conversationDoc.id;
-      await conversationDoc.ref.update({
-        messages: admin.firestore.FieldValue.arrayUnion(messageRef.id),
-        unreadCount: admin.firestore.FieldValue.increment(1),
-        lastMessageAt: admin.firestore.FieldValue.serverTimestamp()
-      });
     }
 
-    // Emit the message to all connected clients with conversationId
-    io.emit('new-message', {
-      ...message,
+    return conversationId;
+  } catch (error) {
+    handleFirestoreError(error, 'handle conversation');
+  }
+}
+
+// Helper function to store message
+async function storeMessage(messageData, conversationId) {
+  try {
+    const messageRef = await db.collection('messages').add({
+      ...messageData,
       conversationId,
-      phoneNumber: From
+      timestamp: new Date().toISOString(),
+      read: false
     });
+
+    // Update conversation's messages array
+    const conversationRef = db.collection('conversations').doc(conversationId);
+    await conversationRef.update({
+      messages: admin.firestore.FieldValue.arrayUnion(messageRef.id)
+    });
+
+    return messageRef.id;
+  } catch (error) {
+    handleFirestoreError(error, 'store message');
+  }
+}
+
+// Twilio webhook for receiving SMS
+app.post('/api/receive-sms', async (req, res) => {
+  try {
+    const { Body, From, To, MessageSid } = req.body;
     
+    console.log(`Received message from ${From}: ${Body}`);
+    
+    // Create or update conversation
+    const conversationId = await handleConversation(From, Body);
+    
+    // Store incoming message
+    const messageData = {
+      id: MessageSid,
+      content: Body,
+      direction: 'inbound',
+      phoneNumber: From,
+      timestamp: new Date().toISOString(),
+      read: false,
+      status: 'received',
+      twilioSid: MessageSid
+    };
+    
+    const messageId = await storeMessage(messageData, conversationId);
+    
+    // Emit new message to connected clients
+    io.emit('newMessage', {
+      messageId,
+      conversationId,
+      message: messageData
+    });
+
     // Send a TwiML response
     const twiml = new twilio.twiml.MessagingResponse();
     res.writeHead(200, {'Content-Type': 'text/xml'});
     res.end(twiml.toString());
   } catch (error) {
-    console.error('Error processing incoming message:', error);
+    console.error('Error handling incoming SMS:', error);
     res.status(500).send('Error processing message');
   }
 });
 
-// Send SMS endpoint
+// API endpoint for sending SMS
 app.post('/api/send-sms', authenticateUser, async (req, res) => {
-  const { to, body } = req.body;
-  const userId = req.user.uid;
-  
   try {
-    const message = await twilioClient.messages.create({
-      body,
-      to,
-      from: process.env.TWILIO_PHONE_NUMBER
+    const { to, message, conversationId } = req.body;
+    const userId = req.user.uid;
+
+    // Validate required fields
+    if (!to || !message) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Send message via Twilio
+    const twilioMessage = await twilioClient.messages.create({
+      body: message,
+      to: to,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      statusCallback: `${process.env.NGROK_URL}/api/message-status`,
+      statusCallbackMethod: 'POST'
     });
-    
-    // Format message for storage
+
+    // Store outgoing message
     const messageData = {
-      id: message.sid,
+      content: message,
       direction: 'outbound',
-      content: body,
       phoneNumber: to,
-      timestamp: new Date().toISOString(),
-      read: false,
       status: 'sent',
-      userId
+      twilioSid: twilioMessage.sid,
+      userId,
+      timestamp: new Date().toISOString()
     };
 
-    // Store message in Firestore
-    const messageRef = await db.collection('messages').add({
-      ...messageData,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    const messageId = await storeMessage(messageData, conversationId);
+
+    // Update conversation
+    const conversationRef = db.collection('conversations').doc(conversationId);
+    await conversationRef.update({
+      lastMessageAt: new Date().toISOString(),
+      userId // Ensure conversation is associated with the user
     });
 
-    // Get or create conversation
-    const conversationQuery = await db.collection('conversations')
-      .where('phoneNumber', '==', to)
-      .where('userId', '==', userId)
-      .limit(1)
-      .get();
-
-    let conversationId;
-    if (conversationQuery.empty) {
-      // Create new conversation
-      const conversationRef = await db.collection('conversations').add({
-        phoneNumber: to,
-        messages: [messageRef.id],
-        unreadCount: 0,
-        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        archived: false,
-        deleted: false,
-        userId
-      });
-      conversationId = conversationRef.id;
-    } else {
-      // Update existing conversation
-      const conversationDoc = conversationQuery.docs[0];
-      conversationId = conversationDoc.id;
-      await conversationDoc.ref.update({
-        messages: admin.firestore.FieldValue.arrayUnion(messageRef.id),
-        lastMessageAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    }
-    
-    // Emit the sent message to all connected clients
-    io.emit('new-message', {
-      ...messageData,
+    // Emit new message to connected clients
+    io.emit('newMessage', {
+      messageId,
       conversationId,
-      userId
+      message: messageData
     });
-    
-    res.json({ success: true, messageId: message.sid });
+
+    res.json({ 
+      success: true, 
+      messageId,
+      twilioSid: twilioMessage.sid
+    });
   } catch (error) {
     console.error('Error sending SMS:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      error: 'Failed to send message',
+      details: error.message 
+    });
   }
 });
 
-// Get messages endpoint
-app.get('/api/messages', authenticateUser, async (req, res) => {
+// Twilio status callback webhook
+app.post('/api/message-status', async (req, res) => {
   try {
-    const userId = req.user.uid;
-    
-    // Get conversations for the authenticated user
-    const conversationsSnapshot = await db.collection('conversations')
-      .where('userId', '==', userId)
+    const { MessageSid, MessageStatus } = req.body;
+    console.log(`Message ${MessageSid} status: ${MessageStatus}`);
+
+    // Find the message in Firestore
+    const messagesRef = db.collection('messages');
+    const querySnapshot = await messagesRef
+      .where('twilioSid', '==', MessageSid)
+      .limit(1)
+      .get();
+
+    if (!querySnapshot.empty) {
+      const messageDoc = querySnapshot.docs[0];
+      await messageDoc.ref.update({
+        status: MessageStatus,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Emit status update to connected clients
+      io.emit('messageStatusUpdate', {
+        messageId: messageDoc.id,
+        status: MessageStatus
+      });
+    }
+
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Error handling message status:', error);
+    res.status(500).send('Error processing status update');
+  }
+});
+
+// API endpoint to fetch conversations
+app.get('/api/conversations', async (req, res) => {
+  try {
+    const conversationsRef = db.collection('conversations');
+    const querySnapshot = await conversationsRef
+      .where('deleted', '==', false)
       .orderBy('lastMessageAt', 'desc')
       .get();
 
-    const conversations = await Promise.all(conversationsSnapshot.docs.map(async (doc) => {
+    const conversations = [];
+    for (const doc of querySnapshot.docs) {
       const conversation = doc.data();
       const messages = await Promise.all(
         conversation.messages.map(async (messageId) => {
@@ -273,21 +312,52 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
           return messageDoc.data();
         })
       );
-
-      return {
+      
+      conversations.push({
         id: doc.id,
         ...conversation,
         messages: messages.sort((a, b) => 
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          new Date(a.timestamp) - new Date(b.timestamp)
         )
-      };
-    }));
+      });
+    }
 
     res.json(conversations);
   } catch (error) {
-    console.error('Error fetching messages:', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
+    handleFirestoreError(error, 'fetch conversations');
   }
+});
+
+// API endpoint to fetch messages for a conversation
+app.get('/api/conversations/:conversationId/messages', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const conversationRef = db.collection('conversations').doc(conversationId);
+    const conversation = await conversationRef.get();
+
+    if (!conversation.exists) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const messages = await Promise.all(
+      conversation.data().messages.map(async (messageId) => {
+        const messageDoc = await db.collection('messages').doc(messageId).get();
+        return messageDoc.data();
+      })
+    );
+
+    res.json(messages.sort((a, b) => 
+      new Date(a.timestamp) - new Date(b.timestamp)
+    ));
+  } catch (error) {
+    handleFirestoreError(error, 'fetch messages');
+  }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
 // Start server

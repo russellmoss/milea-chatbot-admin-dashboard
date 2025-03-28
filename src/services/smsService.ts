@@ -1,202 +1,206 @@
-import { Message, Conversation } from '../types/sms';
-import { toast } from 'react-hot-toast';
+import { Conversation, Message, MessageTemplate, Contact, ContactList } from '../types/sms';
+import { getAuth } from 'firebase/auth';
 
-// Function to mark messages as read
-export const markMessagesAsRead = (
-  conversation: Conversation,
-  markAsRead: boolean = true
-): Conversation => {
-  const updatedMessages = conversation.messages.map(message => ({
-    ...message,
-    read: markAsRead
-  }));
+const BASE_URL = process.env.REACT_APP_API_URL || 'https://milea-chatbot.ngrok.io';
 
-  // Recalculate unread count based on inbound messages
-  const unreadCount = markAsRead
-    ? 0
-    : updatedMessages.filter(m => m.direction === 'inbound').length;
-
-  // Show toast notification
-  toast.success(
-    markAsRead 
-      ? `Marked ${updatedMessages.length} messages as read`
-      : `Marked ${updatedMessages.length} messages as unread`,
-    { duration: 2000 }
-  );
-
+const getAuthHeaders = async () => {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+  const token = await user.getIdToken();
   return {
-    ...conversation,
-    unreadCount,
-    messages: updatedMessages
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
   };
 };
 
-// Function to mark a single message as read
-export const markMessageAsRead = (
-  conversation: Conversation,
-  messageId: string,
-  markAsRead: boolean = true
-): Conversation => {
-  const updatedMessages = conversation.messages.map(message => 
-    message.id === messageId ? { ...message, read: markAsRead } : message
-  );
-
-  // Recalculate unread count based on inbound messages
-  const unreadCount = markAsRead
-    ? updatedMessages.filter(m => m.direction === 'inbound' && !m.read).length
-    : updatedMessages.filter(m => m.direction === 'inbound').length;
-
-  // Show toast notification
-  toast.success(
-    markAsRead 
-      ? 'Message marked as read'
-      : 'Message marked as unread',
-    { duration: 2000 }
-  );
-
-  return {
-    ...conversation,
-    unreadCount,
-    messages: updatedMessages
-  };
-};
-
-// Function to update read receipt for an outbound message
-export const updateMessageReadReceipt = (
-  conversation: Conversation,
-  messageId: string,
-  readBy: string
-): Conversation => {
-  const updatedMessages = conversation.messages.map(message => 
-    message.id === messageId 
-      ? { 
-          ...message, 
-          status: 'read' as const,
-          readAt: new Date().toISOString(),
-          readBy
-        } 
-      : message
-  );
-
-  // Show toast notification
-  toast.success('Message read receipt updated', { duration: 2000 });
-
-  return {
-    ...conversation,
-    messages: updatedMessages
-  };
-};
-
-// Function to check if a message has been read
-export const isMessageRead = (message: Message): boolean => {
-  return message.readAt !== undefined;
-};
-
-// Function to get read receipt timestamp
-export const getReadReceiptTimestamp = (message: Message): string | null => {
-  return message.readAt || null;
-};
-
-// Function to get read receipt recipient
-export const getReadReceiptRecipient = (message: Message): string | null => {
-  return message.readBy || null;
-};
-
-export const archiveConversation = async (conversationId: string): Promise<Conversation> => {
+export const archiveConversation = async (conversationId: string): Promise<void> => {
   try {
-    // Show loading toast
-    const loadingToast = toast.loading('Archiving conversation...');
-
-    // In a real app, this would be an API call
-    // For now, we'll simulate a delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Update the conversation in the database
-    const updatedConversation = await updateConversation(conversationId, {
-      archived: true,
-      archivedAt: new Date().toISOString()
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/conversations/${conversationId}/archive`, {
+      method: 'POST',
+      headers
     });
 
-    // Dismiss loading toast and show success
-    toast.dismiss(loadingToast);
-    toast.success('Conversation archived');
-
-    return updatedConversation;
+    if (!response.ok) {
+      throw new Error('Failed to archive conversation');
+    }
   } catch (error) {
     console.error('Error archiving conversation:', error);
-    toast.error('Failed to archive conversation');
     throw error;
   }
 };
 
-export const unarchiveConversation = async (conversationId: string): Promise<Conversation> => {
+export const unarchiveConversation = async (conversationId: string): Promise<void> => {
   try {
-    // Show loading toast
-    const loadingToast = toast.loading('Moving conversation back to inbox...');
-
-    // In a real app, this would be an API call
-    // For now, we'll simulate a delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Update the conversation in the database
-    const updatedConversation = await updateConversation(conversationId, {
-      archived: false,
-      archivedAt: null
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/conversations/${conversationId}/unarchive`, {
+      method: 'POST',
+      headers
     });
 
-    // Dismiss loading toast and show success
-    toast.dismiss(loadingToast);
-    toast.success('Conversation moved to inbox');
-
-    return updatedConversation;
+    if (!response.ok) {
+      throw new Error('Failed to unarchive conversation');
+    }
   } catch (error) {
     console.error('Error unarchiving conversation:', error);
-    toast.error('Failed to move conversation to inbox');
     throw error;
   }
 };
 
-export const toggleConversationArchive = async (conversationId: string, archived: boolean): Promise<Conversation> => {
-  try {
-    // Show loading toast
-    const loadingToast = toast.loading(archived ? 'Archiving conversation...' : 'Moving conversation back to inbox...');
-
-    // In a real app, this would be an API call
-    // For now, we'll simulate a delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Update the conversation in the database
-    const updatedConversation = await updateConversation(conversationId, {
-      archived,
-      archivedAt: archived ? new Date().toISOString() : null
+export const smsService = {
+  async sendSMS(phoneNumber: string, content: string, conversationId?: string): Promise<Message> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/send-sms`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ phoneNumber, content, conversationId })
     });
+    if (!response.ok) {
+      throw new Error('Failed to send SMS');
+    }
+    return response.json();
+  },
 
-    // Dismiss loading toast and show success
-    toast.dismiss(loadingToast);
-    toast.success(archived ? 'Conversation archived' : 'Conversation moved to inbox');
+  async fetchConversations(): Promise<Conversation[]> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/conversations`, {
+      headers
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch conversations');
+    }
+    return response.json();
+  },
 
-    return updatedConversation;
-  } catch (error) {
-    console.error('Error toggling conversation archive status:', error);
-    toast.error(archived ? 'Failed to archive conversation' : 'Failed to move conversation to inbox');
-    throw error;
+  async fetchConversationMessages(conversationId: string): Promise<Message[]> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/conversations/${conversationId}/messages`, {
+      headers
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch conversation messages');
+    }
+    return response.json();
+  },
+
+  async markMessageAsRead(messageId: string): Promise<void> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/messages/${messageId}/read`, {
+      method: 'POST',
+      headers
+    });
+    if (!response.ok) {
+      throw new Error('Failed to mark message as read');
+    }
+  },
+
+  async markConversationAsRead(conversationId: string): Promise<void> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/conversations/${conversationId}/read`, {
+      method: 'POST',
+      headers
+    });
+    if (!response.ok) {
+      throw new Error('Failed to mark conversation as read');
+    }
+  },
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/conversations/${conversationId}`, {
+      method: 'DELETE',
+      headers
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete conversation');
+    }
+  },
+
+  async fetchTemplates(): Promise<MessageTemplate[]> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/templates`, {
+      headers
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch templates');
+    }
+    return response.json();
+  },
+
+  async createContact(contact: Omit<Contact, 'id'>): Promise<string> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/contacts`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(contact)
+    });
+    if (!response.ok) {
+      throw new Error('Failed to create contact');
+    }
+    const result = await response.json();
+    return result.id;
+  },
+
+  async updateContact(contactId: string, updates: Partial<Contact>): Promise<void> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/contacts/${contactId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(updates)
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update contact');
+    }
+  },
+
+  async deleteContact(contactId: string): Promise<void> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/contacts/${contactId}`, {
+      method: 'DELETE',
+      headers
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete contact');
+    }
+  },
+
+  async createList(list: Omit<ContactList, 'id'>): Promise<string> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/lists`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(list)
+    });
+    if (!response.ok) {
+      throw new Error('Failed to create list');
+    }
+    const result = await response.json();
+    return result.id;
+  },
+
+  async updateList(listId: string, updates: Partial<ContactList>): Promise<void> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/lists/${listId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(updates)
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update list');
+    }
+  },
+
+  async deleteList(listId: string): Promise<void> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/api/lists/${listId}`, {
+      method: 'DELETE',
+      headers
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete list');
+    }
   }
-};
-
-// Helper function to update conversation in database
-const updateConversation = async (conversationId: string, updates: Partial<Conversation>): Promise<Conversation> => {
-  // In a real app, this would be an API call to update the conversation
-  // For now, we'll just return a mock updated conversation
-  return {
-    id: conversationId,
-    customerName: 'John Doe',
-    phoneNumber: '+1234567890',
-    messages: [],
-    unreadCount: 0,
-    lastMessageAt: new Date().toISOString(),
-    timestamp: new Date().toISOString(),
-    archived: updates.archived || false,
-    deleted: false,
-    ...updates
-  };
 }; 

@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { Message, Conversation } from '../../types/sms';
-import { markMessageAsRead } from '../../services/smsService';
+import { useSMS } from '../../contexts/SMSContext';
+import { useSocket } from '../../contexts/SocketContext';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 import { toast } from 'react-hot-toast';
 import MessageActions from './MessageActions';
 
@@ -24,12 +27,12 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   onArchive,
   onMessageAction
 }) => {
-  // Reference to the messages container for auto-scrolling
+  const { socket, isConnected } = useSocket();
+  const { markMessageAsRead, sendMessage, setSelectedConversation } = useSMS();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // State for showing keyboard shortcuts helper
   const [showShortcuts, setShowShortcuts] = useState(false);
-  // State for tracking message read status changes
   const [readStatusChanges, setReadStatusChanges] = useState<Set<string>>(new Set());
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -42,28 +45,24 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      // Only handle shortcuts if not typing in an input/textarea
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return;
       }
 
       switch (event.key.toLowerCase()) {
         case 'r':
-          // Mark selected message as read
           const selectedMessage = messages.find(m => m.direction === 'inbound' && !m.read);
           if (selectedMessage) {
             handleMessageRead(selectedMessage.id);
           }
           break;
         case 'u':
-          // Mark selected message as unread
           const lastReadMessage = messages.find(m => m.direction === 'inbound' && m.read);
           if (lastReadMessage) {
             handleMessageUnread(lastReadMessage.id);
           }
           break;
         case '?':
-          // Toggle shortcuts helper
           setShowShortcuts(prev => !prev);
           break;
       }
@@ -74,10 +73,9 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   }, [messages]);
 
   // Handle marking a single message as read
-  const handleMessageRead = (messageId: string) => {
+  const handleMessageRead = async (messageId: string) => {
     try {
-      const updatedConversation = markMessageAsRead(conversation, messageId);
-      onMarkAsRead(updatedConversation);
+      await markMessageAsRead(messageId);
       
       // Add visual feedback for read status change
       setReadStatusChanges(prev => new Set([...Array.from(prev), messageId]));
@@ -95,10 +93,33 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   };
 
   // Handle marking a single message as unread
-  const handleMessageUnread = (messageId: string) => {
+  const handleMessageUnread = async (messageId: string) => {
     try {
-      const updatedConversation = markMessageAsRead(conversation, messageId, false);
-      onMarkAsRead(updatedConversation);
+      // Update Firestore
+      const messageRef = doc(db, 'messages', messageId);
+      await updateDoc(messageRef, {
+        read: false,
+        readAt: null,
+        readBy: null
+      });
+
+      // Update local state
+      setSelectedConversation(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          messages: prev.messages.map(msg =>
+            msg.id === messageId 
+              ? { 
+                  ...msg, 
+                  read: false, 
+                  readAt: undefined,
+                  readBy: undefined
+                } 
+              : msg
+          )
+        };
+      });
       
       // Add visual feedback for unread status change
       setReadStatusChanges(prev => new Set([...Array.from(prev), messageId]));
@@ -112,6 +133,50 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
     } catch (error) {
       toast.error('Failed to mark message as unread');
       console.error('Error marking message as unread:', error);
+    }
+  };
+
+  // Handle message actions
+  const handleMessageAction = async (action: string, messageId: string) => {
+    try {
+      switch (action) {
+        case 'copy':
+          const message = messages.find(m => m.id === messageId);
+          if (message) {
+            await navigator.clipboard.writeText(message.content);
+            toast.success('Message copied to clipboard');
+          }
+          break;
+        case 'forward':
+          // TODO: Implement forward functionality
+          toast('Forward functionality coming soon');
+          break;
+        case 'resend':
+          const messageToResend = messages.find(m => m.id === messageId);
+          if (messageToResend) {
+            await sendMessage(messageToResend.content, phoneNumber, conversation.id);
+            toast.success('Message resent');
+          }
+          break;
+        case 'delete':
+          // Update Firestore
+          const messageRef = doc(db, 'messages', messageId);
+          await updateDoc(messageRef, {
+            deleted: true,
+            deletedAt: new Date().toISOString()
+          });
+          toast.success('Message deleted');
+          break;
+        case 'edit':
+          // TODO: Implement edit functionality
+          toast('Edit functionality coming soon');
+          break;
+        default:
+          console.warn('Unknown message action:', action);
+      }
+    } catch (error) {
+      console.error('Error handling message action:', error);
+      toast.error('Failed to perform message action');
     }
   };
 
@@ -250,38 +315,48 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
       {/* Messages container */}
       <div className="relative flex-1 overflow-y-auto">
         <div className="p-4 space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.direction === 'outbound' ? 'justify-end' : 'justify-start'
-              }`}
-            >
-              <div
-                className={`max-w-[70%] rounded-lg p-3 ${
-                  message.direction === 'outbound'
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-100 text-gray-900'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  <MessageActions
-                    message={message}
-                    onAction={(action) => onMessageAction(action, message.id)}
-                  />
-                </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-xs opacity-75">
-                    {format(new Date(message.timestamp), 'h:mm a')}
-                  </span>
-                  {message.direction === 'outbound' && message.status && (
-                    <span className="text-xs opacity-75 capitalize">
-                      {message.status}
-                    </span>
-                  )}
-                </div>
+          {Object.entries(groupedMessages).map(([date, dateMessages]) => (
+            <div key={date}>
+              <div className="sticky top-0 bg-white py-2 text-center">
+                <span className="text-sm text-gray-500">{getDateHeader(date)}</span>
               </div>
+              {dateMessages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${
+                    message.direction === 'outbound' ? 'justify-end' : 'justify-start'
+                  }`}
+                >
+                  <div
+                    className={`max-w-[70%] rounded-lg p-3 ${
+                      message.direction === 'outbound'
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-100 text-gray-900'
+                    } ${readStatusChanges.has(message.id) ? 'animate-pulse' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      <MessageActions
+                        message={message}
+                        onAction={(action) => handleMessageAction(action, message.id)}
+                      />
+                    </div>
+                    <div className="mt-1 flex items-center justify-between">
+                      <span className="text-xs opacity-75">
+                        {format(new Date(message.timestamp), 'h:mm a')}
+                      </span>
+                      {message.direction === 'outbound' && (
+                        <div className="flex items-center gap-1">
+                          {getStatusIcon(message)}
+                          <span className="text-xs opacity-75">
+                            {getStatusText(message)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
           <div ref={messagesEndRef} />

@@ -1,0 +1,109 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidPhoneNumber(phone) {
+      return phone is string && phone.matches('^\\+[1-9]\\d{1,14}$');
+    }
+    
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+    
+    function isValidMessageStatus(status) {
+      return status in ['sent', 'delivered', 'failed', 'received', 'read'];
+    }
+    
+    function isValidMessageDirection(direction) {
+      return direction in ['inbound', 'outbound'];
+    }
+
+    // Conversation rules
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated() && 
+        (resource == null || resource.data.userId == request.auth.uid);
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        isValidPhoneNumber(request.resource.data.phoneNumber) &&
+        request.resource.data.timestamp is timestamp &&
+        request.resource.data.lastMessageAt is timestamp &&
+        request.resource.data.unreadCount is number &&
+        request.resource.data.archived is bool &&
+        request.resource.data.deleted is bool;
+      
+      allow update: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid &&
+        (
+          // Allow updating specific fields only
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['archived', 'deleted', 'unreadCount', 'lastMessageAt', 'customerName']) ||
+          // Or allow updating all fields if the conversation is being restored
+          (resource.data.deleted == true && request.resource.data.deleted == false)
+        );
+      
+      allow delete: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+    }
+
+    // Message rules
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && 
+        (resource == null || resource.data.userId == request.auth.uid);
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        isValidMessageDirection(request.resource.data.direction) &&
+        request.resource.data.content is string &&
+        request.resource.data.content.size() > 0 &&
+        request.resource.data.timestamp is timestamp &&
+        isValidMessageStatus(request.resource.data.status) &&
+        request.resource.data.read is bool &&
+        request.resource.data.conversationId is string;
+      
+      allow update: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid &&
+        (
+          // Allow updating specific fields only
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'read', 'readAt', 'readBy', 'error']) ||
+          // Or allow updating all fields if the message is being restored
+          (resource.data.deleted == true && request.resource.data.deleted == false)
+        );
+      
+      allow delete: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+    }
+
+    // Message template rules
+    match /templates/{templateId} {
+      allow read: if isAuthenticated() && 
+        (resource == null || resource.data.userId == request.auth.uid);
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.name is string &&
+        request.resource.data.content is string &&
+        request.resource.data.variables is list &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.updatedAt is timestamp;
+      
+      allow update: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'content', 'variables', 'updatedAt']);
+      
+      allow delete: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+    }
+  }
+} 

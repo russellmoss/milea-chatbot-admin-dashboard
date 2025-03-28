@@ -1,146 +1,150 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Conversation } from '../../types/sms';
 
 interface ConversationHeaderProps {
   conversation: Conversation;
+  onArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
+  onDelete: (conversationId: string) => Promise<void>;
   onExport: () => void;
-  onViewContact?: () => void; // Optional - for viewing contact details
-  onBlock?: () => void; // Optional - for blocking a number
-  onAddToList?: () => void; // Optional - for adding to a contact list
-  onArchiveToggle: (conversationId: string, archived: boolean) => void;
+  onViewContact: () => void;
+  onBlock: () => void;
+  onAddToList: () => void;
 }
 
 const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   conversation,
+  onArchiveToggle,
+  onDelete,
   onExport,
   onViewContact,
   onBlock,
-  onAddToList,
-  onArchiveToggle
+  onAddToList
 }) => {
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  const toggleDropdown = () => {
-    setShowDropdown(!showDropdown);
-  };
-
-  // Format phone number for display
-  const formatPhoneNumber = (phoneNumber: string) => {
-    // Basic formatting: +1 (234) 567-8901
-    const cleaned = phoneNumber.replace(/\D/g, '');
-    let formatted = phoneNumber; // Default to original if can't format
-    
-    if (cleaned.length === 10) {
-      formatted = `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    } else if (cleaned.length === 11 && cleaned.startsWith('1')) {
-      formatted = `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
-    }
-    
-    return formatted;
-  };
-
   return (
-    <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-      <div>
-        <h3 className="text-lg font-medium text-gray-900">
-          {conversation.customerName || formatPhoneNumber(conversation.phoneNumber)}
-        </h3>
-        {conversation.customerName && (
-          <p className="text-sm text-gray-500">{formatPhoneNumber(conversation.phoneNumber)}</p>
+    <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center space-x-4">
+        <h2 className="text-lg font-semibold">
+          {conversation.customerName || conversation.phoneNumber}
+        </h2>
+        {conversation.unreadCount > 0 && (
+          <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+            {conversation.unreadCount}
+          </span>
         )}
       </div>
-      
-      <div className="flex space-x-2">
-        <button 
-          onClick={onExport}
-          className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-          title="Export conversation"
-        >
-          <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export
-        </button>
-        
-        {onViewContact && (
-          <button 
-            onClick={onViewContact}
-            className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-            title="View contact details"
-          >
-            <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            Contact
-          </button>
-        )}
-        
-        <div className="relative">
-          <button 
-            onClick={toggleDropdown}
-            className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-            title="More actions"
-          >
-            <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-            </svg>
-          </button>
-          
-          {showDropdown && (
-            <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
-              <div className="py-1" role="menu" aria-orientation="vertical">
-                {onAddToList && (
-                  <button
-                    onClick={() => {
-                      onAddToList();
-                      setShowDropdown(false);
-                    }}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    role="menuitem"
-                  >
-                    Add to list
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(conversation.phoneNumber);
-                    setShowDropdown(false);
-                  }}
-                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  role="menuitem"
-                >
-                  Copy phone number
-                </button>
-                {onBlock && (
-                  <button
-                    onClick={() => {
-                      onBlock();
-                      setShowDropdown(false);
-                    }}
-                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                    role="menuitem"
-                  >
-                    Block number
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+      <div className="flex items-center space-x-2">
         <button
           onClick={() => onArchiveToggle(conversation.id, !conversation.archived)}
-          className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${
-            conversation.archived ? 'text-primary' : 'text-gray-400'
-          }`}
-          title={conversation.archived ? 'Unarchive conversation' : 'Archive conversation'}
+          className="p-2 text-gray-600 hover:text-gray-900"
+          title={conversation.archived ? 'Unarchive' : 'Archive'}
         >
-          <svg 
-            className="w-5 h-5" 
-            xmlns="http://www.w3.org/2000/svg" 
-            viewBox="0 0 20 20" 
-            fill="currentColor"
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            <path d="M3 7v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
+            />
+          </svg>
+        </button>
+        <button
+          onClick={() => onDelete(conversation.id)}
+          className="p-2 text-gray-600 hover:text-gray-900"
+          title="Delete"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
+          </svg>
+        </button>
+        <button
+          onClick={onExport}
+          className="p-2 text-gray-600 hover:text-gray-900"
+          title="Export"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+            />
+          </svg>
+        </button>
+        <button
+          onClick={onViewContact}
+          className="p-2 text-gray-600 hover:text-gray-900"
+          title="View Contact"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            />
+          </svg>
+        </button>
+        <button
+          onClick={onBlock}
+          className="p-2 text-gray-600 hover:text-gray-900"
+          title="Block"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+            />
+          </svg>
+        </button>
+        <button
+          onClick={onAddToList}
+          className="p-2 text-gray-600 hover:text-gray-900"
+          title="Add to List"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+            />
           </svg>
         </button>
       </div>

@@ -7,6 +7,7 @@ import ConversationList from './ConversationList';
 import ConversationHeader from './ConversationHeader';
 import MessageDisplay from './MessageDisplay';
 import MessageComposer from './MessageComposer';
+import { toast } from 'react-hot-toast';
 
 const FOLDERS = [
   {
@@ -43,7 +44,8 @@ const SMS: React.FC = () => {
     handleArchiveToggle,
     setSelectedConversation,
     fetchMessages,
-    isLoading
+    isLoading,
+    deleteConversation
   } = useSMS();
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
   const [selectedFolder, setSelectedFolder] = useState('inbox');
@@ -88,9 +90,12 @@ const SMS: React.FC = () => {
     setSelectedConversation(conversation);
   };
 
-  const handleTemplateSelect = (template: MessageTemplate): string => {
-    // Process template variables if needed
-    return template.content;
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      // Handle template selection
+      console.log('Selected template:', template);
+    }
   };
 
   const filteredConversations = conversations.filter(conversation => {
@@ -100,6 +105,16 @@ const SMS: React.FC = () => {
   });
 
   const currentConversation = conversations.find(conv => conv.id === selectedConversations.values().next().value);
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      await deleteConversation(conversationId);
+      toast.success('Conversation deleted successfully');
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      toast.error('Failed to delete conversation');
+    }
+  };
 
   return (
     <div className="flex h-full">
@@ -152,6 +167,7 @@ const SMS: React.FC = () => {
             <ConversationHeader
               conversation={currentConversation}
               onArchiveToggle={handleArchiveToggle}
+              onDelete={() => handleDeleteConversation(currentConversation.id)}
               onExport={() => {}}
               onViewContact={() => {}}
               onBlock={() => {}}
@@ -172,6 +188,7 @@ const SMS: React.FC = () => {
               onTemplateSelect={handleTemplateSelect}
               templates={templates}
               recipientPhone={currentConversation.phoneNumber}
+              conversationId={currentConversation.id}
             />
           </div>
         )}

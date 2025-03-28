@@ -44,9 +44,12 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
   };
 
   // Format date for display
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not specified';
-    return format(new Date(dateString), 'MMMM d, yyyy');
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch (error) {
+      return 'Invalid date';
+    }
   };
 
   // Group messages by date for display
@@ -175,10 +178,12 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
                         <p className="text-sm font-medium text-gray-500">Email</p>
                         <p className="mt-1">{contact.email || 'Not provided'}</p>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-500">Birthdate</p>
-                        <p className="mt-1">{contact.birthdate ? formatDate(contact.birthdate) : 'Not provided'}</p>
-                      </div>
+                      {contact.birthdate && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Birthdate</p>
+                          <p className="mt-1">{formatDate(contact.birthdate)}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   

@@ -71,7 +71,7 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
       );
       setSelectedContacts(filteredContacts);
     } else {
-      setSelectedContacts(contacts);
+      setSelectedContacts([]);
     }
   }, [selectedList, contacts]);
 
@@ -470,7 +470,7 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
             </label>
             <RecipientSelector
               contacts={contacts}
-              lists={lists}
+              lists={lists.map(list => list.id)}
               onRecipientsSelected={setSelectedContacts}
             />
           </div>
