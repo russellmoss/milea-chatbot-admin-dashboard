@@ -11,6 +11,7 @@ import { toast } from 'react-hot-toast';
 import { useSMS } from '../../contexts/SMSContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMessage } from '../../contexts/MessageContext';
 import ConversationList from './ConversationList';
 import ConversationHeader from './ConversationHeader';
 import MessageActions from './MessageActions';
@@ -64,6 +65,7 @@ interface ConversationHeaderProps {
 const MessagingInbox: React.FC = () => {
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
+  const { draftMessages, setDraftMessage, clearDraftMessage } = useMessage();
   const { 
     conversations, 
     setConversations, 
@@ -78,7 +80,8 @@ const MessagingInbox: React.FC = () => {
     isLoading,
     error: contextError,
     templates,
-    handleArchiveToggle
+    handleArchiveToggle,
+    fetchMessages
   } = useSMS();
 
   const [selectedFolder, setSelectedFolder] = useState('inbox');
@@ -99,74 +102,19 @@ const MessagingInbox: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
 
+  // Load initial data
+  useEffect(() => {
+    // This would normally fetch data, but our mock data is already loaded
+    // We can still simulate a loading state for realism
+    if (conversations.length === 0) {
+      fetchMessages();
+    }
+  }, [fetchMessages, conversations.length]);
+
   // Save sidebar state to localStorage
   useEffect(() => {
     localStorage.setItem('sidebarExpanded', JSON.stringify(isSidebarExpanded));
   }, [isSidebarExpanded]);
-
-  // Handle real-time updates from socket
-  useEffect(() => {
-    if (!socket || !isConnected) return;
-
-    const handleNewMessage = (message: Message) => {
-      setConversations((prevConversations: Conversation[]) => {
-        const conversationIndex = prevConversations.findIndex(
-          (conv: Conversation) => conv.phoneNumber === message.phoneNumber
-        );
-
-        if (conversationIndex === -1) {
-          // New conversation
-          const newConversation: Conversation = {
-            id: Date.now().toString(),
-            customerName: null,
-            phoneNumber: message.phoneNumber || '',
-            messages: [message],
-            lastMessageAt: message.timestamp,
-            timestamp: message.timestamp,
-            unreadCount: 1,
-            archived: false,
-            deleted: false,
-            userId: user?.uid
-          };
-          return [...prevConversations, newConversation];
-        }
-
-        // Update existing conversation
-        const updatedConversations = [...prevConversations];
-        const conversation = updatedConversations[conversationIndex];
-        conversation.messages.push(message);
-        conversation.lastMessageAt = message.timestamp;
-        conversation.unreadCount += 1;
-        updatedConversations[conversationIndex] = conversation;
-        return updatedConversations;
-      });
-    };
-
-    const handleMessageStatusUpdate = (data: { messageId: string; status: Message['status'] }) => {
-      setConversations((prevConversations: Conversation[]) => {
-        return prevConversations.map((conv: Conversation) => {
-          const messageIndex = conv.messages.findIndex((msg: Message) => msg.id === data.messageId);
-          if (messageIndex !== -1) {
-            const updatedMessages = [...conv.messages];
-            updatedMessages[messageIndex] = {
-              ...updatedMessages[messageIndex],
-              status: data.status
-            };
-            return { ...conv, messages: updatedMessages };
-          }
-          return conv;
-        });
-      });
-    };
-
-    socket.on('new-message', handleNewMessage);
-    socket.on('message-status-update', handleMessageStatusUpdate);
-
-    return () => {
-      socket.off('new-message', handleNewMessage);
-      socket.off('message-status-update', handleMessageStatusUpdate);
-    };
-  }, [socket, isConnected, setConversations, user?.uid]);
 
   // Filter conversations based on selected folder and search query
   const filteredConversations = useMemo(() => {
@@ -217,67 +165,13 @@ const MessagingInbox: React.FC = () => {
   const handleSendMessage = async (content: string): Promise<void> => {
     if (!selectedConversation || !content.trim() || !isConnected) return;
 
-    // Create a new message object with initial status
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content,
-      direction: 'outbound' as const,
-      timestamp: new Date().toISOString(),
-      read: true,
-      status: 'sent' // Initial status, will be updated by server
-    };
-
-    // Update the conversation with the new message
-    setConversations(prevConversations => {
-      return prevConversations.map(conv => {
-        if (conv.id === selectedConversation.id) {
-          return {
-            ...conv,
-            messages: [...conv.messages, newMessage],
-            lastMessageAt: newMessage.timestamp,
-            unreadCount: 0
-          };
-        }
-        return conv;
-      });
-    });
-
     try {
-      // Send the message and wait for response
-      const response = await sendMessage(selectedConversation.phoneNumber, content, selectedConversation.id);
+      await sendMessage(content, selectedConversation.phoneNumber, selectedConversation.id);
       
-      // Update the message with the server response
-      setConversations(prevConversations => {
-        return prevConversations.map(conv => {
-          if (conv.id === selectedConversation.id) {
-            return {
-              ...conv,
-              messages: conv.messages.map(msg => 
-                msg.id === newMessage.id ? { ...msg, status: response.status } : msg
-              )
-            };
-          }
-          return conv;
-        });
-      });
-
-      toast.success('Message sent successfully');
+      // Clear draft message after sending
+      clearDraftMessage(selectedConversation.id);
     } catch (error) {
       console.error('Error sending message:', error);
-      // Update the message status to failed
-      setConversations(prevConversations => {
-        return prevConversations.map(conv => {
-          if (conv.id === selectedConversation.id) {
-            return {
-              ...conv,
-              messages: conv.messages.map(msg => 
-                msg.id === newMessage.id ? { ...msg, status: 'failed' } : msg
-              )
-            };
-          }
-          return conv;
-        });
-      });
       toast.error('Failed to send message');
     }
   };
@@ -309,8 +203,12 @@ const MessagingInbox: React.FC = () => {
   };
 
   // Handle applying a message template
-  const handleApplyTemplate = (templateId: string) => {
-    // TODO: Implement template application
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template && selectedConversation) {
+      setDraftMessage(selectedConversation.id, template.content);
+      setShowTemplates(false);
+    }
   };
 
   // Handle dropping a conversation into a folder
@@ -320,18 +218,12 @@ const MessagingInbox: React.FC = () => {
       if (!conversation) return;
 
       // Determine the action based on the target folder
-      const actions = {
-        inbox: () => handleArchiveToggle(conversationId, false),
-        archive: () => handleArchiveToggle(conversationId, true),
-        deleted: () => {
-          // Implement delete functionality
-          toast.error('Delete functionality not implemented');
-        }
-      };
-
-      const action = actions[targetFolder as keyof typeof actions];
-      if (action) {
-        await action();
+      if (targetFolder === 'inbox' && conversation.archived) {
+        await handleArchiveToggle(conversationId, false);
+      } else if (targetFolder === 'archive' && !conversation.archived) {
+        await handleArchiveToggle(conversationId, true);
+      } else if (targetFolder === 'deleted') {
+        await deleteConversation(conversationId);
       }
     } catch (error) {
       console.error('Error handling drop:', error);
@@ -339,103 +231,44 @@ const MessagingInbox: React.FC = () => {
     }
   };
 
-  const handleMessageDelete = (messageId: string) => {
-    if (!selectedConversation) return;
+  // Handle message actions
+  const handleMessageAction = async (action: string) => {
+    if (!selectedMessage) return;
     
-    const updatedConversations = conversations.map(conv => {
-      if (conv.id === selectedConversation.id) {
-        return {
-          ...conv,
-          messages: conv.messages.filter(msg => msg.id !== messageId)
-        };
-      }
-      return conv;
-    });
-    setConversations(updatedConversations);
-  };
-
-  const handleMessageEdit = (messageId: string, content: string) => {
-    if (!selectedConversation) return;
-    
-    const updatedConversations = conversations.map(conv => {
-      if (conv.id === selectedConversation.id) {
-        return {
-          ...conv,
-          messages: conv.messages.map(msg => 
-            msg.id === messageId ? { ...msg, content } : msg
-          )
-        };
-      }
-      return conv;
-    });
-    setConversations(updatedConversations);
-  };
-
-  const handleMessageCopy = () => {
-    if (selectedMessage) {
-      navigator.clipboard.writeText(selectedMessage.content);
-      toast.success('Message copied to clipboard');
-    }
-  };
-
-  const handleMessageForward = () => {
-    if (selectedMessage) {
-      toast('Forward functionality coming soon');
-    }
-  };
-
-  const handleMessageResend = () => {
-    if (selectedMessage) {
-      toast('Message resent');
-    }
-  };
-
-  const handleMessageViewDetails = () => {
-    if (selectedMessage) {
-      toast('Message details coming soon');
-    }
-  };
-
-  const handleExport = () => {
-    // TODO: Implement export functionality
-  };
-
-  const handleViewContact = () => {
-    // TODO: Implement contact view functionality
-  };
-
-  const handleBlock = () => {
-    // TODO: Implement block functionality
-  };
-
-  const handleAddToList = () => {
-    // TODO: Implement add to list functionality
-  };
-
-  const handleMessageAction = async (messageId: string, action: string) => {
     try {
       switch (action) {
-        case 'mark-read':
-          await markMessageAsRead(messageId);
+        case 'copy':
+          await navigator.clipboard.writeText(selectedMessage.content);
+          toast.success('Message copied to clipboard');
           break;
-        // Add more message actions as needed
+        case 'delete':
+          // This would normally delete from the database
+          // Here we just filter it from the local state
+          if (selectedConversation) {
+            const updatedConversations = conversations.map(conv => {
+              if (conv.id === selectedConversation.id) {
+                return {
+                  ...conv,
+                  messages: conv.messages.filter(msg => msg.id !== selectedMessage.id)
+                };
+              }
+              return conv;
+            });
+            setConversations(updatedConversations);
+            toast.success('Message deleted');
+          }
+          break;
+        case 'forward':
+          // This would normally open a forward dialog
+          toast.info('Forward functionality coming soon');
+          break;
+        default:
+          console.warn('Unknown message action:', action);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to perform message action');
+    } catch (error) {
+      console.error('Error handling message action:', error);
+      toast.error('Failed to perform action');
     }
-  };
-
-  const handleArchiveSelected = () => {
-    // Update conversations list
-    const updatedConversations = conversations.map((conv: Conversation) => 
-      selectedConversations.has(conv.id) 
-        ? { ...conv, archived: true }
-        : conv
-    );
-    setConversations(updatedConversations);
-
-    // Clear selection
-    setSelectedConversations(new Set());
   };
 
   return (
@@ -508,19 +341,29 @@ const MessagingInbox: React.FC = () => {
                 </svg>
               </div>
             </div>
-            {selectedConversations.size > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">
-                  {selectedConversations.size} selected
-                </span>
-                <button
-                  onClick={handleArchiveSelected}
-                  className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-                >
-                  Archive Selected
-                </button>
-              </div>
-            )}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={fetchMessages}
+                disabled={isLoading}
+                className={`px-3 py-1.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {isLoading ? (
+                  <>
+                    <span className="inline-block mr-1">
+                      <svg className="animate-spin h-4 w-4 text-gray-500 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </span>
+                    Loading...
+                  </>
+                ) : (
+                  'Refresh'
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -558,30 +401,55 @@ const MessagingInbox: React.FC = () => {
                   conversation={selectedConversation}
                   onArchiveToggle={handleArchiveToggle}
                   onDelete={handleDeleteConversation}
-                  onExport={handleExport}
-                  onViewContact={handleViewContact}
-                  onBlock={handleBlock}
-                  onAddToList={handleAddToList}
+                  onExport={() => toast.info('Export functionality coming soon')}
+                  onViewContact={() => toast.info('View contact functionality coming soon')}
+                  onBlock={() => toast.info('Block functionality coming soon')}
+                  onAddToList={() => toast.info('Add to list functionality coming soon')}
                 />
                 <MessageDisplay
                   messages={selectedConversation.messages}
-                  onMessageAction={handleMessageAction}
                   customerName={selectedConversation.customerName}
                   phoneNumber={selectedConversation.phoneNumber}
                   onMarkAsRead={handleMarkAsRead}
                   conversation={selectedConversation}
+                  onMessageAction={(action, messageId) => {
+                    const message = selectedConversation.messages.find(m => m.id === messageId);
+                    if (message) {
+                      setSelectedMessage(message);
+                      handleMessageAction(action);
+                    }
+                  }}
                 />
                 <MessageComposer
-                  onTemplateSelect={handleApplyTemplate}
+                  onSend={handleSendMessage}
+                  onTemplateSelect={handleTemplateSelect}
                   templates={templates}
                   recipientPhone={selectedConversation.phoneNumber}
                   conversationId={selectedConversation.id}
-                  onSend={handleSendMessage}
                 />
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-500">
-                Select a conversation to view messages
+              <div className="flex-1 flex items-center justify-center text-gray-500 bg-gray-50">
+                <div className="text-center p-6">
+                  <svg 
+                    className="mx-auto h-12 w-12 text-gray-400" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor" 
+                    aria-hidden="true"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" 
+                    />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No conversation selected</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Select a conversation from the list or start a new one.
+                  </p>
+                </div>
               </div>
             )}
           </div>

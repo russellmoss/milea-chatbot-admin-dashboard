@@ -1,263 +1,284 @@
-import { useState, useCallback } from 'react';
-import { useSMS } from '../contexts/SMSContext';
-import contactService from '../services/ContactService';
-import { sendSMS } from '../services/TwilioService';
-import { 
-  Contact, 
-  Conversation, 
-  Message, 
-  MessageTemplate, 
-  ContactList,
-  BulkMessageCampaign
-} from '../types/sms';
+import { useState, useEffect } from 'react';
+import { Contact, ContactList } from '../types/sms';
+import { mockContacts, mockContactLists } from '../mocks/smsData';
 
-// Custom hook for SMS-related operations
-export const useSMSOperations = () => {
-  const {
-    contacts,
-    selectedContact,
-    createContact,
-    updateContact,
-    deleteContact,
-    toggleContactOptIn,
-    lists,
-    createList,
-    addContactToList,
-    removeContactFromList,
-    conversations,
-    sendMessage: contextSendMessage,
-    templates
-  } = useSMS();
-
+export function useSMSOperations() {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [lists, setLists] = useState<ContactList[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Conversations
-  const listConversations = useCallback(() => {
-    return conversations;
-  }, [conversations]);
-
-  const getConversation = useCallback((conversationId: string) => {
-    return conversations.find((conv: Conversation) => conv.id === conversationId);
-  }, [conversations]);
-
-  const sendMessage = useCallback(async (content: string, to: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      await contextSendMessage(content, to);
-      return true;
-    } catch (err) {
-      setError('Failed to send message');
-      console.error(err);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [contextSendMessage]);
-
-  // Contact Lists
-  const listContactLists = useCallback(() => {
-    return lists || [];
-  }, [lists]);
-
-  // Import/Export
-  const importContacts = useCallback(async (file: File, listId?: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const result = await contactService.importContacts(file, { listId });
-      return result;
-    } catch (err) {
-      setError('Failed to import contacts');
-      console.error(err);
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
+  // Load mock data on initialization
+  useEffect(() => {
+    setContacts(mockContacts);
+    setLists(mockContactLists);
   }, []);
 
-  const exportContacts = useCallback(async (listId?: string) => {
+  // Create a new contact
+  const createContact = async (contactData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      const blob = await contactService.exportContacts({ listId });
-      return blob;
-    } catch (err) {
-      setError('Failed to export contacts');
-      console.error(err);
-      return null;
-    } finally {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const newContact: Contact = {
+        ...contactData,
+        id: `contact_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      setContacts(prevContacts => [...prevContacts, newContact]);
       setIsLoading(false);
-    }
-  }, []);
-
-  // Messaging Templates
-  const listTemplates = useCallback(() => {
-    return templates;
-  }, [templates]);
-
-  const createTemplate = useCallback(async (template: Omit<MessageTemplate, 'id'>) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      // Implement create template logic
-      return true;
+      return newContact;
     } catch (err) {
-      setError('Failed to create template');
-      console.error(err);
-      return false;
-    } finally {
       setIsLoading(false);
-    }
-  }, []);
-
-  // Search Functionality
-  const searchContacts = useCallback(async (query: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const results = await contactService.searchContacts(query);
-      return results;
-    } catch (err) {
-      setError('Failed to search contacts');
-      console.error(err);
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const handleCreateContact = useCallback(async (contact: Omit<Contact, 'id'>) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      await createContact(contact);
-    } catch (err) {
       setError('Failed to create contact');
       console.error('Error creating contact:', err);
-    } finally {
-      setIsLoading(false);
+      throw err;
     }
-  }, [createContact]);
+  };
 
-  const handleUpdateContact = useCallback(async (id: string, contact: Partial<Contact>) => {
+  // Update an existing contact
+  const updateContact = async (contactId: string, contactData: Partial<Contact>) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      await updateContact(id, contact);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      setContacts(prevContacts => {
+        return prevContacts.map(contact => {
+          if (contact.id === contactId) {
+            return {
+              ...contact,
+              ...contactData,
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return contact;
+        });
+      });
+
+      // Update selectedContact if it's the one being updated
+      if (selectedContact?.id === contactId) {
+        setSelectedContact(prev => prev ? {
+          ...prev,
+          ...contactData,
+          updatedAt: new Date().toISOString()
+        } : null);
+      }
+
+      setIsLoading(false);
     } catch (err) {
+      setIsLoading(false);
       setError('Failed to update contact');
       console.error('Error updating contact:', err);
-    } finally {
-      setIsLoading(false);
+      throw err;
     }
-  }, [updateContact]);
+  };
 
-  const handleDeleteContact = useCallback(async (id: string) => {
+  // Delete a contact
+  const deleteContact = async (contactId: string) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      await deleteContact(id);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      setContacts(prevContacts => prevContacts.filter(contact => contact.id !== contactId));
+      
+      // Clear selectedContact if it's the one being deleted
+      if (selectedContact?.id === contactId) {
+        setSelectedContact(null);
+      }
+
+      setIsLoading(false);
     } catch (err) {
+      setIsLoading(false);
       setError('Failed to delete contact');
       console.error('Error deleting contact:', err);
-    } finally {
-      setIsLoading(false);
+      throw err;
     }
-  }, [deleteContact]);
+  };
 
-  const handleToggleOptIn = useCallback(async (id: string, optIn: boolean) => {
+  // Toggle opt-in status for a contact
+  const toggleOptIn = async (contactId: string, optIn: boolean) => {
+    return updateContact(contactId, { optIn });
+  };
+
+  // Create a new contact list
+  const createList = async (name: string, description?: string) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      await toggleContactOptIn(id, optIn);
-    } catch (err) {
-      setError('Failed to update opt-in status');
-      console.error('Error toggling opt-in:', err);
-    } finally {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const newList: ContactList = {
+        id: `list_${Date.now()}`,
+        name,
+        description,
+        contacts: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      setLists(prevLists => [...prevLists, newList]);
       setIsLoading(false);
-    }
-  }, [toggleContactOptIn]);
-
-  const handleCreateList = useCallback(async (name: string, description?: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      await createList(name, description);
+      return newList;
     } catch (err) {
+      setIsLoading(false);
       setError('Failed to create list');
       console.error('Error creating list:', err);
-    } finally {
-      setIsLoading(false);
+      throw err;
     }
-  }, [createList]);
+  };
 
-  const handleAddContactToList = useCallback(async (contactId: string, listId: string) => {
+  // Add contact to a list
+  const addContactToList = async (contactId: string, listId: string) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      await addContactToList(contactId, listId);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Update lists
+      setLists(prevLists => {
+        return prevLists.map(list => {
+          if (list.id === listId && !list.contacts.includes(contactId)) {
+            return {
+              ...list,
+              contacts: [...list.contacts, contactId],
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return list;
+        });
+      });
+
+      // Update contact lists array
+      setContacts(prevContacts => {
+        return prevContacts.map(contact => {
+          if (contact.id === contactId) {
+            const lists = contact.lists || [];
+            if (!lists.includes(listId)) {
+              return {
+                ...contact,
+                lists: [...lists, listId],
+                updatedAt: new Date().toISOString()
+              };
+            }
+          }
+          return contact;
+        });
+      });
+
+      // Update selectedContact if it's the one being updated
+      if (selectedContact?.id === contactId) {
+        setSelectedContact(prev => {
+          if (!prev) return null;
+          const lists = prev.lists || [];
+          if (!lists.includes(listId)) {
+            return {
+              ...prev,
+              lists: [...lists, listId],
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return prev;
+        });
+      }
+
+      setIsLoading(false);
     } catch (err) {
+      setIsLoading(false);
       setError('Failed to add contact to list');
       console.error('Error adding contact to list:', err);
-    } finally {
-      setIsLoading(false);
+      throw err;
     }
-  }, [addContactToList]);
+  };
 
-  const handleRemoveContactFromList = useCallback(async (contactId: string, listId: string) => {
+  // Remove contact from a list
+  const removeContactFromList = async (contactId: string, listId: string) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      await removeContactFromList(contactId, listId);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Update lists
+      setLists(prevLists => {
+        return prevLists.map(list => {
+          if (list.id === listId) {
+            return {
+              ...list,
+              contacts: list.contacts.filter(id => id !== contactId),
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return list;
+        });
+      });
+
+      // Update contact lists array
+      setContacts(prevContacts => {
+        return prevContacts.map(contact => {
+          if (contact.id === contactId && contact.lists) {
+            return {
+              ...contact,
+              lists: contact.lists.filter(id => id !== listId),
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return contact;
+        });
+      });
+
+      // Update selectedContact if it's the one being updated
+      if (selectedContact?.id === contactId && selectedContact.lists) {
+        setSelectedContact({
+          ...selectedContact,
+          lists: selectedContact.lists.filter(id => id !== listId),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      setIsLoading(false);
     } catch (err) {
+      setIsLoading(false);
       setError('Failed to remove contact from list');
       console.error('Error removing contact from list:', err);
-    } finally {
-      setIsLoading(false);
+      throw err;
     }
-  }, [removeContactFromList]);
+  };
+
+  // Select a contact
+  const selectContact = (contact: Contact) => {
+    setSelectedContact(contact);
+  };
 
   return {
-    // Conversations
-    listConversations,
-    getConversation,
-    sendMessage,
-
-    // Contacts
     contacts,
     selectedContact,
-    createContact: handleCreateContact,
-    updateContact: handleUpdateContact,
-    deleteContact: handleDeleteContact,
-
-    // Contact Lists
     lists,
-    listContactLists,
-    createList: handleCreateList,
-    addContactToList: handleAddContactToList,
-    removeContactFromList: handleRemoveContactFromList,
-
-    // Import/Export
-    importContacts,
-    exportContacts,
-
-    // Templates
-    listTemplates,
-    createTemplate,
-
-    // Opt-in
-    toggleOptIn: handleToggleOptIn,
-
-    // Search
-    searchContacts,
-
-    // State Helpers
     isLoading,
     error,
-    clearError: () => setError(null)
+    createContact,
+    updateContact,
+    deleteContact,
+    toggleOptIn,
+    createList,
+    addContactToList,
+    removeContactFromList,
+    selectContact
   };
-};
-
-export default useSMSOperations;
+}

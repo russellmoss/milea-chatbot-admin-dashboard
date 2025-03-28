@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageTemplate } from '../../types/sms';
-import { useSMS } from '../../contexts/SMSContext';
+import { useMessage } from '../../contexts/MessageContext';
 import { useSocket } from '../../contexts/SocketContext';
-import TemplateSelector from './TemplateSelector';
-import { toast } from 'react-hot-toast';
 
 interface MessageComposerProps {
   onSend: (content: string) => Promise<void>;
@@ -18,14 +16,24 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
   onTemplateSelect,
   templates,
   recipientPhone,
-  conversationId
+  conversationId = ''
 }) => {
+  const { draftMessages, setDraftMessage } = useMessage();
+  const { isConnected } = useSocket();
   const [message, setMessage] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { socket, isConnected } = useSocket();
+
+  // Initialize from draft message if available
+  useEffect(() => {
+    if (conversationId && draftMessages[conversationId]) {
+      setMessage(draftMessages[conversationId]);
+    } else {
+      setMessage('');
+    }
+  }, [conversationId, draftMessages]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -34,6 +42,13 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [message]);
+
+  // Save draft as user types
+  useEffect(() => {
+    if (conversationId) {
+      setDraftMessage(conversationId, message);
+    }
+  }, [conversationId, message, setDraftMessage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,137 +60,105 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
     try {
       await onSend(message);
       
-      // Clear input
+      // Clear input on successful send
       setMessage('');
-      
-      // Show success toast
-      toast.success('Message sent successfully');
     } catch (error) {
       console.error('Failed to send message:', error);
       setError(error instanceof Error ? error.message : 'Failed to send message');
-      toast.error('Failed to send message');
     } finally {
       setIsSending(false);
     }
   };
 
-  // Format text (bold, italic, etc.)
-  const formatText = (type: 'bold' | 'italic' | 'link') => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = message.substring(start, end);
-    let formatted = '';
-    
-    switch (type) {
-      case 'bold':
-        formatted = `*${selectedText}*`;
-        break;
-      case 'italic':
-        formatted = `_${selectedText}_`;
-        break;
-      case 'link':
-        formatted = selectedText ? `[${selectedText}](url)` : '[](url)';
-        break;
-      default:
-        return;
+  // Handle key press events
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Send on Enter without shift
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
     }
-    
-    const newMessage = message.substring(0, start) + formatted + message.substring(end);
-    setMessage(newMessage);
-    
-    // Focus and select the formatted text after state update
-    setTimeout(() => {
-      textarea.focus();
-      if (type === 'link' && !selectedText) {
-        // Place cursor inside the empty brackets
-        textarea.setSelectionRange(start + 1, start + 1);
-      } else {
-        // Select the formatted text
-        textarea.setSelectionRange(start, start + formatted.length);
-      }
-    }, 0);
   };
 
   return (
-    <div className="border-t border-gray-200 p-4">
-      <form onSubmit={handleSubmit} className="flex space-x-4">
-        <div className="flex-1">
+    <div className="border-t border-gray-200 bg-white p-4">
+      <form onSubmit={handleSubmit} className="flex flex-col space-y-2">
+        {/* Formatting toolbar */}
+        <div className="flex items-center space-x-2 pb-2">
+          <button
+            type="button"
+            onClick={() => setShowTemplates(!showTemplates)}
+            className="p-1 text-gray-500 hover:text-gray-700 rounded"
+            title="Templates"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+            </svg>
+          </button>
+          
+          {/* Additional formatting buttons could go here */}
+          
+          {showTemplates && (
+            <div className="absolute bottom-20 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-64">
+              <h3 className="font-medium text-gray-900 mb-2">Templates</h3>
+              <div className="max-h-48 overflow-y-auto">
+                {templates.length === 0 ? (
+                  <p className="text-sm text-gray-500">No templates available</p>
+                ) : (
+                  <div className="space-y-2">
+                    {templates.map(template => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => {
+                          onTemplateSelect(template.id);
+                          setShowTemplates(false);
+                        }}
+                        className="block w-full text-left p-2 text-sm hover:bg-gray-100 rounded"
+                      >
+                        <p className="font-medium text-gray-900">{template.name}</p>
+                        <p className="text-gray-600 truncate">{template.content}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex space-x-2">
           <textarea
             ref={textareaRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
             placeholder="Type your message..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            rows={3}
+            className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-none min-h-[60px] max-h-[150px]"
             disabled={isSending || !isConnected}
           />
-        </div>
-        <div className="flex flex-col space-y-2">
-          <button
-            type="button"
-            onClick={() => setShowTemplates(!showTemplates)}
-            className="p-2 text-gray-600 hover:text-gray-900"
-            title="Templates"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
-              />
-            </svg>
-          </button>
+          
           <button
             type="submit"
             disabled={!message.trim() || isSending || !isConnected}
-            className={`p-2 rounded-lg ${
+            className={`p-3 rounded-lg flex-shrink-0 self-end ${
               !message.trim() || isSending || !isConnected
-                ? 'bg-gray-300 cursor-not-allowed'
-                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-primary text-white hover:bg-darkBrown'
             }`}
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-              />
-            </svg>
+            {isSending ? (
+              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            )}
           </button>
         </div>
       </form>
-
-      {showTemplates && (
-        <div className="mt-4 border-t border-gray-200 pt-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Templates</h3>
-          <div className="space-y-2">
-            {templates.map((template) => (
-              <button
-                key={template.id}
-                onClick={() => onTemplateSelect(template.id)}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
-              >
-                {template.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {error && (
         <div className="mt-2 text-sm text-red-600">
@@ -185,7 +168,7 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
 
       {!isConnected && (
         <div className="mt-2 text-sm text-yellow-600">
-          Disconnected from server. Attempting to reconnect...
+          You're currently offline. Messages will be sent when you reconnect.
         </div>
       )}
     </div>

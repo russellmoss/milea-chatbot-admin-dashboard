@@ -1,20 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { Message, Conversation } from '../../types/sms';
-import { useSMS } from '../../contexts/SMSContext';
-import { useSocket } from '../../contexts/SocketContext';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { toast } from 'react-hot-toast';
 import MessageActions from './MessageActions';
 
 interface MessageDisplayProps {
   messages: Message[];
   customerName: string | null;
   phoneNumber: string;
-  onMarkAsRead: (updatedConversation: Conversation) => void;
+  onMarkAsRead: () => void;
   conversation: Conversation;
-  onArchive?: (conversation: Conversation) => void;
   onMessageAction: (action: string, messageId: string) => void;
 }
 
@@ -24,217 +18,45 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   phoneNumber, 
   onMarkAsRead,
   conversation,
-  onArchive,
   onMessageAction
 }) => {
-  const { socket, isConnected } = useSocket();
-  const { markMessageAsRead, sendMessage, setSelectedConversation } = useSMS();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const [readStatusChanges, setReadStatusChanges] = useState<Set<string>>(new Set());
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Auto-mark as read when viewing
+  useEffect(() => {
+    if (conversation.unreadCount > 0) {
+      onMarkAsRead();
+    }
+  }, [conversation, onMarkAsRead]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      switch (event.key.toLowerCase()) {
-        case 'r':
-          const selectedMessage = messages.find(m => m.direction === 'inbound' && !m.read);
-          if (selectedMessage) {
-            handleMessageRead(selectedMessage.id);
-          }
-          break;
-        case 'u':
-          const lastReadMessage = messages.find(m => m.direction === 'inbound' && m.read);
-          if (lastReadMessage) {
-            handleMessageUnread(lastReadMessage.id);
-          }
-          break;
-        case '?':
-          setShowShortcuts(prev => !prev);
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [messages]);
-
-  // Handle marking a single message as read
-  const handleMessageRead = async (messageId: string) => {
-    try {
-      await markMessageAsRead(messageId);
-      
-      // Add visual feedback for read status change
-      setReadStatusChanges(prev => new Set([...Array.from(prev), messageId]));
-      setTimeout(() => {
-        setReadStatusChanges(prev => {
-          const newSet = new Set(Array.from(prev));
-          newSet.delete(messageId);
-          return newSet;
-        });
-      }, 1000);
-    } catch (error) {
-      toast.error('Failed to mark message as read');
-      console.error('Error marking message as read:', error);
-    }
-  };
-
-  // Handle marking a single message as unread
-  const handleMessageUnread = async (messageId: string) => {
-    try {
-      // Update Firestore
-      const messageRef = doc(db, 'messages', messageId);
-      await updateDoc(messageRef, {
-        read: false,
-        readAt: null,
-        readBy: null
-      });
-
-      // Update local state
-      setSelectedConversation(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          messages: prev.messages.map(msg =>
-            msg.id === messageId 
-              ? { 
-                  ...msg, 
-                  read: false, 
-                  readAt: undefined,
-                  readBy: undefined
-                } 
-              : msg
-          )
-        };
-      });
-      
-      // Add visual feedback for unread status change
-      setReadStatusChanges(prev => new Set([...Array.from(prev), messageId]));
-      setTimeout(() => {
-        setReadStatusChanges(prev => {
-          const newSet = new Set(Array.from(prev));
-          newSet.delete(messageId);
-          return newSet;
-        });
-      }, 1000);
-    } catch (error) {
-      toast.error('Failed to mark message as unread');
-      console.error('Error marking message as unread:', error);
-    }
-  };
-
-  // Handle message actions
-  const handleMessageAction = async (action: string, messageId: string) => {
-    try {
-      switch (action) {
-        case 'copy':
-          const message = messages.find(m => m.id === messageId);
-          if (message) {
-            await navigator.clipboard.writeText(message.content);
-            toast.success('Message copied to clipboard');
-          }
-          break;
-        case 'forward':
-          // TODO: Implement forward functionality
-          toast('Forward functionality coming soon');
-          break;
-        case 'resend':
-          const messageToResend = messages.find(m => m.id === messageId);
-          if (messageToResend) {
-            await sendMessage(messageToResend.content, phoneNumber, conversation.id);
-            toast.success('Message resent');
-          }
-          break;
-        case 'delete':
-          // Update Firestore
-          const messageRef = doc(db, 'messages', messageId);
-          await updateDoc(messageRef, {
-            deleted: true,
-            deletedAt: new Date().toISOString()
-          });
-          toast.success('Message deleted');
-          break;
-        case 'edit':
-          // TODO: Implement edit functionality
-          toast('Edit functionality coming soon');
-          break;
-        default:
-          console.warn('Unknown message action:', action);
-      }
-    } catch (error) {
-      console.error('Error handling message action:', error);
-      toast.error('Failed to perform message action');
-    }
-  };
-
   // Format timestamp
   const formatMessageTime = (timestamp: string) => {
-    return format(new Date(timestamp), 'MMM d, h:mm a');
+    return format(new Date(timestamp), 'h:mm a');
   };
 
-  // Get message status text with read receipt
-  const getStatusText = (message: Message) => {
-    if (message.direction !== 'outbound') return null;
+  // Format date for header
+  const formatDateHeader = (date: string) => {
+    const messageDate = new Date(date);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
     
-    if (message.readAt) {
-      return `Read ${format(new Date(message.readAt), 'MMM d, h:mm a')}`;
-    }
-    
-    switch (message.status) {
-      case 'sent': return 'Sent';
-      case 'delivered': return 'Delivered';
-      case 'read': return 'Read';
-      case 'failed': return 'Failed';
-      default: return null;
-    }
-  };
-
-  // Get message status icon with read receipt
-  const getStatusIcon = (message: Message) => {
-    if (message.direction !== 'outbound') return null;
-
-    if (message.readAt) {
-      return (
-        <svg className="h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-        </svg>
-      );
-    }
-
-    switch (message.status) {
-      case 'sent':
-        return (
-          <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
-        );
-      case 'delivered':
-        return (
-          <svg className="h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
-        );
-      case 'failed':
-        return (
-          <svg className="h-4 w-4 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-          </svg>
-        );
-      default:
-        return null;
+    if (messageDate.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (messageDate.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return format(messageDate, 'MMMM d, yyyy');
     }
   };
 
@@ -248,125 +70,73 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
     return groups;
   }, {} as { [date: string]: Message[] });
 
-  // Get date header label
-  const getDateHeader = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    if (format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
-      return 'Today';
-    } else if (format(date, 'yyyy-MM-dd') === format(yesterday, 'yyyy-MM-dd')) {
-      return 'Yesterday';
-    } else {
-      return format(date, 'MMMM d, yyyy');
-    }
-  };
+  // No messages yet
+  if (messages.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50 p-6">
+        <div className="text-center">
+          <svg className="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No messages yet</h3>
+          <p className="mt-1 text-sm text-gray-500">Start the conversation by sending a message.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Conversation Header */}
-      <div className="p-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {customerName || phoneNumber}
-            </h2>
-            {customerName && (
-              <p className="text-sm text-gray-500">{phoneNumber}</p>
-            )}
-          </div>
-          <div className="flex items-center space-x-2">
-            {onArchive && (
-              <button
-                onClick={() => onArchive(conversation)}
-                className={`p-2 rounded-full hover:bg-gray-100 transition-colors duration-150 ${
-                  conversation.archived ? 'text-primary' : 'text-gray-400'
-                }`}
-                title={conversation.archived ? 'Unarchive conversation' : 'Archive conversation'}
+    <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+      <div className="space-y-8">
+        {Object.entries(groupedMessages).map(([date, dateMessages]) => (
+          <div key={date} className="space-y-4">
+            <div className="flex justify-center">
+              <span className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-full">
+                {formatDateHeader(date)}
+              </span>
+            </div>
+
+            {dateMessages.map((message) => (
+              <div 
+                key={message.id}
+                className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                onMouseEnter={() => setSelectedMessageId(message.id)}
+                onMouseLeave={() => setSelectedMessageId(null)}
               >
-                <svg 
-                  className="w-5 h-5" 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 20 20" 
-                  fill="currentColor"
-                >
-                  <path d="M3 7v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+                <div className={`relative max-w-[75%] px-4 py-2 rounded-lg shadow-sm ${
+                  message.direction === 'outbound'
+                    ? 'bg-primary text-white rounded-br-none'
+                    : 'bg-white text-gray-800 rounded-bl-none'
+                }`}>
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <div className={`flex items-center mt-1 text-xs ${
+                    message.direction === 'outbound' ? 'text-primary-100' : 'text-gray-500'
+                  }`}>
+                    <span>{formatMessageTime(message.timestamp)}</span>
+                    {message.direction === 'outbound' && (
+                      <span className="ml-2">
+                        {message.status === 'sent' && '✓'}
+                        {message.status === 'delivered' && '✓✓'}
+                        {message.status === 'read' && '✓✓'}
+                      </span>
+                    )}
+                  </div>
 
-      {/* Keyboard shortcuts helper */}
-      {showShortcuts && (
-        <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-4 z-10 border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-900 mb-2">Keyboard Shortcuts</h3>
-          <ul className="space-y-1 text-sm text-gray-600">
-            <li><kbd className="px-2 py-1 bg-gray-100 rounded">R</kbd> Mark message as read</li>
-            <li><kbd className="px-2 py-1 bg-gray-100 rounded">U</kbd> Mark message as unread</li>
-            <li><kbd className="px-2 py-1 bg-gray-100 rounded">?</kbd> Toggle shortcuts</li>
-          </ul>
-        </div>
-      )}
-
-      {/* Messages container */}
-      <div className="relative flex-1 overflow-y-auto">
-        <div className="p-4 space-y-4">
-          {Object.entries(groupedMessages).map(([date, dateMessages]) => (
-            <div key={date}>
-              <div className="sticky top-0 bg-white py-2 text-center">
-                <span className="text-sm text-gray-500">{getDateHeader(date)}</span>
-              </div>
-              {dateMessages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${
-                    message.direction === 'outbound' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  <div
-                    className={`max-w-[70%] rounded-lg p-3 ${
-                      message.direction === 'outbound'
-                        ? 'bg-primary text-white'
-                        : 'bg-gray-100 text-gray-900'
-                    } ${readStatusChanges.has(message.id) ? 'animate-pulse' : ''}`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  {selectedMessageId === message.id && (
+                    <div className="absolute top-2 right-2">
                       <MessageActions
                         message={message}
-                        onAction={(action) => handleMessageAction(action, message.id)}
+                        onAction={(action) => onMessageAction(action, message.id)}
                       />
                     </div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <span className="text-xs opacity-75">
-                        {format(new Date(message.timestamp), 'h:mm a')}
-                      </span>
-                      {message.direction === 'outbound' && (
-                        <div className="flex items-center gap-1">
-                          {getStatusIcon(message)}
-                          <span className="text-xs opacity-75">
-                            {getStatusText(message)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Keyboard shortcuts hint */}
-        <div className="absolute bottom-4 right-4 text-xs text-gray-400">
-          Press <kbd className="px-1 py-0.5 bg-gray-100 rounded">?</kbd> for shortcuts
-        </div>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
+      <div ref={messagesEndRef} />
     </div>
   );
 };

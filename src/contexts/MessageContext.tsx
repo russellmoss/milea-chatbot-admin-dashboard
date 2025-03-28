@@ -1,36 +1,50 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Message } from '../types/sms';
-import { useAuth } from './AuthContext';
 
 interface MessageContextType {
-  addIncomingMessage: (message: Message & { phoneNumber: string }) => Promise<void>;
+  selectedMessage: Message | null;
+  setSelectedMessage: React.Dispatch<React.SetStateAction<Message | null>>;
+  draftMessages: Record<string, string>;
+  setDraftMessage: (conversationId: string, content: string) => void;
+  clearDraftMessage: (conversationId: string) => void;
 }
 
 const MessageContext = createContext<MessageContextType | undefined>(undefined);
 
-interface MessageProviderProps {
-  children: ReactNode;
+export function MessageProvider({ children }: { children: ReactNode }) {
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [draftMessages, setDraftMessages] = useState<Record<string, string>>({});
+
+  const setDraftMessage = (conversationId: string, content: string) => {
+    setDraftMessages(prev => ({
+      ...prev,
+      [conversationId]: content
+    }));
+  };
+
+  const clearDraftMessage = (conversationId: string) => {
+    setDraftMessages(prev => {
+      const newDrafts = { ...prev };
+      delete newDrafts[conversationId];
+      return newDrafts;
+    });
+  };
+
+  const value = {
+    selectedMessage,
+    setSelectedMessage,
+    draftMessages,
+    setDraftMessage,
+    clearDraftMessage
+  };
+
+  return <MessageContext.Provider value={value}>{children}</MessageContext.Provider>;
 }
 
-export const MessageProvider: React.FC<MessageProviderProps> = ({ children }) => {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
-
-  const addIncomingMessage = useCallback(async (message: Message & { phoneNumber: string }) => {
-    setMessages(prev => [...prev, message]);
-  }, []);
-
-  return (
-    <MessageContext.Provider value={{ addIncomingMessage }}>
-      {children}
-    </MessageContext.Provider>
-  );
-};
-
-export const useMessage = () => {
+export function useMessage() {
   const context = useContext(MessageContext);
   if (context === undefined) {
     throw new Error('useMessage must be used within a MessageProvider');
   }
   return context;
-}; 
+}

@@ -1,87 +1,97 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  User, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  AuthError
-} from 'firebase/auth';
-import { auth } from '../config/firebase';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-interface AuthContextType {
-  user: User | null;
-  currentUser: User | null;  // Alias for user
-  loading: boolean;
-  error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+// Simple mock user type
+interface User {
+  uid: string;
+  email: string;
+  displayName: string | null;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  currentUser: null,
-  loading: true,
-  error: null,
-  login: async () => {},
-  logout: async () => {}
-});
+interface AuthContextType {
+  currentUser: User | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  loading: boolean;
+}
 
-export const useAuth = () => useContext(AuthContext);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  async function login(email: string, password: string) {
+  // Mock authentication functions
+  const login = async (email: string, password: string) => {
+    setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      console.log("User logged in:", user);
-    } catch (error) {
-      const authError = error as AuthError;
-      console.error("Login error:", authError.code, authError.message);
-      throw authError;
-    }
-  }
-
-  async function logout() {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      const authError = error as AuthError;
-      console.error("Logout error:", authError.code, authError.message);
-      throw authError;
-    }
-  }
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(
-      (user) => {
-        setUser(user);
-        setLoading(false);
-      },
-      (error) => {
-        setError(error.message);
-        setLoading(false);
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // For demo purposes, any valid-looking email/password works
+      if (!email.includes('@') || password.length < 6) {
+        throw new Error('Invalid email or password');
       }
-    );
+      
+      // Set mock user
+      const mockUser: User = {
+        uid: 'user123',
+        email,
+        displayName: email.split('@')[0]
+      };
+      
+      setCurrentUser(mockUser);
+      // Save to session storage for persistence
+      sessionStorage.setItem('mockUser', JSON.stringify(mockUser));
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return unsubscribe;
+  const logout = async () => {
+    setLoading(true);
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Clear user
+      setCurrentUser(null);
+      sessionStorage.removeItem('mockUser');
+      
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load user from session storage on initial render
+  useEffect(() => {
+    const savedUser = sessionStorage.getItem('mockUser');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
+    setLoading(false);
   }, []);
 
   const value = {
-    user,
-    currentUser: user,  // Alias for user
-    loading,
-    error,
+    currentUser,
     login,
-    logout
+    logout,
+    loading
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
