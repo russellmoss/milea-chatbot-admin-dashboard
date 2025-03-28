@@ -96,13 +96,13 @@ const FolderSidebar: React.FC<FolderSidebarProps> = ({
         </div>
       </div>
 
-      {/* Expandable Overlay */}
+      {/* Expandable Content */}
       <div 
-        className={`absolute left-12 top-0 h-full bg-white border-r border-gray-200 shadow-lg z-50
+        className={`h-full bg-white border-r border-gray-200 shadow-lg
           transform transition-all duration-300 ease-in-out
-          ${isExpanded ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'}`}
+          ${isExpanded ? 'w-52 opacity-100' : 'w-0 opacity-0'}`}
       >
-        <div className="p-4 w-64">
+        <div className="p-4 w-52">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Folders</h2>
           <div className="space-y-2">
             {folders.map((folder) => (
@@ -120,9 +120,11 @@ const FolderSidebar: React.FC<FolderSidebarProps> = ({
       </div>
 
       {/* Archive Panel */}
-      <div className={`fixed inset-y-0 right-0 w-96 bg-gray-50 border-l border-gray-200 transform transition-transform duration-300 ease-in-out ${
-        isArchiveView ? 'translate-x-0' : 'translate-x-full'
-      }`}>
+      <div 
+        className={`h-full bg-white border-r border-gray-200 shadow-lg
+          transform transition-all duration-300 ease-in-out
+          ${isArchiveView ? 'w-64 opacity-100' : 'w-0 opacity-0'}`}
+      >
         <div className="h-full flex flex-col">
           {/* Archive Header */}
           <div className="p-4 border-b border-gray-200 bg-white">

@@ -637,22 +637,24 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="flex h-screen bg-white">
-        {/* Sidebar */}
-        <FolderSidebar
-          folders={FOLDERS}
-          conversations={conversations}
-          selectedFolder={selectedFolder}
-          onFolderSelect={setSelectedFolder}
-          onArchiveToggle={handleArchiveToggle}
-          onDrop={handleDrop}
-          isExpanded={isSidebarExpanded}
-        />
+      <div className="flex h-full bg-white">
+        {/* Folder Sidebar - Collapsible */}
+        <div className={`${isSidebarExpanded ? 'w-64' : 'w-16'} transition-all duration-300 border-r flex-shrink-0 overflow-hidden bg-white relative`}>
+          <FolderSidebar
+            folders={FOLDERS}
+            conversations={conversations}
+            selectedFolder={selectedFolder}
+            onFolderSelect={setSelectedFolder}
+            onArchiveToggle={handleArchiveToggle}
+            onDrop={handleDrop}
+            isExpanded={isSidebarExpanded}
+          />
+        </div>
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col">
-          {/* Header */}
-          <div className="flex flex-col border-b">
+        {/* Main Content - Fixed width container */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Fixed Header Section */}
+          <div className="flex-none border-b">
             {/* Top bar with search and actions */}
             <div className="flex items-center justify-between p-4">
               <div className="flex items-center gap-4">
@@ -821,22 +823,24 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
             </div>
           </div>
 
-          {/* Conversation List and Message Display */}
-          <div className="flex-1 flex overflow-hidden">
-            {/* Conversation List - Fixed width */}
-            <div className="w-1/3 border-r">
-              <MemoizedConversationList
-                conversations={filteredConversations}
-                selectedConversations={selectedConversations}
-                onConversationSelect={handleConversationSelect}
-                onArchiveToggle={handleArchiveToggle}
-                searchQuery={filters.searchQuery}
-                focusedIndex={focusedConversationIndex}
-              />
+          {/* Content Area - Fixed layout */}
+          <div className="flex-1 flex min-h-0">
+            {/* Conversation List - Fixed width with scroll */}
+            <div className="w-1/3 border-r flex-shrink-0 flex flex-col">
+              <div className="flex-1 overflow-y-auto">
+                <MemoizedConversationList
+                  conversations={filteredConversations}
+                  selectedConversations={selectedConversations}
+                  onConversationSelect={handleConversationSelect}
+                  onArchiveToggle={handleArchiveToggle}
+                  searchQuery={filters.searchQuery}
+                  focusedIndex={focusedConversationIndex}
+                />
+              </div>
             </div>
 
-            {/* Message Display and Composer - Fixed width container */}
-            <div className="w-2/3 relative">
+            {/* Message Display and Composer - Fixed width with scroll */}
+            <div className="w-2/3 flex-shrink-0 flex flex-col">
               {selectedConversation ? (
                 <>
                   {/* Backdrop when expanded */}
@@ -848,7 +852,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                   )}
                   
                   {/* Main message container - Always visible */}
-                  <div className="h-full flex flex-col">
+                  <div className="flex-1 flex flex-col min-h-0">
                     <ConversationHeader
                       conversation={selectedConversation}
                       onArchiveToggle={handleArchiveToggle}
@@ -858,16 +862,18 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                       onBlock={handleBlockContact}
                       onAddToList={handleAddToList}
                     />
-                    <MemoizedMessageDisplay
-                      messages={selectedConversation.messages}
-                      customerName={selectedConversation.customerName}
-                      phoneNumber={selectedConversation.phoneNumber}
-                      conversation={selectedConversation}
-                      onMarkAsRead={handleMarkAsRead}
-                      onMessageSelect={handleMessageSelect}
-                      onMessageAction={handleMessageAction}
-                    />
-                    <div className="relative border-t">
+                    <div className="flex-1 overflow-y-auto min-h-0">
+                      <MemoizedMessageDisplay
+                        messages={selectedConversation.messages}
+                        customerName={selectedConversation.customerName}
+                        phoneNumber={selectedConversation.phoneNumber}
+                        conversation={selectedConversation}
+                        onMarkAsRead={handleMarkAsRead}
+                        onMessageSelect={handleMessageSelect}
+                        onMessageAction={handleMessageAction}
+                      />
+                    </div>
+                    <div className="flex-none border-t">
                       <MemoizedMessageComposer
                         onSend={handleSendMessage}
                         onTemplateSelect={handleTemplateSelect}
@@ -972,7 +978,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                   )}
                 </>
               ) : (
-                <div className="h-full flex items-center justify-center bg-gray-50">
+                <div className="flex-1 flex items-center justify-center bg-gray-50">
                   <div className="text-center">
                     <svg
                       className="mx-auto h-12 w-12 text-gray-400"
