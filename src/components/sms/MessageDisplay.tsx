@@ -7,7 +7,7 @@ interface MessageDisplayProps {
   messages: Message[];
   customerName: string | null;
   phoneNumber: string;
-  onMarkAsRead: () => void;
+  onMarkAsRead: (conversation: Conversation) => void;
   conversation: Conversation;
   onMessageAction: (action: string, messageId: string) => void;
 }
@@ -31,7 +31,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   // Auto-mark as read when viewing
   useEffect(() => {
     if (conversation.unreadCount > 0) {
-      onMarkAsRead();
+      onMarkAsRead(conversation);
     }
   }, [conversation, onMarkAsRead]);
 

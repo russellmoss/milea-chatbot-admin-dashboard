@@ -121,35 +121,44 @@ export function SMSProvider({ children }: { children: ReactNode }) {
   const fetchMessages = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const data = await mockSmsService.getConversations();
       setConversations(data);
-      setIsLoading(false);
     } catch (error) {
-      setIsLoading(false);
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to load conversations');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Fetch templates
   const fetchTemplates = async () => {
     try {
+      setIsLoading(true);
+      setError(null);
       const data = await mockSmsService.getTemplates();
       setTemplates(data);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to load message templates');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Fetch contacts
   const fetchContacts = async () => {
     try {
+      setIsLoading(true);
+      setError(null);
       const data = await mockSmsService.getContacts();
       setContacts(data);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to load contacts');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -167,39 +176,42 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       phoneNumber
     };
 
-    // Optimistically update UI
-    setConversations(prev => {
-      const updated = [...prev];
-      const conversationIndex = updated.findIndex(c => c.id === optimisticMessage.conversationId);
-      
-      if (conversationIndex !== -1) {
-        updated[conversationIndex] = {
-          ...updated[conversationIndex],
-          messages: [...updated[conversationIndex].messages, optimisticMessage],
-          lastMessageAt: optimisticMessage.timestamp,
-          timestamp: optimisticMessage.timestamp,
-          unreadCount: 0
-        };
-      } else {
-        // Create new conversation if it doesn't exist
-        const newConversation: Conversation = {
-          id: optimisticMessage.conversationId,
-          phoneNumber: phoneNumber || '',
-          customerName: 'Unknown',
-          messages: [optimisticMessage],
-          lastMessageAt: optimisticMessage.timestamp,
-          timestamp: optimisticMessage.timestamp,
-          unreadCount: 0,
-          archived: false,
-          deleted: false
-        };
-        updated.push(newConversation);
-      }
-      
-      return updated;
-    });
-
     try {
+      setIsLoading(true);
+      setError(null);
+
+      // Optimistically update UI
+      setConversations(prev => {
+        const updated = [...prev];
+        const conversationIndex = updated.findIndex(c => c.id === optimisticMessage.conversationId);
+        
+        if (conversationIndex !== -1) {
+          updated[conversationIndex] = {
+            ...updated[conversationIndex],
+            messages: [...updated[conversationIndex].messages, optimisticMessage],
+            lastMessageAt: optimisticMessage.timestamp,
+            timestamp: optimisticMessage.timestamp,
+            unreadCount: 0
+          };
+        } else {
+          // Create new conversation if it doesn't exist
+          const newConversation: Conversation = {
+            id: optimisticMessage.conversationId || `conv_${Date.now()}`,
+            phoneNumber: phoneNumber || '',
+            customerName: 'Unknown',
+            messages: [optimisticMessage],
+            lastMessageAt: optimisticMessage.timestamp,
+            timestamp: optimisticMessage.timestamp,
+            unreadCount: 0,
+            archived: false,
+            deleted: false
+          };
+          updated.push(newConversation);
+        }
+        
+        return updated;
+      });
+
       const message = await mockSmsService.sendMessage(content, phoneNumber, conversationId);
       
       // Update with real message data
@@ -240,12 +252,16 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to send message');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Mark a conversation as read
   const markConversationAsRead = async (conversationId: string): Promise<void> => {
     try {
+      setIsLoading(true);
+      setError(null);
       await mockSmsService.markAsRead(conversationId);
       
       // Update conversations state
@@ -260,12 +276,16 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to mark conversation as read');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Mark a message as read
   const markMessageAsRead = async (messageId: string): Promise<void> => {
     try {
+      setIsLoading(true);
+      setError(null);
       await mockSmsService.markAsRead(messageId);
       
       // Update conversations state
@@ -283,21 +303,26 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to mark message as read');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Archive a conversation
   const archiveConversation = async (conversationId: string): Promise<void> => {
-    // Optimistically update UI
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, archived: true }
-          : conv
-      )
-    );
-
     try {
+      setIsLoading(true);
+      setError(null);
+
+      // Optimistically update UI
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, archived: true }
+            : conv
+        )
+      );
+
       await mockSmsService.archiveConversation(conversationId);
       toast.success('Conversation archived successfully');
     } catch (error) {
@@ -313,21 +338,26 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to archive conversation');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Unarchive a conversation
   const unarchiveConversation = async (conversationId: string): Promise<void> => {
-    // Optimistically update UI
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, archived: false }
-          : conv
-      )
-    );
-
     try {
+      setIsLoading(true);
+      setError(null);
+
+      // Optimistically update UI
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, archived: false }
+            : conv
+        )
+      );
+
       await mockSmsService.unarchiveConversation(conversationId);
       toast.success('Conversation unarchived successfully');
     } catch (error) {
@@ -343,21 +373,26 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to unarchive conversation');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Delete a conversation
   const deleteConversation = async (conversationId: string): Promise<void> => {
-    // Optimistically update UI
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, deleted: true }
-          : conv
-      )
-    );
-
     try {
+      setIsLoading(true);
+      setError(null);
+
+      // Optimistically update UI
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, deleted: true }
+            : conv
+        )
+      );
+
       await mockSmsService.deleteConversation(conversationId);
       toast.success('Conversation deleted successfully');
     } catch (error) {
@@ -373,6 +408,8 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to delete conversation');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -399,10 +436,13 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       ...contact
     };
 
-    // Optimistically update UI
-    setContacts(prev => [...prev, optimisticContact]);
-
     try {
+      setIsLoading(true);
+      setError(null);
+
+      // Optimistically update UI
+      setContacts(prev => [...prev, optimisticContact]);
+
       const newContact = await mockSmsService.createContact(contact);
       
       // Update with real contact data
@@ -419,17 +459,22 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to create contact');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Update a contact
   const updateContact = async (id: string, contact: Partial<Contact>): Promise<Contact> => {
-    // Optimistically update UI
-    setContacts(prev => 
-      prev.map(c => c.id === id ? { ...c, ...contact } : c)
-    );
-
     try {
+      setIsLoading(true);
+      setError(null);
+
+      // Optimistically update UI
+      setContacts(prev => 
+        prev.map(c => c.id === id ? { ...c, ...contact } : c)
+      );
+
       const updatedContact = await mockSmsService.updateContact(id, contact);
       
       // Update with real contact data
@@ -448,15 +493,20 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to update contact');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Delete a contact
   const deleteContact = async (id: string): Promise<void> => {
-    // Optimistically update UI
-    setContacts(prev => prev.filter(c => c.id !== id));
-
     try {
+      setIsLoading(true);
+      setError(null);
+
+      // Optimistically update UI
+      setContacts(prev => prev.filter(c => c.id !== id));
+
       await mockSmsService.deleteContact(id);
       toast.success('Contact deleted successfully');
     } catch (error) {
@@ -466,6 +516,8 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to delete contact');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 

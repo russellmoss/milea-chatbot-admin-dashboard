@@ -1,113 +1,164 @@
-import { mockConversations, mockContacts, mockTemplates } from '../mocks/smsData';
-import { Conversation, Contact, Message, MessageTemplate } from '../types/sms';
+import { Conversation, Message, MessageTemplate, Contact } from '../types/sms';
 
-// Add delay to simulate network requests
+// Simulated network delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Mock API service
+// Simulate random errors (20% chance)
+const simulateRandomError = async () => {
+  await delay(300);
+  if (Math.random() < 0.2) {
+    throw new Error('Simulated random error occurred');
+  }
+};
+
+// Mock data
+const mockConversations: Conversation[] = [
+  {
+    id: 'conv_1',
+    customerName: 'John Doe',
+    phoneNumber: '+1234567890',
+    messages: [
+      {
+        id: 'msg_1',
+        direction: 'inbound',
+        content: 'Hello, how can I help you?',
+        timestamp: new Date().toISOString(),
+        status: 'received',
+        read: true,
+        conversationId: 'conv_1'
+      }
+    ],
+    unreadCount: 0,
+    lastMessageAt: new Date().toISOString(),
+    timestamp: new Date().toISOString(),
+    archived: false,
+    deleted: false
+  }
+];
+
+const mockContacts: Contact[] = [
+  {
+    id: 'contact_1',
+    firstName: 'John',
+    lastName: 'Doe',
+    phoneNumber: '+1234567890',
+    email: 'john@example.com',
+    birthdate: '1990-01-01',
+    tags: ['VIP'],
+    notes: 'Regular customer',
+    optIn: true,
+    lists: ['VIP'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
+const mockTemplates: MessageTemplate[] = [
+  {
+    id: 'template_1',
+    name: 'Welcome Message',
+    content: 'Welcome to our service! How can we help you today?',
+    category: 'welcome',
+    variables: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
 export const mockSmsService = {
-  // Conversations
-  getConversations: async (): Promise<Conversation[]> => {
-    await delay(800); // Simulate network delay
-    return [...mockConversations];
+  // Conversation operations
+  async getConversations(): Promise<Conversation[]> {
+    await delay(800);
+    await simulateRandomError();
+    return mockConversations;
   },
-  
-  sendMessage: async (content: string, phoneNumber: string, conversationId?: string): Promise<Message> => {
+
+  async sendMessage(content: string, phoneNumber: string, conversationId?: string): Promise<Message> {
     await delay(500);
-    
-    // Create new message
-    const newMessage: Message = {
+    await simulateRandomError();
+
+    const message: Message = {
       id: `msg_${Date.now()}`,
       direction: 'outbound',
       content,
-      phoneNumber,
       timestamp: new Date().toISOString(),
       status: 'sent',
       read: true,
-      conversationId
+      conversationId: conversationId || `conv_${Date.now()}`,
+      phoneNumber
     };
-    
-    return newMessage;
+
+    return message;
   },
-  
-  markAsRead: async (conversationId: string): Promise<void> => {
+
+  async markAsRead(id: string): Promise<void> {
     await delay(300);
-    // In a real app, this would update the database
-    return;
+    await simulateRandomError();
   },
-  
-  archiveConversation: async (conversationId: string): Promise<void> => {
+
+  async archiveConversation(conversationId: string): Promise<void> {
     await delay(400);
-    // In a real app, this would update the database
-    return;
+    await simulateRandomError();
   },
-  
-  unarchiveConversation: async (conversationId: string): Promise<void> => {
+
+  async unarchiveConversation(conversationId: string): Promise<void> {
     await delay(400);
-    // In a real app, this would update the database
-    return;
+    await simulateRandomError();
   },
-  
-  deleteConversation: async (conversationId: string): Promise<void> => {
-    await delay(500);
-    // In a real app, this would update the database
-    return;
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    await delay(300);
+    await simulateRandomError();
   },
-  
-  // Contacts
-  getContacts: async (): Promise<Contact[]> => {
+
+  // Contact operations
+  async getContacts(): Promise<Contact[]> {
     await delay(700);
-    return [...mockContacts];
+    await simulateRandomError();
+    return mockContacts;
   },
-  
-  createContact: async (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contact> => {
+
+  async createContact(contact: Omit<Contact, 'id'>): Promise<Contact> {
     await delay(600);
-    
+    await simulateRandomError();
+
     const newContact: Contact = {
-      ...contact,
       id: `contact_${Date.now()}`,
+      ...contact,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    
+
     return newContact;
   },
-  
-  updateContact: async (id: string, contact: Partial<Contact>): Promise<Contact> => {
+
+  async updateContact(id: string, contact: Partial<Contact>): Promise<Contact> {
     await delay(500);
-    
-    // Find the contact to update
+    await simulateRandomError();
+
     const existingContact = mockContacts.find(c => c.id === id);
     if (!existingContact) {
       throw new Error('Contact not found');
     }
-    
-    // Return updated contact
-    return {
+
+    const updatedContact: Contact = {
       ...existingContact,
       ...contact,
       updatedAt: new Date().toISOString()
     };
+
+    return updatedContact;
   },
-  
-  deleteContact: async (id: string): Promise<void> => {
+
+  async deleteContact(id: string): Promise<void> {
     await delay(400);
-    // In a real app, this would update the database
-    return;
+    await simulateRandomError();
   },
-  
-  // Templates
-  getTemplates: async (): Promise<MessageTemplate[]> => {
+
+  // Template operations
+  async getTemplates(): Promise<MessageTemplate[]> {
     await delay(600);
-    return [...mockTemplates];
-  },
-  
-  // Simulate random failures to test error handling
-  simulateRandomError: async (): Promise<void> => {
-    await delay(300);
-    if (Math.random() < 0.2) { // 20% chance of failure
-      throw new Error('A random error occurred. This is just for testing error handling.');
-    }
-    return;
+    await simulateRandomError();
+    return mockTemplates;
   }
 }; 
