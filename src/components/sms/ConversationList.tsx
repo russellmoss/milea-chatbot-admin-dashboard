@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Conversation } from '../../types/sms';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useSMS } from '../../contexts/SMSContext';
@@ -28,6 +28,17 @@ const ConversationList: React.FC<ConversationListProps> = ({
     position: { x: number; y: number };
   } | null>(null);
 
+  // Log initial props
+  useEffect(() => {
+    console.log('ConversationList: Initialized with props', {
+      totalConversations: conversations.length,
+      selectedCount: selectedConversations.size,
+      searchQuery,
+      focusedIndex,
+      contactsCount: contacts.length
+    });
+  }, [conversations.length, selectedConversations.size, searchQuery, focusedIndex, contacts.length]);
+
   const formatTimestamp = (date: string) => {
     const messageDate = new Date(date);
     if (isToday(messageDate)) {
@@ -41,6 +52,11 @@ const ConversationList: React.FC<ConversationListProps> = ({
 
   const handleContextMenu = (e: React.MouseEvent, conversation: Conversation) => {
     e.preventDefault();
+    console.log('ConversationList: Context menu opened', {
+      conversationId: conversation.id,
+      customerName: conversation.customerName,
+      position: { x: e.clientX, y: e.clientY }
+    });
     setContextMenu({
       conversation,
       position: { x: e.clientX, y: e.clientY }
@@ -48,12 +64,51 @@ const ConversationList: React.FC<ConversationListProps> = ({
   };
 
   const handleAddToContacts = (conversation: Conversation) => {
+    console.log('ConversationList: Adding to contacts', {
+      conversationId: conversation.id,
+      phoneNumber: conversation.phoneNumber,
+      customerName: conversation.customerName
+    });
     // TODO: Implement add to contacts functionality
-    console.log('Add to contacts:', conversation);
   };
 
   const isContactExists = (phoneNumber: string) => {
     return contacts.some(contact => contact.phoneNumber === phoneNumber);
+  };
+
+  const handleConversationClick = (conversation: Conversation, event: React.MouseEvent) => {
+    console.log('ConversationList: Conversation clicked', {
+      conversationId: conversation.id,
+      customerName: conversation.customerName,
+      isSelected: selectedConversations.has(conversation.id),
+      isShiftKey: event.shiftKey
+    });
+    onConversationSelect(conversation, event);
+  };
+
+  const handleArchiveToggle = async (conversationId: string, archived: boolean) => {
+    console.log('ConversationList: Toggling archive status', {
+      conversationId,
+      archived,
+      currentStatus: conversations.find(c => c.id === conversationId)?.archived
+    });
+    await onArchiveToggle(conversationId, archived);
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    console.log('ConversationList: Deleting conversation', {
+      conversationId,
+      isSelected: selectedConversations.has(conversationId)
+    });
+    await deleteConversation(conversationId);
+  };
+
+  const handleToggleRead = async (conversationId: string) => {
+    console.log('ConversationList: Toggling read status', {
+      conversationId,
+      currentStatus: conversations.find(c => c.id === conversationId)?.unreadCount === 0
+    });
+    await toggleReadStatus(conversationId);
   };
 
   return (
@@ -76,7 +131,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
               return (
                 <li
                   key={conversation.id}
-                  onClick={(e) => onConversationSelect(conversation, e)}
+                  onClick={(e) => handleConversationClick(conversation, e)}
                   onContextMenu={(e) => handleContextMenu(e, conversation)}
                   onMouseEnter={() => setHoveredConversation(conversation.id)}
                   onMouseLeave={() => setHoveredConversation(null)}
@@ -174,7 +229,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
                   />
                 </svg>
               ),
-              onClick: () => toggleReadStatus(contextMenu.conversation.id)
+              onClick: () => handleToggleRead(contextMenu.conversation.id)
             },
             {
               label: contextMenu.conversation.archived ? 'Unarchive' : 'Archive',
@@ -188,7 +243,10 @@ const ConversationList: React.FC<ConversationListProps> = ({
                   />
                 </svg>
               ),
-              onClick: () => onArchiveToggle(contextMenu.conversation.id, !contextMenu.conversation.archived)
+              onClick: () => handleArchiveToggle(
+                contextMenu.conversation.id,
+                !contextMenu.conversation.archived
+              )
             },
             {
               label: 'Delete conversation',
@@ -202,7 +260,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
                   />
                 </svg>
               ),
-              onClick: () => deleteConversation(contextMenu.conversation.id),
+              onClick: () => handleDeleteConversation(contextMenu.conversation.id),
               danger: true
             },
             {

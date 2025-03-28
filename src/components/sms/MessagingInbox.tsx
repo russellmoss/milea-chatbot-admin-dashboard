@@ -120,14 +120,30 @@ const MessagingInbox: React.FC = () => {
     dateRange: null
   });
 
+  // Add new state for resizing and collapsing the message composer
+  const [isComposerExpanded, setIsComposerExpanded] = useState(false);
+  const [composerWidth, setComposerWidth] = useState(400); // Default width in pixels
+  const [isResizing, setIsResizing] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startWidth, setStartWidth] = useState(0);
+
   // Load initial data
   useEffect(() => {
-    // This would normally fetch data, but our mock data is already loaded
-    // We can still simulate a loading state for realism
+    console.log('MessagingInbox: Initial data load', {
+      conversationsCount: conversations.length,
+      selectedConversation: selectedConversation ? {
+        id: selectedConversation.id,
+        phoneNumber: selectedConversation.phoneNumber,
+        messageCount: selectedConversation.messages.length
+      } : null,
+      templatesCount: templates.length
+    });
+
     if (conversations.length === 0) {
+      console.log('MessagingInbox: No conversations, fetching messages');
       fetchMessages();
     }
-  }, [fetchMessages, conversations.length]);
+  }, [fetchMessages, conversations.length, selectedConversation, templates.length]);
 
   // Save sidebar state to localStorage
   useEffect(() => {
@@ -136,10 +152,19 @@ const MessagingInbox: React.FC = () => {
 
   // Filter conversations based on selected folder, search query, and filters
   const filteredConversations = useMemo(() => {
-    return conversations.filter((conversation: Conversation) => {
+    console.log('MessagingInbox: Filtering conversations', {
+      totalConversations: conversations.length,
+      selectedFolder,
+      searchQuery: filters.searchQuery,
+      filterType: filters.filterType,
+      dateRange: filters.dateRange
+    });
+
+    const filtered = conversations.filter((conversation: Conversation) => {
       // Apply folder filter
       const folder = FOLDERS.find(f => f.id === selectedFolder);
       if (!folder) return false;
+      
       const matchesFolder = folder.filter(conversation);
       if (!matchesFolder) return false;
 
@@ -167,10 +192,30 @@ const MessagingInbox: React.FC = () => {
 
       return matchesSearch && matchesFilterType && matchesDateRange;
     });
+
+    console.log('MessagingInbox: Filtered conversations result', {
+      filteredCount: filtered.length,
+      unreadCount: filtered.reduce((sum, conv) => sum + conv.unreadCount, 0),
+      archivedCount: filtered.filter(conv => conv.archived).length
+    });
+
+    return filtered;
   }, [conversations, selectedFolder, filters]);
 
   // Handle conversation selection
   const handleConversationSelect = async (conversation: Conversation, event: React.MouseEvent) => {
+    console.log('MessagingInbox: Conversation selected', {
+      id: conversation.id,
+      phoneNumber: conversation.phoneNumber,
+      customerName: conversation.customerName,
+      messageCount: conversation.messages.length,
+      lastMessage: conversation.messages[conversation.messages.length - 1],
+      unreadCount: conversation.unreadCount,
+      archived: conversation.archived,
+      deleted: conversation.deleted,
+      isShiftKey: event.shiftKey
+    });
+
     if (event.shiftKey) {
       event.preventDefault();
       const newSelection = new Set(selectedConversations);
@@ -180,17 +225,23 @@ const MessagingInbox: React.FC = () => {
         newSelection.add(conversation.id);
       }
       setSelectedConversations(newSelection);
+      console.log('MessagingInbox: Updated multi-selection', {
+        selectedCount: newSelection.size,
+        selectedIds: Array.from(newSelection)
+      });
       return;
     }
 
-    // Clear any existing selection
-    setSelectedConversations(new Set());
-    
-    // Set the selected conversation
+    // For single selection, clear the set and add only the selected conversation
+    setSelectedConversations(new Set([conversation.id]));
     setSelectedConversation(conversation);
     
     if (conversation.unreadCount > 0) {
       try {
+        console.log('MessagingInbox: Marking conversation as read', {
+          conversationId: conversation.id,
+          unreadCount: conversation.unreadCount
+        });
         await markConversationAsRead(conversation.id);
       } catch (error) {
         console.error('Error marking conversation as read:', error);
@@ -201,15 +252,48 @@ const MessagingInbox: React.FC = () => {
 
   // Handle sending a new message
   const handleSendMessage = async (content: string): Promise<void> => {
-    if (!selectedConversation || !content.trim() || !isConnected) return;
+    console.log('MessagingInbox: Attempting to send message', {
+      content,
+      selectedConversation: selectedConversation ? {
+        id: selectedConversation.id,
+        phoneNumber: selectedConversation.phoneNumber,
+        customerName: selectedConversation.customerName
+      } : null,
+      isConnected
+    });
+
+    if (!selectedConversation || !content.trim() || !isConnected) {
+      console.log('MessagingInbox: Message send prevented', {
+        reason: !selectedConversation ? 'no conversation selected' : 
+                !content.trim() ? 'empty content' : 'not connected',
+        hasSelectedConversation: !!selectedConversation,
+        contentLength: content.length,
+        isConnected
+      });
+      return;
+    }
 
     try {
+      console.log('MessagingInbox: Sending message via SMS context', {
+        content,
+        phoneNumber: selectedConversation.phoneNumber,
+        conversationId: selectedConversation.id
+      });
+
       await sendMessage(content, selectedConversation.phoneNumber, selectedConversation.id);
       
-      // Clear draft message after sending
+      console.log('MessagingInbox: Message sent successfully, clearing draft');
       clearDraftMessage(selectedConversation.id);
+      
+      console.log('MessagingInbox: Refreshing messages to update conversation');
+      await fetchMessages();
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('MessagingInbox: Error in handleSendMessage:', {
+        error,
+        content,
+        phoneNumber: selectedConversation.phoneNumber,
+        conversationId: selectedConversation.id
+      });
       toast.error('Failed to send message');
     }
   };
@@ -406,9 +490,49 @@ const MessagingInbox: React.FC = () => {
     console.log('Add to list');
   };
 
+  // Handle resize start
+  const handleResizeStart = (e: React.MouseEvent) => {
+    setIsResizing(true);
+    setStartX(e.clientX);
+    setStartWidth(composerWidth);
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleResizeEnd);
+  };
+
+  // Handle resize move
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!isResizing) return;
+    
+    const diff = startX - e.clientX;
+    const newWidth = Math.max(300, Math.min(800, startWidth + diff));
+    setComposerWidth(newWidth);
+  };
+
+  // Handle resize end
+  const handleResizeEnd = () => {
+    setIsResizing(false);
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleResizeEnd);
+  };
+
+  // Handle message selection
+  const handleMessageSelect = (messageId: string) => {
+    if (!selectedConversation) return;
+    
+    const message = selectedConversation.messages.find(msg => msg.id === messageId);
+    if (message) {
+      console.log('MessagingInbox: Message selected', {
+        messageId,
+        content: message.content,
+        direction: message.direction
+      });
+      setSelectedMessage(message);
+    }
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="flex h-full">
+      <div className="flex h-screen bg-white">
         {/* Sidebar */}
         <FolderSidebar
           folders={FOLDERS}
@@ -590,7 +714,7 @@ const MessagingInbox: React.FC = () => {
             </div>
           </div>
 
-          {/* Conversation List */}
+          {/* Conversation List and Message Display */}
           <div className="flex-1 flex overflow-hidden">
             <ConversationList
               conversations={filteredConversations}
@@ -601,13 +725,12 @@ const MessagingInbox: React.FC = () => {
               focusedIndex={focusedConversationIndex}
             />
 
-            {/* Message Display */}
-            {selectedConversations.size === 1 && selectedConversation && (
+            {selectedConversation ? (
               <div className="flex-1 flex flex-col border-l">
                 <ConversationHeader
                   conversation={selectedConversation}
                   onArchiveToggle={handleArchiveToggle}
-                  onDelete={handleDeleteConversation}
+                  onDelete={() => handleDeleteConversation(selectedConversation.id)}
                   onExport={handleExportConversation}
                   onViewContact={handleViewContact}
                   onBlock={handleBlockContact}
@@ -617,17 +740,90 @@ const MessagingInbox: React.FC = () => {
                   messages={selectedConversation.messages}
                   customerName={selectedConversation.customerName}
                   phoneNumber={selectedConversation.phoneNumber}
-                  onMarkAsRead={handleMarkAsRead}
                   conversation={selectedConversation}
+                  onMarkAsRead={handleMarkAsRead}
+                  onMessageSelect={handleMessageSelect}
                   onMessageAction={handleMessageAction}
                 />
-                <MessageComposer
-                  onSend={handleSendMessage}
-                  onTemplateSelect={handleTemplateSelect}
-                  templates={templates}
-                  recipientPhone={selectedConversation.phoneNumber}
-                  conversationId={selectedConversation.id}
-                />
+                <div 
+                  className={`relative border-t transition-all duration-300 ${
+                    isComposerExpanded ? 'w-full z-50' : 'w-auto'
+                  }`}
+                  style={{ width: isComposerExpanded ? `${composerWidth}px` : 'auto' }}
+                >
+                  {/* Backdrop when expanded */}
+                  {isComposerExpanded && (
+                    <div 
+                      className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                      onClick={() => setIsComposerExpanded(false)}
+                    />
+                  )}
+
+                  {/* Resize handle */}
+                  <div
+                    className={`absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-primary/20 transition-colors ${
+                      isResizing ? 'bg-primary/30' : ''
+                    }`}
+                    onMouseDown={handleResizeStart}
+                    title="Drag to resize"
+                  />
+                  
+                  {/* Toggle button */}
+                  <button
+                    onClick={() => setIsComposerExpanded(!isComposerExpanded)}
+                    className="absolute right-2 top-2 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                    title={isComposerExpanded ? "Collapse composer" : "Expand composer"}
+                  >
+                    <svg
+                      className={`w-4 h-4 transform transition-transform duration-200 ${
+                        isComposerExpanded ? 'rotate-180' : ''
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </button>
+
+                  {/* Message Composer */}
+                  <MessageComposer
+                    onSend={handleSendMessage}
+                    onTemplateSelect={handleTemplateSelect}
+                    templates={templates}
+                    recipientPhone={selectedConversation.phoneNumber}
+                    conversationId={selectedConversation.id}
+                    isExpanded={isComposerExpanded}
+                    width={composerWidth}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center bg-gray-50">
+                <div className="text-center">
+                  <svg
+                    className="mx-auto h-12 w-12 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                    />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No conversation selected</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Select a conversation from the list to start messaging
+                  </p>
+                </div>
               </div>
             )}
           </div>

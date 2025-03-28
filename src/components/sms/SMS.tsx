@@ -52,6 +52,7 @@ const SMS: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [focusedConversationIndex, setFocusedConversationIndex] = useState<number>(-1);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -111,6 +112,10 @@ const SMS: React.FC = () => {
       // Handle template selection
       console.log('Selected template:', template);
     }
+  };
+
+  const handleMarkAsRead = (conversation: Conversation) => {
+    markConversationAsRead(conversation.id);
   };
 
   const filteredConversations = conversations.filter(conversation => {
@@ -196,11 +201,15 @@ const SMS: React.FC = () => {
                 messages={currentConversation.messages}
                 customerName={currentConversation.customerName}
                 phoneNumber={currentConversation.phoneNumber}
-                onMarkAsRead={(conversation) => {
-                  markConversationAsRead(conversation.id);
-                }}
+                onMarkAsRead={handleMarkAsRead}
                 conversation={currentConversation}
                 onMessageAction={handleMessageAction}
+                onMessageSelect={(messageId: string) => {
+                  const message = currentConversation.messages.find(msg => msg.id === messageId);
+                  if (message) {
+                    setSelectedMessage(message);
+                  }
+                }}
               />
               <MessageComposer
                 onSend={handleSendMessage}

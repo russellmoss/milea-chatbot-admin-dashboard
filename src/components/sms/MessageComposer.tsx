@@ -9,6 +9,8 @@ interface MessageComposerProps {
   templates: MessageTemplate[];
   recipientPhone: string;
   conversationId?: string;
+  isExpanded?: boolean;
+  width?: number;
 }
 
 const MessageComposer: React.FC<MessageComposerProps> = ({
@@ -16,9 +18,11 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
   onTemplateSelect,
   templates,
   recipientPhone,
-  conversationId = ''
+  conversationId = '',
+  isExpanded = false,
+  width = 400
 }) => {
-  const { draftMessages, setDraftMessage } = useMessage();
+  const { draftMessages, setDraftMessage, clearDraftMessage } = useMessage();
   const { isConnected } = useSocket();
   const [message, setMessage] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
@@ -28,12 +32,25 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const MAX_MESSAGE_LENGTH = 160;
 
-  // Initialize from draft message if available
+  // Log initial props
+  useEffect(() => {
+    console.log('MessageComposer: Initialized with props', {
+      recipientPhone,
+      conversationId,
+      templatesCount: templates.length,
+      isConnected,
+      hasDraft: !!draftMessages[conversationId || '']
+    });
+  }, [recipientPhone, conversationId, templates.length, isConnected, draftMessages]);
+
+  // Load draft message if exists
   useEffect(() => {
     if (conversationId && draftMessages[conversationId]) {
+      console.log('MessageComposer: Loading draft message', {
+        conversationId,
+        draftLength: draftMessages[conversationId].length
+      });
       setMessage(draftMessages[conversationId]);
-    } else {
-      setMessage('');
     }
   }, [conversationId, draftMessages]);
 
@@ -41,33 +58,74 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [message]);
 
-  // Save draft as user types
-  useEffect(() => {
+  // Handle message change
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newMessage = e.target.value;
+    console.log('MessageComposer: Message changed', {
+      newLength: newMessage.length,
+      conversationId,
+      hasDraft: !!draftMessages[conversationId || '']
+    });
+    setMessage(newMessage);
+    
+    // Save draft
     if (conversationId) {
-      setDraftMessage(conversationId, message);
+      setDraftMessage(conversationId, newMessage);
     }
-  }, [conversationId, message, setDraftMessage]);
+  };
 
+  // Handle template selection
+  const handleTemplateSelect = (templateId: string) => {
+    console.log('MessageComposer: Template selected', {
+      templateId,
+      conversationId
+    });
+    onTemplateSelect(templateId);
+  };
+
+  // Handle message submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || isSending || !isConnected) return;
+    
+    console.log('MessageComposer: Attempting to send message', {
+      messageLength: message.length,
+      conversationId,
+      recipientPhone,
+      isConnected
+    });
 
-    setIsSending(true);
-    setError(null);
+    if (!message.trim() || isSending || !isConnected) {
+      console.log('MessageComposer: Send prevented', {
+        reason: !message.trim() ? 'empty message' : 
+                isSending ? 'already sending' : 'not connected',
+        messageLength: message.length,
+        isSending,
+        isConnected
+      });
+      return;
+    }
 
     try {
+      setIsSending(true);
+      console.log('MessageComposer: Sending message');
       await onSend(message);
+      
+      console.log('MessageComposer: Message sent successfully');
       setMessage('');
+      
       if (conversationId) {
-        setDraftMessage(conversationId, '');
+        clearDraftMessage(conversationId);
       }
     } catch (error) {
-      console.error('Failed to send message:', error);
-      setError(error instanceof Error ? error.message : 'Failed to send message');
+      console.error('MessageComposer: Error sending message', {
+        error,
+        messageLength: message.length,
+        conversationId
+      });
     } finally {
       setIsSending(false);
     }
@@ -90,7 +148,12 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
   };
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4">
+    <div 
+      className={`border-t border-gray-200 bg-white p-4 transition-all duration-300 ${
+        isExpanded ? 'fixed top-0 right-0 h-screen' : ''
+      }`}
+      style={{ width: isExpanded ? `${width}px` : 'auto' }}
+    >
       <form onSubmit={handleSubmit} className="flex flex-col space-y-2">
         {/* Formatting toolbar */}
         <div className="flex items-center space-x-2 pb-2">
@@ -131,7 +194,7 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
                       key={template.id}
                       type="button"
                       onClick={() => {
-                        onTemplateSelect(template.id);
+                        handleTemplateSelect(template.id);
                         setShowTemplates(false);
                       }}
                       className="block w-full text-left p-2 text-sm hover:bg-gray-100 rounded"
@@ -152,15 +215,12 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
             <textarea
               ref={textareaRef}
               value={message}
-              onChange={(e) => {
-                const newValue = e.target.value;
-                if (newValue.length <= MAX_MESSAGE_LENGTH) {
-                  setMessage(newValue);
-                }
-              }}
+              onChange={handleMessageChange}
               onKeyPress={handleKeyPress}
               placeholder="Type your message..."
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-none min-h-[60px] max-h-[150px]"
+              className={`w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-none ${
+                isExpanded ? 'min-h-[200px]' : 'min-h-[60px]'
+              } max-h-[300px]`}
             />
             <div className="absolute bottom-2 right-2 text-xs text-gray-500">
               {message.length}/{MAX_MESSAGE_LENGTH}
@@ -199,7 +259,7 @@ const MessageComposer: React.FC<MessageComposerProps> = ({
 
       {!isConnected && (
         <div className="mt-2 text-sm text-yellow-600">
-          You're currently offline. Messages will be sent when you reconnect.
+          You're offline. Messages will be sent when you're back online.
         </div>
       )}
     </div>

@@ -10,6 +10,7 @@ interface MessageDisplayProps {
   onMarkAsRead: (conversation: Conversation) => void;
   conversation: Conversation;
   onMessageAction: (action: string, messageId: string) => void;
+  onMessageSelect: (messageId: string) => void;
 }
 
 const MessageDisplay: React.FC<MessageDisplayProps> = ({ 
@@ -18,14 +19,32 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   phoneNumber, 
   onMarkAsRead,
   conversation,
-  onMessageAction
+  onMessageAction,
+  onMessageSelect
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
+  // Log initial props
+  useEffect(() => {
+    console.log('MessageDisplay: Initialized with props', {
+      messageCount: messages.length,
+      customerName,
+      phoneNumber,
+      conversationId: conversation.id,
+      unreadCount: conversation.unreadCount
+    });
+  }, [messages.length, customerName, phoneNumber, conversation.id, conversation.unreadCount]);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
+    console.log('MessageDisplay: Messages updated', {
+      messageCount: messages.length,
+      lastMessage: messages[messages.length - 1],
+      shouldAutoScroll
+    });
+
     if (shouldAutoScroll) {
       scrollToBottom();
     }
@@ -34,6 +53,10 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   // Auto-mark as read when viewing
   useEffect(() => {
     if (conversation.unreadCount > 0) {
+      console.log('MessageDisplay: Auto-marking conversation as read', {
+        conversationId: conversation.id,
+        unreadCount: conversation.unreadCount
+      });
       onMarkAsRead(conversation);
     }
   }, [conversation, onMarkAsRead]);
@@ -42,11 +65,41 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
     const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 50;
-    setShouldAutoScroll(isAtBottom);
+    
+    if (isAtBottom !== shouldAutoScroll) {
+      console.log('MessageDisplay: Scroll position changed', {
+        isAtBottom,
+        scrollTop,
+        scrollHeight,
+        clientHeight
+      });
+      setShouldAutoScroll(isAtBottom);
+    }
   };
 
   const scrollToBottom = () => {
+    console.log('MessageDisplay: Scrolling to bottom');
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Handle message selection
+  const handleMessageSelect = (messageId: string) => {
+    console.log('MessageDisplay: Message selected', {
+      messageId,
+      previousSelection: selectedMessageId
+    });
+    setSelectedMessageId(messageId);
+    onMessageSelect(messageId);
+  };
+
+  // Handle message action
+  const handleAction = (action: string, messageId: string) => {
+    console.log('MessageDisplay: Message action triggered', {
+      action,
+      messageId,
+      conversationId: conversation.id
+    });
+    onMessageAction(action, messageId);
   };
 
   // Format timestamp
@@ -75,11 +128,13 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
     return groups;
   }, {} as { [date: string]: Message[] });
 
-  // Sort messages within each group by timestamp
-  Object.keys(groupedMessages).forEach(date => {
-    groupedMessages[date].sort((a, b) => 
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
+  console.log('MessageDisplay: Grouped messages', {
+    totalGroups: Object.keys(groupedMessages).length,
+    groupDates: Object.keys(groupedMessages),
+    messagesPerGroup: Object.entries(groupedMessages).map(([date, msgs]) => ({
+      date,
+      count: msgs.length
+    }))
   });
 
   // No messages 
@@ -115,8 +170,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
               <div 
                 key={message.id}
                 className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                onMouseEnter={() => setSelectedMessageId(message.id)}
-                onMouseLeave={() => setSelectedMessageId(null)}
+                onClick={() => handleMessageSelect(message.id)}
               >
                 <div className={`relative max-w-[75%] px-4 py-2 rounded-lg shadow-sm ${
                   message.direction === 'outbound'
@@ -155,7 +209,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                     <div className="absolute top-2 right-2">
                       <MessageActions
                         message={message}
-                        onAction={(action) => onMessageAction(action, message.id)}
+                        onAction={(action) => handleAction(action, message.id)}
                       />
                     </div>
                   )}

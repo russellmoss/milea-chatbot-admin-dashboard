@@ -46,8 +46,21 @@ export function SMSProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Log context initialization
+  useEffect(() => {
+    console.log('SMSContext: Initializing provider', {
+      hasSocket: !!socket,
+      isConnected,
+      userId: user?.uid,
+      initialConversationsCount: conversations.length,
+      initialTemplatesCount: templates.length,
+      initialContactsCount: contacts.length
+    });
+  }, [socket, isConnected, user?.uid]);
+
   // Load initial data
   useEffect(() => {
+    console.log('SMSContext: Loading initial data');
     fetchMessages();
     fetchTemplates();
     fetchContacts();
@@ -62,16 +75,32 @@ export function SMSProvider({ children }: { children: ReactNode }) {
 
   // Listen for socket events
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.warn('SMSContext: No socket connection available');
+      return;
+    }
+
+    console.log('SMSContext: Setting up socket event listeners');
 
     // Listen for new messages
     const handleNewMessage = (message: Message) => {
+      console.log('SMSContext: Received new message via socket', {
+        messageId: message.id,
+        direction: message.direction,
+        phoneNumber: message.phoneNumber,
+        timestamp: message.timestamp
+      });
+
       setConversations(prevConversations => {
         const conversationIndex = prevConversations.findIndex(
           conv => conv.phoneNumber === message.phoneNumber
         );
 
         if (conversationIndex === -1) {
+          console.log('SMSContext: Creating new conversation for message', {
+            phoneNumber: message.phoneNumber,
+            messageId: message.id
+          });
           // Create new conversation
           const newConversation: Conversation = {
             id: Date.now().toString(),
@@ -87,6 +116,11 @@ export function SMSProvider({ children }: { children: ReactNode }) {
           return [...prevConversations, newConversation];
         }
 
+        console.log('SMSContext: Updating existing conversation', {
+          conversationId: prevConversations[conversationIndex].id,
+          messageId: message.id
+        });
+
         // Update existing conversation
         const updatedConversations = [...prevConversations];
         const conversation = { ...updatedConversations[conversationIndex] };
@@ -100,10 +134,22 @@ export function SMSProvider({ children }: { children: ReactNode }) {
 
     // Listen for message status updates
     const handleMessageStatusUpdate = (data: { messageId: string; status: 'sent' | 'delivered' | 'read' | 'failed' }) => {
+      console.log('SMSContext: Received message status update', {
+        messageId: data.messageId,
+        newStatus: data.status
+      });
+
       setConversations(prevConversations => {
         return prevConversations.map(conv => {
           const messageIndex = conv.messages.findIndex(msg => msg.id === data.messageId);
           if (messageIndex !== -1) {
+            console.log('SMSContext: Updating message status', {
+              conversationId: conv.id,
+              messageId: data.messageId,
+              oldStatus: conv.messages[messageIndex].status,
+              newStatus: data.status
+            });
+
             const updatedMessages = [...conv.messages];
             updatedMessages[messageIndex] = {
               ...updatedMessages[messageIndex],
@@ -120,6 +166,7 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     socket.on('message-status-update', handleMessageStatusUpdate);
 
     return () => {
+      console.log('SMSContext: Cleaning up socket event listeners');
       socket.off('new-message', handleNewMessage);
       socket.off('message-status-update', handleMessageStatusUpdate);
     };
@@ -130,10 +177,81 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       setError(null);
+      console.log('Fetching messages from mock data...');
+      
       // Use mock data directly
       const sortedConversations = sortConversations(mockConversations);
+      
+      // Verify conversation structure
+      console.log('Verifying conversation structure:', {
+        totalConversations: sortedConversations.length,
+        sampleConversation: sortedConversations[0] ? {
+          id: sortedConversations[0].id,
+          customerName: sortedConversations[0].customerName,
+          phoneNumber: sortedConversations[0].phoneNumber,
+          messageCount: sortedConversations[0].messages.length,
+          unreadCount: sortedConversations[0].unreadCount,
+          lastMessageAt: sortedConversations[0].lastMessageAt,
+          timestamp: sortedConversations[0].timestamp,
+          archived: sortedConversations[0].archived,
+          deleted: sortedConversations[0].deleted
+        } : null
+      });
+
+      // Verify message structure
+      if (sortedConversations.length > 0) {
+        const sampleMessage = sortedConversations[0].messages[0];
+        console.log('Verifying message structure:', {
+          sampleMessage: sampleMessage ? {
+            id: sampleMessage.id,
+            direction: sampleMessage.direction,
+            content: sampleMessage.content,
+            phoneNumber: sampleMessage.phoneNumber,
+            timestamp: sampleMessage.timestamp,
+            status: sampleMessage.status,
+            read: sampleMessage.read,
+            conversationId: sampleMessage.conversationId
+          } : null
+        });
+      }
+
+      // Verify phone number format
+      const invalidPhoneNumbers = sortedConversations.filter(conv => 
+        !/^\+1 \(\d{3}\) \d{3}-\d{4}$/.test(conv.phoneNumber)
+      );
+      
+      if (invalidPhoneNumbers.length > 0) {
+        console.warn('Found conversations with invalid phone number format:', 
+          invalidPhoneNumbers.map(conv => ({
+            id: conv.id,
+            phoneNumber: conv.phoneNumber
+          }))
+        );
+      }
+
+      // Verify message timestamps
+      const invalidTimestamps = sortedConversations.filter(conv => 
+        !conv.messages.every(msg => new Date(msg.timestamp).toString() !== 'Invalid Date')
+      );
+      
+      if (invalidTimestamps.length > 0) {
+        console.warn('Found messages with invalid timestamps:', 
+          invalidTimestamps.map(conv => ({
+            id: conv.id,
+            messageCount: conv.messages.length
+          }))
+        );
+      }
+
       setConversations(sortedConversations);
+      console.log('Successfully loaded conversations:', {
+        total: sortedConversations.length,
+        unreadCount: sortedConversations.reduce((sum, conv) => sum + conv.unreadCount, 0),
+        archivedCount: sortedConversations.filter(conv => conv.archived).length,
+        deletedCount: sortedConversations.filter(conv => conv.deleted).length
+      });
     } catch (error) {
+      console.error('Error in fetchMessages:', error);
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to load conversations');
     } finally {
@@ -171,7 +289,26 @@ export function SMSProvider({ children }: { children: ReactNode }) {
 
   // Send a message
   const sendMessage = async (content: string, phoneNumber: string, conversationId?: string): Promise<Message> => {
-    // Create optimistic message
+    console.log('SMSContext: Attempting to send message', {
+      contentLength: content.length,
+      phoneNumber,
+      conversationId,
+      isConnected,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!isConnected || !socket) {
+      console.error('SMSContext: Cannot send message - socket not connected');
+      throw new Error('Socket connection not established');
+    }
+
+    if (!phoneNumber) {
+      console.error('SMSContext: Cannot send message - phone number is required');
+      throw new Error('Phone number is required');
+    }
+
+    // Create optimistic message with guaranteed conversationId
+    const messageConversationId = conversationId || `conv_${Date.now()}`;
     const optimisticMessage: Message = {
       id: `temp_${Date.now()}`,
       direction: 'outbound',
@@ -179,20 +316,29 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       timestamp: new Date().toISOString(),
       status: 'sent',
       read: true,
-      conversationId: conversationId || `conv_${Date.now()}`,
+      conversationId: messageConversationId,
       phoneNumber
     };
+
+    console.log('SMSContext: Created optimistic message', {
+      messageId: optimisticMessage.id,
+      conversationId: optimisticMessage.conversationId
+    });
 
     try {
       setIsLoading(true);
       setError(null);
 
       // Optimistically update UI
+      console.log('SMSContext: Updating UI optimistically');
       setConversations(prev => {
         const updated = [...prev];
-        const conversationIndex = updated.findIndex(c => c.id === optimisticMessage.conversationId);
+        const conversationIndex = updated.findIndex(c => c.id === messageConversationId);
         
         if (conversationIndex !== -1) {
+          console.log('SMSContext: Found existing conversation, updating messages', {
+            conversationId: messageConversationId
+          });
           updated[conversationIndex] = {
             ...updated[conversationIndex],
             messages: [...updated[conversationIndex].messages, optimisticMessage],
@@ -201,63 +347,43 @@ export function SMSProvider({ children }: { children: ReactNode }) {
             unreadCount: 0
           };
         } else {
-          // Create new conversation if it doesn't exist
+          console.log('SMSContext: Creating new conversation for message', {
+            conversationId: messageConversationId
+          });
+          // Create new conversation
           const newConversation: Conversation = {
-            id: optimisticMessage.conversationId || `conv_${Date.now()}`,
-            phoneNumber: phoneNumber || '',
-            customerName: 'Unknown',
+            id: messageConversationId,
+            customerName: null,
+            phoneNumber: phoneNumber,
             messages: [optimisticMessage],
+            unreadCount: 0,
             lastMessageAt: optimisticMessage.timestamp,
             timestamp: optimisticMessage.timestamp,
-            unreadCount: 0,
             archived: false,
             deleted: false
           };
           updated.push(newConversation);
         }
-        
         return updated;
       });
 
-      const message = await mockSmsService.sendMessage(content, phoneNumber, conversationId);
-      
-      // Update with real message data
-      setConversations(prev => {
-        return prev.map(conv => {
-          if (conv.id === message.conversationId) {
-            return {
-              ...conv,
-              messages: conv.messages.map(msg => 
-                msg.id === optimisticMessage.id ? message : msg
-              ),
-              lastMessageAt: message.timestamp,
-              timestamp: message.timestamp
-            };
-          }
-          return conv;
-        });
+      // Emit message through socket
+      console.log('SMSContext: Emitting message through socket');
+      socket.emit('send-message', {
+        content,
+        phoneNumber,
+        conversationId: messageConversationId
       });
 
-      toast.success('Message sent successfully');
-      return message;
+      console.log('SMSContext: Message sent successfully');
+      return optimisticMessage;
     } catch (error) {
-      // Revert optimistic update on error
-      setConversations(prev => {
-        return prev.map(conv => {
-          if (conv.id === optimisticMessage.conversationId) {
-            return {
-              ...conv,
-              messages: conv.messages.filter(msg => msg.id !== optimisticMessage.id),
-              lastMessageAt: conv.messages[conv.messages.length - 1]?.timestamp || conv.timestamp,
-              timestamp: conv.messages[conv.messages.length - 1]?.timestamp || conv.timestamp
-            };
-          }
-          return conv;
-        });
+      console.error('SMSContext: Error sending message', {
+        error,
+        messageId: optimisticMessage.id,
+        conversationId: messageConversationId
       });
-
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to send message');
+      setError(error instanceof Error ? error.message : 'Failed to send message');
       throw error;
     } finally {
       setIsLoading(false);

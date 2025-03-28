@@ -81,85 +81,102 @@ interface SocketContextType {
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
-export function SocketProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const [socket, setSocket] = useState<MockSocket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-
-  // Initialize socket on mount or when user changes
-  useEffect(() => {
-    if (!user) {
-      // No user, no socket
-      if (socket) {
-        socket.disconnect();
-        setSocket(null);
-      }
-      return;
-    }
-
-    // Create a mock socket
-    const newSocket = createMockSocket();
-    setSocket(newSocket);
-
-    // Set up connection events
-    newSocket.on('connect', () => {
-      console.log('Socket connected');
-      setIsConnected(true);
-    });
-
-    newSocket.on('disconnect', () => {
-      console.log('Socket disconnected');
-      setIsConnected(false);
-    });
-
-    // Additional events can be set up here
-    newSocket.on('error', (error) => {
-      console.error('Socket error:', error);
-    });
-
-    // Simulate connection
-    setTimeout(() => {
-      newSocket.connect();
-    }, 500);
-
-    // Cleanup on unmount
-    return () => {
-      newSocket.disconnect();
-      setSocket(null);
-    };
-  }, [user]);
-
-  // Simulate occasional disconnects and reconnects for realism
-  useEffect(() => {
-    if (!socket) return;
-
-    const disconnectInterval = setInterval(() => {
-      if (Math.random() < 0.05) { // 5% chance of disconnect every interval
-        console.log('Simulating random disconnect');
-        socket.disconnect();
-        
-        // Reconnect after a short delay
-        setTimeout(() => {
-          console.log('Simulating reconnect');
-          socket.connect();
-        }, 2000);
-      }
-    }, 60000); // Check every minute
-
-    return () => clearInterval(disconnectInterval);
-  }, [socket]);
-
-  return (
-    <SocketContext.Provider value={{ socket, isConnected }}>
-      {children}
-    </SocketContext.Provider>
-  );
-}
-
 export function useSocket() {
   const context = useContext(SocketContext);
   if (context === undefined) {
     throw new Error('useSocket must be used within a SocketProvider');
   }
   return context;
+}
+
+export function SocketProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [socket, setSocket] = useState<MockSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Log context initialization
+  useEffect(() => {
+    console.log('SocketContext: Initializing provider', {
+      hasUser: !!user,
+      hasSocket: !!socket,
+      isConnected
+    });
+  }, [user, socket, isConnected]);
+
+  // Initialize socket connection
+  useEffect(() => {
+    if (!user) {
+      console.log('SocketContext: No user, skipping socket initialization');
+      return;
+    }
+
+    console.log('SocketContext: Initializing socket connection', {
+      userId: user.uid
+    });
+
+    // Create mock socket
+    const mockSocket: MockSocket = {
+      connected: false,
+      on: (event: string, callback: (data: any) => void) => {
+        console.log('SocketContext: Registered event listener', {
+          event,
+          hasCallback: !!callback
+        });
+      },
+      off: (event: string, callback: (data: any) => void) => {
+        console.log('SocketContext: Removed event listener', {
+          event,
+          hasCallback: !!callback
+        });
+      },
+      emit: (event: string, ...args: any[]) => {
+        console.log('SocketContext: Emitted event', {
+          event,
+          argsCount: args.length,
+          args
+        });
+      },
+      connect: () => {
+        console.log('SocketContext: Connecting socket');
+        mockSocket.connected = true;
+        setIsConnected(true);
+      },
+      disconnect: () => {
+        console.log('SocketContext: Disconnecting socket');
+        mockSocket.connected = false;
+        setIsConnected(false);
+      }
+    };
+
+    // Simulate connection
+    console.log('SocketContext: Simulating socket connection');
+    setTimeout(() => {
+      mockSocket.connect();
+      setSocket(mockSocket);
+    }, 1000);
+
+    // Cleanup on unmount
+    return () => {
+      console.log('SocketContext: Cleaning up socket connection');
+      if (mockSocket.connected) {
+        mockSocket.disconnect();
+      }
+      setSocket(null);
+    };
+  }, [user]);
+
+  // Log connection status changes
+  useEffect(() => {
+    console.log('SocketContext: Connection status changed', {
+      isConnected,
+      hasSocket: !!socket,
+      userId: user?.uid
+    });
+  }, [isConnected, socket, user?.uid]);
+
+  return (
+    <SocketContext.Provider value={{ socket, isConnected }}>
+      {children}
+    </SocketContext.Provider>
+  );
 }
