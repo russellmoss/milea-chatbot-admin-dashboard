@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { Message } from '../types/sms';
 
 interface MessageContextType {
@@ -31,7 +31,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const setDraftMessage = (conversationId: string, content: string) => {
+  const setDraftMessage = useCallback((conversationId: string, content: string) => {
     console.log('MessageContext: Setting draft message', {
       conversationId,
       contentLength: content.length,
@@ -49,9 +49,9 @@ export function MessageProvider({ children }: { children: ReactNode }) {
       });
       return updated;
     });
-  };
+  }, []);
 
-  const clearDraftMessage = (conversationId: string) => {
+  const clearDraftMessage = useCallback((conversationId: string) => {
     console.log('MessageContext: Clearing draft message', {
       conversationId,
       hadDraft: !!draftMessages[conversationId]
@@ -65,7 +65,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
       });
       return rest;
     });
-  };
+  }, []);
 
   // Log when selected message changes
   useEffect(() => {
@@ -84,16 +84,17 @@ export function MessageProvider({ children }: { children: ReactNode }) {
     });
   }, [draftMessages]);
 
+  // Memoize the context value to prevent unnecessary re-renders
+  const value = useMemo(() => ({
+    selectedMessage,
+    setSelectedMessage,
+    draftMessages,
+    setDraftMessage,
+    clearDraftMessage
+  }), [selectedMessage, draftMessages, setDraftMessage, clearDraftMessage]);
+
   return (
-    <MessageContext.Provider
-      value={{
-        selectedMessage,
-        setSelectedMessage,
-        draftMessages,
-        setDraftMessage,
-        clearDraftMessage
-      }}
-    >
+    <MessageContext.Provider value={value}>
       {children}
     </MessageContext.Provider>
   );

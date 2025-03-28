@@ -87,6 +87,15 @@ export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
         clearDraftMessage(conversation.id);
       }
     };
+  }, []); // Only run on unmount
+
+  // Save draft message when message changes
+  useEffect(() => {
+    if (message.trim()) {
+      setDraftMessage(conversation.id, message);
+    } else {
+      clearDraftMessage(conversation.id);
+    }
   }, [message, conversation.id, setDraftMessage, clearDraftMessage]);
 
   // Handle message change
