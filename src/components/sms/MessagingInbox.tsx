@@ -16,6 +16,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useMessage } from '../../contexts/MessageContext';
 import ConversationHeader from './ConversationHeader';
 import MessageActions from './MessageActions';
+import { useTransition } from 'react';
 
 const FOLDERS: Folder[] = [
   {
@@ -79,7 +80,17 @@ interface MessagingInboxProps {
   onConversationRead: (conversationId: string) => Promise<void>;
   isLoading: boolean;
   error: string | null;
+  customerName?: string;
 }
+
+// Memoized ConversationList component
+const MemoizedConversationList = React.memo(ConversationList);
+
+// Memoized MessageDisplay component
+const MemoizedMessageDisplay = React.memo(MessageDisplay);
+
+// Memoized MessageComposer component
+const MemoizedMessageComposer = React.memo(MessageComposer);
 
 const MessagingInbox: React.FC<MessagingInboxProps> = ({
   conversations,
@@ -90,7 +101,8 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
   onMessageRead,
   onConversationRead,
   isLoading,
-  error
+  error,
+  customerName
 }) => {
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
@@ -162,7 +174,36 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
     end: () => {}
   });
 
-  const mountedRef = useRef(false);
+  // Add mounted ref for cleanup
+  const mountedRef = useRef(true);
+
+  // Initialize mounted state
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Initial data load effect
+  useEffect(() => {
+    if (!mountedRef.current) return;
+
+    console.log('MessagingInbox: Initial data load', {
+      conversationsCount: conversations.length,
+      selectedConversation: selectedConversation ? {
+        id: selectedConversation.id,
+        phoneNumber: selectedConversation.phoneNumber,
+        messageCount: selectedConversation.messages.length
+      } : null,
+      templatesCount: templates.length
+    });
+
+    if (conversations.length === 0) {
+      console.log('MessagingInbox: No conversations, fetching messages');
+      fetchMessages();
+    }
+  }, [conversations.length, selectedConversation?.id, templates.length, fetchMessages]);
 
   // Handle resize move
   const handleResizeMove = useCallback((e: MouseEvent) => {
@@ -240,27 +281,6 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
     localStorage.setItem('sidebarExpanded', JSON.stringify(isSidebarExpanded));
   }, [isSidebarExpanded]);
 
-  // Load initial data
-  useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      console.log('MessagingInbox: Initial data load', {
-        conversationsCount: conversations.length,
-        selectedConversation: selectedConversation ? {
-          id: selectedConversation.id,
-          phoneNumber: selectedConversation.phoneNumber,
-          messageCount: selectedConversation.messages.length
-        } : null,
-        templatesCount: templates.length
-      });
-
-      if (conversations.length === 0) {
-        console.log('MessagingInbox: No conversations, fetching messages');
-        fetchMessages();
-      }
-    }
-  }, [fetchMessages]);
-
   // Filter conversations based on selected folder, search query, and filters
   const filteredConversations = useMemo(() => {
     // Skip filtering if no conversations
@@ -268,15 +288,8 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
       return [];
     }
 
-    console.log('MessagingInbox: Filtering conversations', {
-      totalConversations: conversations.length,
-      selectedFolder,
-      searchQuery: filters.searchQuery,
-      filterType: filters.filterType,
-      dateRange: filters.dateRange
-    });
-
-    const filtered = conversations.filter((conversation: Conversation) => {
+    // Create a stable reference for the filter function
+    const filterConversation = (conversation: Conversation) => {
       // Apply folder filter
       const folder = FOLDERS.find(f => f.id === selectedFolder);
       if (!folder) return false;
@@ -307,66 +320,56 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
       );
 
       return matchesSearch && matchesFilterType && matchesDateRange;
-    });
+    };
 
-    console.log('MessagingInbox: Filtered conversations result', {
-      filteredCount: filtered.length,
-      unreadCount: filtered.reduce((sum, conv) => sum + conv.unreadCount, 0),
-      archivedCount: filtered.filter(conv => conv.archived).length
-    });
+    const filtered = conversations.filter(filterConversation);
+
+    if (mountedRef.current) {
+      console.log('MessagingInbox: Filtered conversations result', {
+        filteredCount: filtered.length,
+        unreadCount: filtered.reduce((sum, conv) => sum + conv.unreadCount, 0),
+        archivedCount: filtered.filter(conv => conv.archived).length
+      });
+    }
 
     return filtered;
   }, [conversations, selectedFolder, filters.searchQuery, filters.filterType, filters.dateRange]);
 
-  // Handle conversation selection
+  // Handle conversation selection with transition
   const handleConversationSelect = useCallback(async (conversation: Conversation, event: React.MouseEvent) => {
-    if (!conversation) return;
-
-    console.log('MessagingInbox: Conversation selected', {
-      id: conversation.id,
-      phoneNumber: conversation.phoneNumber,
-      customerName: conversation.customerName,
-      messageCount: conversation.messages.length,
-      lastMessage: conversation.messages[conversation.messages.length - 1],
-      unreadCount: conversation.unreadCount,
-      archived: conversation.archived,
-      deleted: conversation.deleted,
-      isShiftKey: event.shiftKey
-    });
+    if (!conversation || !mountedRef.current) return;
 
     if (event.shiftKey) {
       event.preventDefault();
-      const newSelection = new Set(selectedConversations);
-      if (newSelection.has(conversation.id)) {
-        newSelection.delete(conversation.id);
-      } else {
-        newSelection.add(conversation.id);
-      }
-      setSelectedConversations(newSelection);
-      console.log('MessagingInbox: Updated multi-selection', {
-        selectedCount: newSelection.size,
-        selectedIds: Array.from(newSelection)
+      startTransition(() => {
+        setSelectedConversations(prev => {
+          const newSelection = new Set(prev);
+          if (newSelection.has(conversation.id)) {
+            newSelection.delete(conversation.id);
+          } else {
+            newSelection.add(conversation.id);
+          }
+          return newSelection;
+        });
       });
       return;
     }
 
-    // For single selection, clear the set and add only the selected conversation
-    setSelectedConversations(new Set([conversation.id]));
-    setSelectedConversation(conversation);
+    // Batch state updates in transition
+    startTransition(() => {
+      setSelectedConversations(new Set([conversation.id]));
+      setSelectedConversation(conversation);
+    });
     
     if (conversation.unreadCount > 0) {
       try {
-        console.log('MessagingInbox: Marking conversation as read', {
-          conversationId: conversation.id,
-          unreadCount: conversation.unreadCount
-        });
         await markConversationAsRead(conversation.id);
       } catch (error) {
         console.error('Error marking conversation as read:', error);
         toast.error('Failed to mark conversation as read');
       }
     }
-  }, [selectedConversations, markConversationAsRead]);
+  }, [markConversationAsRead]);
 
   // Handle sending a new message
   const handleSendMessage = async (content: string): Promise<void> => {
@@ -416,13 +419,16 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
     }
   };
 
-  // Handle marking a conversation as read
-  const handleMarkAsRead = (conversation: Conversation) => {
+  // Handle marking a conversation as read with debounce
+  const handleMarkAsRead = useCallback((conversation: Conversation) => {
+    if (!mountedRef.current) return;
     markConversationAsRead(conversation.id);
-  };
+  }, [markConversationAsRead]);
 
-  // Handle conversation deletion
-  const handleDeleteConversation = async (conversationId: string) => {
+  // Handle conversation deletion with cleanup
+  const handleDeleteConversation = useCallback(async (conversationId: string) => {
+    if (!mountedRef.current) return;
+    
     try {
       await deleteConversation(conversationId);
       
@@ -435,16 +441,18 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Failed to delete conversation');
     }
-  };
+  }, [deleteConversation, selectedConversation?.id]);
 
-  // Handle applying a message template
-  const handleTemplateSelect = (templateId: string) => {
+  // Handle applying a message template with memoization
+  const handleTemplateSelect = useCallback((templateId: string) => {
+    if (!mountedRef.current) return;
+    
     const template = templates.find(t => t.id === templateId);
     if (template && selectedConversation) {
       setDraftMessage(selectedConversation.id, template.content);
       setShowTemplates(false);
     }
-  };
+  }, [templates, selectedConversation, setDraftMessage]);
 
   // Handle dropping a conversation into a folder
   const handleDrop = async (conversationId: string, targetFolder: string) => {
@@ -574,10 +582,12 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
     setFocusedConversationIndex(-1);
   }, [filteredConversations]);
 
-  // Handle filter changes
-  const handleFilterChange = (newFilters: Partial<FilterState>) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
-  };
+  // Handle filter changes with transition
+  const handleFilterChange = useCallback((newFilters: Partial<FilterState>) => {
+    startTransition(() => {
+      setFilters(prev => ({ ...prev, ...newFilters }));
+    });
+  }, []);
 
   // Clear all filters
   const handleClearFilters = () => {
@@ -622,6 +632,8 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
       setSelectedMessage(message);
     }
   };
+
+  const [isPending, startTransition] = useTransition();
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -811,76 +823,32 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
 
           {/* Conversation List and Message Display */}
           <div className="flex-1 flex overflow-hidden">
-            <ConversationList
-              conversations={filteredConversations}
-              selectedConversations={selectedConversations}
-              onConversationSelect={handleConversationSelect}
-              onArchiveToggle={handleArchiveToggle}
-              searchQuery={filters.searchQuery}
-              focusedIndex={focusedConversationIndex}
-            />
+            {/* Conversation List - Fixed width */}
+            <div className="w-1/3 border-r">
+              <MemoizedConversationList
+                conversations={filteredConversations}
+                selectedConversations={selectedConversations}
+                onConversationSelect={handleConversationSelect}
+                onArchiveToggle={handleArchiveToggle}
+                searchQuery={filters.searchQuery}
+                focusedIndex={focusedConversationIndex}
+              />
+            </div>
 
-            {selectedConversation ? (
-              <div className="flex-1 flex flex-col border-l relative">
-                {/* Backdrop when expanded */}
-                {isComposerExpanded && (
-                  <div 
-                    className="fixed inset-0 bg-black bg-opacity-50 z-40"
-                    onClick={() => setIsComposerExpanded(false)}
-                  />
-                )}
-                
-                <div 
-                  className={`flex-1 flex flex-col overflow-hidden ${
-                    isComposerExpanded ? 'fixed top-0 right-0 h-screen z-50 bg-white shadow-lg' : ''
-                  }`}
-                  style={{ 
-                    width: isComposerExpanded ? `${composerWidthRef.current}px` : 'auto',
-                    transition: 'width 300ms ease-in-out',
-                    right: isComposerExpanded ? 0 : 'auto'
-                  }}
-                >
-                  {/* Resize handle */}
-                  <div
-                    className={`absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize z-50 ${
-                      isResizing ? 'bg-primary/30' : ''
-                    }`}
-                    onMouseDown={handleResizeStart}
-                    title="Drag to resize"
-                  >
-                    {/* Visual indicator */}
-                    <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors duration-200 ${
-                      isResizing 
-                        ? 'bg-primary' 
-                        : 'bg-gray-300 hover:bg-primary/50'
-                    }`} />
-                  </div>
+            {/* Message Display and Composer - Fixed width container */}
+            <div className="w-2/3 relative">
+              {selectedConversation ? (
+                <>
+                  {/* Backdrop when expanded */}
+                  {isComposerExpanded && (
+                    <div 
+                      className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                      onClick={() => setIsComposerExpanded(false)}
+                    />
+                  )}
                   
-                  {/* Toggle expand/collapse button */}
-                  <button
-                    onClick={() => setIsComposerExpanded(!isComposerExpanded)}
-                    className="absolute top-4 right-4 p-2 rounded-full bg-white shadow-md hover:bg-gray-100 z-50"
-                    title={isComposerExpanded ? "Collapse composer" : "Expand composer"}
-                  >
-                    <svg
-                      className={`w-5 h-5 text-gray-700 transform transition-transform duration-200 ${
-                        isComposerExpanded ? 'rotate-180' : ''
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 9l4-4 4 4m0 6l-4 4-4-4"
-                      />
-                    </svg>
-                  </button>
-
-                  {/* Message container */}
-                  <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* Main message container - Always visible */}
+                  <div className="h-full flex flex-col">
                     <ConversationHeader
                       conversation={selectedConversation}
                       onArchiveToggle={handleArchiveToggle}
@@ -890,7 +858,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                       onBlock={handleBlockContact}
                       onAddToList={handleAddToList}
                     />
-                    <MessageDisplay
+                    <MemoizedMessageDisplay
                       messages={selectedConversation.messages}
                       customerName={selectedConversation.customerName}
                       phoneNumber={selectedConversation.phoneNumber}
@@ -900,7 +868,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                       onMessageAction={handleMessageAction}
                     />
                     <div className="relative border-t">
-                      <MessageComposer
+                      <MemoizedMessageComposer
                         onSend={handleSendMessage}
                         onTemplateSelect={handleTemplateSelect}
                         templates={templates}
@@ -916,99 +884,192 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                       />
                     </div>
                   </div>
+
+                  {/* Expanded composer overlay */}
+                  {isComposerExpanded && (
+                    <div 
+                      className="fixed top-0 right-0 h-screen z-50 bg-white shadow-lg"
+                      style={{ 
+                        width: `${composerWidthRef.current}px`,
+                        transition: 'width 300ms ease-in-out'
+                      }}
+                    >
+                      {/* Resize handle */}
+                      <div
+                        className={`absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize z-50 ${
+                          isResizing ? 'bg-primary/30' : ''
+                        }`}
+                        onMouseDown={handleResizeStart}
+                        title="Drag to resize"
+                      >
+                        {/* Visual indicator */}
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors duration-200 ${
+                          isResizing 
+                            ? 'bg-primary' 
+                            : 'bg-gray-300 hover:bg-primary/50'
+                        }`} />
+                      </div>
+                      
+                      {/* Toggle expand/collapse button */}
+                      <button
+                        onClick={() => setIsComposerExpanded(false)}
+                        className="absolute top-4 right-4 p-2 rounded-full bg-white shadow-md hover:bg-gray-100 z-50"
+                        title="Collapse composer"
+                      >
+                        <svg
+                          className="w-5 h-5 text-gray-700 transform transition-transform duration-200 rotate-180"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 9l4-4 4 4m0 6l-4 4-4-4"
+                          />
+                        </svg>
+                      </button>
+
+                      {/* Expanded composer content */}
+                      <div className="h-full flex flex-col">
+                        <ConversationHeader
+                          conversation={selectedConversation}
+                          onArchiveToggle={handleArchiveToggle}
+                          onDelete={() => handleDeleteConversation(selectedConversation.id)}
+                          onExport={handleExportConversation}
+                          onViewContact={handleViewContact}
+                          onBlock={handleBlockContact}
+                          onAddToList={handleAddToList}
+                        />
+                        <MemoizedMessageDisplay
+                          messages={selectedConversation.messages}
+                          customerName={selectedConversation.customerName}
+                          phoneNumber={selectedConversation.phoneNumber}
+                          conversation={selectedConversation}
+                          onMarkAsRead={handleMarkAsRead}
+                          onMessageSelect={handleMessageSelect}
+                          onMessageAction={handleMessageAction}
+                        />
+                        <div className="relative border-t">
+                          <MemoizedMessageComposer
+                            onSend={handleSendMessage}
+                            onTemplateSelect={handleTemplateSelect}
+                            templates={templates}
+                            recipientPhone={selectedConversation.phoneNumber}
+                            conversationId={selectedConversation.id}
+                            isExpanded={true}
+                            width={composerWidthRef.current}
+                            onWidthChange={handleComposerWidthChange}
+                            onExpandedChange={handleComposerExpandedChange}
+                            onCancel={() => setIsComposerExpanded(false)}
+                            conversation={selectedConversation}
+                            onToggleExpand={() => setIsComposerExpanded(false)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="h-full flex items-center justify-center bg-gray-50">
+                  <div className="text-center">
+                    <svg
+                      className="mx-auto h-12 w-12 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                      />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No conversation selected</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Select a conversation from the list to start messaging
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex-1 flex items-center justify-center bg-gray-50">
-                <div className="text-center">
-                  <svg
-                    className="mx-auto h-12 w-12 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                    />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Compose Modal */}
+        <ComposeModal
+          isOpen={isComposeModalOpen}
+          onClose={() => setIsComposeModalOpen(false)}
+        />
+
+        {/* Keyboard Shortcuts Modal */}
+        {showKeyboardShortcuts && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Keyboard Shortcuts</h3>
+                <button
+                  onClick={() => setShowKeyboardShortcuts(false)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No conversation selected</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Select a conversation from the list to start messaging
-                  </p>
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Navigation</h4>
+                    <ul className="space-y-2 text-sm text-gray-600">
+                      <li className="flex justify-between">
+                        <span>Up/Down arrows</span>
+                        <span className="text-gray-400">Navigate conversations</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span>Enter</span>
+                        <span className="text-gray-400">Select conversation</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span>Escape</span>
+                        <span className="text-gray-400">Close conversation/modal</span>
+                      </li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Actions</h4>
+                    <ul className="space-y-2 text-sm text-gray-600">
+                      <li className="flex justify-between">
+                        <span>⌘N</span>
+                        <span className="text-gray-400">New message</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span>⌘K</span>
+                        <span className="text-gray-400">Search conversations</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span>?</span>
+                        <span className="text-gray-400">Show/hide shortcuts</span>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Add loading state indicator */}
+        {isPending && (
+          <div className="fixed top-0 left-0 right-0 h-1 bg-primary/20">
+            <div className="h-full bg-primary animate-progress" />
+          </div>
+        )}
       </div>
-
-      {/* Compose Modal */}
-      <ComposeModal
-        isOpen={isComposeModalOpen}
-        onClose={() => setIsComposeModalOpen(false)}
-      />
-
-      {/* Keyboard Shortcuts Modal */}
-      {showKeyboardShortcuts && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Keyboard Shortcuts</h3>
-              <button
-                onClick={() => setShowKeyboardShortcuts(false)}
-                className="text-gray-400 hover:text-gray-500"
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Navigation</h4>
-                  <ul className="space-y-2 text-sm text-gray-600">
-                    <li className="flex justify-between">
-                      <span>Up/Down arrows</span>
-                      <span className="text-gray-400">Navigate conversations</span>
-                    </li>
-                    <li className="flex justify-between">
-                      <span>Enter</span>
-                      <span className="text-gray-400">Select conversation</span>
-                    </li>
-                    <li className="flex justify-between">
-                      <span>Escape</span>
-                      <span className="text-gray-400">Close conversation/modal</span>
-                    </li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Actions</h4>
-                  <ul className="space-y-2 text-sm text-gray-600">
-                    <li className="flex justify-between">
-                      <span>⌘N</span>
-                      <span className="text-gray-400">New message</span>
-                    </li>
-                    <li className="flex justify-between">
-                      <span>⌘K</span>
-                      <span className="text-gray-400">Search conversations</span>
-                    </li>
-                    <li className="flex justify-between">
-                      <span>?</span>
-                      <span className="text-gray-400">Show/hide shortcuts</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </DndProvider>
   );
 };
 
-export default MessagingInbox;
+export default React.memo(MessagingInbox);

@@ -81,64 +81,61 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<any | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const initializedRef = useRef(false);
   const socketRef = useRef<any | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
-  const mountedRef = useRef(true);
   const connectionPromiseRef = useRef<Promise<void> | null>(null);
 
+  // Initialize socket connection
   useEffect(() => {
-    // Only initialize once
-    if (initializedRef.current) return;
+    let isMounted = true;
+    console.log('Socket initializing - one-time setup');
     
-    console.log('Socket context initializing');
-    initializedRef.current = true;
-    
-    try {
-      // Create mock socket
-      const mockSocket = createMockSocket();
-      socketRef.current = mockSocket;
-      
-      // Register event handlers
-      mockSocket.on('connect', () => {
-        if (mountedRef.current) {
-          console.log('Mock socket connected event');
-          setIsConnected(true);
+    const setupSocket = async () => {
+      try {
+        // Create mock socket
+        const mockSocket = createMockSocket();
+        socketRef.current = mockSocket;
+        
+        // Register event handlers
+        mockSocket.on('connect', () => {
+          if (isMounted) {
+            console.log('Mock socket connected event');
+            setIsConnected(true);
+          }
+        });
+        
+        // Store the socket in state
+        if (isMounted) {
+          setSocket(mockSocket);
         }
-      });
-      
-      // Store the socket in state
-      setSocket(mockSocket);
-      
-      // Simulate connecting
-      mockSocket.connect();
-      
-      // Store cleanup function
-      cleanupRef.current = () => {
-        console.log('Socket context cleanup');
-        mountedRef.current = false;
-        // Only disconnect if we have a socket and it's connected
-        if (socketRef.current && socketRef.current.isConnected()) {
-          socketRef.current.disconnect();
+        
+        // Simulate connecting
+        mockSocket.connect();
+        
+        // Store cleanup function
+        cleanupRef.current = () => {
+          console.log('Socket cleanup - final teardown');
+          if (socketRef.current && socketRef.current.isConnected()) {
+            socketRef.current.disconnect();
+          }
+        };
+      } catch (err) {
+        if (isMounted) {
+          console.error('Socket connection error:', err);
+          setError(err instanceof Error ? err.message : 'Failed to connect to socket');
         }
-      };
-      
-      // Return cleanup function
-      return cleanupRef.current;
-    } catch (err) {
-      console.error('Socket connection error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to connect to socket');
-    }
-  }, []); // Remove user dependency to prevent re-initialization
+      }
+    };
 
-  // Cleanup on unmount
-  useEffect(() => {
+    setupSocket();
+
     return () => {
+      isMounted = false;
       if (cleanupRef.current) {
         cleanupRef.current();
       }
     };
-  }, []);
+  }, []); // Empty dependency array ensures this runs once
 
   return (
     <SocketContext.Provider value={{ socket, isConnected, error }}>

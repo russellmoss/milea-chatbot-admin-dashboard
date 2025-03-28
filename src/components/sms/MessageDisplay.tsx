@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { format, isToday, isYesterday, isSameDay } from 'date-fns';
+import React, { useMemo, useCallback, useRef, useEffect } from 'react';
+import { format, isToday, isYesterday } from 'date-fns';
+import { useTransition } from 'react';
 import { Message, Conversation } from '../../types/sms';
 import MessageActions from './MessageActions';
 import { useMessage } from '../../contexts/MessageContext';
@@ -8,252 +9,126 @@ interface MessageDisplayProps {
   messages: Message[];
   customerName: string | null;
   phoneNumber: string;
-  onMarkAsRead: (conversation: Conversation) => void;
   conversation: Conversation;
-  onMessageAction: (action: string, messageId: string) => void;
+  onMarkAsRead: (conversation: Conversation) => void;
   onMessageSelect: (messageId: string) => void;
+  onMessageAction: (action: string) => void;
 }
 
-export const MessageDisplay: React.FC<MessageDisplayProps> = React.memo(({
+const MessageDisplay: React.FC<MessageDisplayProps> = React.memo(({
   messages,
   customerName,
   phoneNumber,
-  onMarkAsRead,
   conversation,
-  onMessageAction,
-  onMessageSelect
+  onMarkAsRead,
+  onMessageSelect,
+  onMessageAction
 }) => {
   const { setDraftMessage, clearDraftMessage } = useMessage();
-  const [isComposerExpanded, setIsComposerExpanded] = useState(false);
-  const [composerWidth, setComposerWidth] = useState(400);
-  const [isResizing, setIsResizing] = useState(false);
-  const resizeRef = useRef<HTMLDivElement>(null);
+  const [isPending, startTransition] = useTransition();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Log initial props
-  useEffect(() => {
-    console.log('MessageDisplay: Initialized with props', {
-      messageCount: messages.length,
-      customerName,
-      phoneNumber,
-      conversationId: conversation.id,
-      unreadCount: conversation.unreadCount
+  // Memoize message groups
+  const messageGroups = useMemo(() => {
+    const groups: { [key: string]: Message[] } = {};
+    messages.forEach(message => {
+      const date = new Date(message.timestamp);
+      const key = isToday(date) ? 'Today' :
+                 isYesterday(date) ? 'Yesterday' :
+                 format(date, 'MMMM d, yyyy');
+      
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(message);
     });
-  }, [messages.length, customerName, phoneNumber, conversation.id, conversation.unreadCount]);
+    return groups;
+  }, [messages]);
 
-  // Memoize scrollToBottom function
-  const scrollToBottom = useCallback(() => {
-    console.log('MessageDisplay: Scrolling to bottom');
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
-  // Auto-scroll to bottom when messages change
+  // Scroll to bottom on new messages
   useEffect(() => {
-    console.log('MessageDisplay: Messages updated', {
-      messageCount: messages.length,
-      lastMessage: messages[messages.length - 1],
-      shouldAutoScroll
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  // Handle message selection with transition
+  const handleMessageSelect = useCallback((messageId: string) => {
+    startTransition(() => {
+      onMessageSelect(messageId);
     });
-
-    if (shouldAutoScroll) {
-      scrollToBottom();
-    }
-  }, [messages, shouldAutoScroll, scrollToBottom]);
-
-  // Auto-mark as read when viewing
-  useEffect(() => {
-    if (conversation.unreadCount > 0) {
-      console.log('MessageDisplay: Auto-marking conversation as read', {
-        conversationId: conversation.id,
-        unreadCount: conversation.unreadCount
-      });
-      onMarkAsRead(conversation);
-    }
-  }, [conversation, onMarkAsRead]);
-
-  // Handle resize start
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-    window.addEventListener('mousemove', handleResizeMove);
-    window.addEventListener('mouseup', handleResizeEnd);
-  }, []);
-
-  // Handle resize move
-  const handleResizeMove = useCallback((e: MouseEvent) => {
-    if (!isResizing || !resizeRef.current) return;
-
-    const newWidth = window.innerWidth - e.clientX;
-    setComposerWidth(Math.min(Math.max(newWidth, 300), 800));
-  }, [isResizing]);
-
-  // Handle resize end
-  const handleResizeEnd = useCallback(() => {
-    setIsResizing(false);
-    window.removeEventListener('mousemove', handleResizeMove);
-    window.removeEventListener('mouseup', handleResizeEnd);
-  }, []);
-
-  // Handle composer toggle
-  const handleComposerToggle = useCallback(() => {
-    setIsComposerExpanded(prev => !prev);
-  }, []);
-
-  // Handle scroll events to determine if we should auto-scroll
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 50;
-    
-    if (isAtBottom !== shouldAutoScroll) {
-      console.log('MessageDisplay: Scroll position changed', {
-        isAtBottom,
-        scrollTop,
-        scrollHeight,
-        clientHeight
-      });
-      setShouldAutoScroll(isAtBottom);
-    }
-  };
-
-  // Handle message selection
-  const handleMessageSelect = useCallback((message: Message) => {
-    if (onMessageSelect) {
-      onMessageSelect(message.id);
-    }
   }, [onMessageSelect]);
 
-  // Handle message action
-  const handleAction = (action: string, messageId: string) => {
-    console.log('MessageDisplay: Message action triggered', {
-      action,
-      messageId,
-      conversationId: conversation.id
+  // Handle message action with transition
+  const handleMessageAction = useCallback((action: string) => {
+    startTransition(() => {
+      onMessageAction(action);
     });
-    onMessageAction(action, messageId);
-  };
+  }, [onMessageAction]);
 
-  // Format timestamp
-  const formatMessageTime = (timestamp: string) => {
-    return format(new Date(timestamp), 'h:mm a');
-  };
+  // Mark conversation as read when scrolled to bottom
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-  // Format date for header
-  const formatDateHeader = (date: Date) => {
-    if (isToday(date)) {
-      return 'Today';
-    } else if (isYesterday(date)) {
-      return 'Yesterday';
-    } else {
-      return format(date, 'MMMM d, yyyy');
-    }
-  };
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      if (scrollHeight - scrollTop - clientHeight < 100) {
+        onMarkAsRead(conversation);
+      }
+    };
 
-  // Group messages by date
-  const groupedMessages: { [date: string]: Message[] } = messages.reduce((groups, message) => {
-    const date = format(new Date(message.timestamp), 'yyyy-MM-dd');
-    if (!groups[date]) {
-      groups[date] = [];
-    }
-    groups[date].push(message);
-    return groups;
-  }, {} as { [date: string]: Message[] });
-
-  console.log('MessageDisplay: Grouped messages', {
-    totalGroups: Object.keys(groupedMessages).length,
-    groupDates: Object.keys(groupedMessages),
-    messagesPerGroup: Object.entries(groupedMessages).map(([date, msgs]) => ({
-      date,
-      count: msgs.length
-    }))
-  });
-
-  // No messages 
-  if (messages.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 p-6">
-        <div className="text-center">
-          <svg className="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No messages yet</h3>
-          <p className="mt-1 text-sm text-gray-500">Start the conversation by sending a message.</p>
-        </div>
-      </div>
-    );
-  }
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [conversation, onMarkAsRead]);
 
   return (
     <div 
-      className="flex-1 overflow-y-auto bg-gray-50 p-4"
-      onScroll={handleScroll}
+      ref={containerRef}
+      className="flex-1 overflow-y-auto p-4 space-y-6"
     >
-      <div className="space-y-8">
-        {Object.entries(groupedMessages).map(([date, dateMessages]) => (
-          <div key={date} className="space-y-4">
-            <div className="flex justify-center">
-              <span className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-full">
-                {formatDateHeader(new Date(date))}
-              </span>
+      {Object.entries(messageGroups).map(([date, dateMessages]) => (
+        <div key={date} className="space-y-4">
+          <div className="sticky top-0 z-10">
+            <div className="flex items-center justify-center">
+              <div className="px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded-full">
+                {date}
+              </div>
             </div>
-
-            {dateMessages.map((message) => (
-              <div 
+          </div>
+          
+          <div className="space-y-4">
+            {dateMessages.map(message => (
+              <div
                 key={message.id}
                 className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                onClick={() => handleMessageSelect(message)}
               >
-                <div className={`relative max-w-[75%] px-4 py-2 rounded-lg shadow-sm ${
-                  message.direction === 'outbound'
-                    ? 'bg-primary text-white rounded-br-none'
-                    : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'
-                }`}>
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                  <div className={`flex items-center mt-1 text-xs ${
-                    message.direction === 'outbound' ? 'text-primary-100' : 'text-gray-500'
+                <div
+                  className={`max-w-[70%] rounded-lg p-3 ${
+                    message.direction === 'outbound'
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-100 text-gray-900'
+                  }`}
+                  onClick={() => handleMessageSelect(message.id)}
+                >
+                  <p className="text-sm">{message.content}</p>
+                  <div className={`mt-1 text-xs ${
+                    message.direction === 'outbound' ? 'text-white/70' : 'text-gray-500'
                   }`}>
-                    <span>{formatMessageTime(message.timestamp)}</span>
-                    {message.direction === 'outbound' && (
-                      <span className="ml-2 flex items-center">
-                        {message.status === 'sent' && (
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                        {message.status === 'delivered' && (
-                          <svg className="w-3 h-3 ml-0.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                        {message.status === 'read' && (
-                          <svg className="w-3 h-3 ml-0.5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </span>
-                    )}
+                    {format(new Date(message.timestamp), 'h:mm a')}
                   </div>
-
-                  {selectedMessageId === message.id && (
-                    <div className="absolute top-2 right-2">
-                      <MessageActions
-                        message={message}
-                        onAction={(action) => handleAction(action, message.id)}
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
       <div ref={messagesEndRef} />
     </div>
   );
 });
+
+MessageDisplay.displayName = 'MessageDisplay';
 
 export default MessageDisplay;
