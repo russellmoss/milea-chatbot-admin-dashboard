@@ -1,99 +1,104 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+// src/contexts/AuthContext.tsx
+import React, { createContext, useState, useContext, useEffect } from 'react';
 
-// Simple mock user type
 interface User {
   uid: string;
   email: string;
-  displayName: string | null;
+  displayName?: string;
 }
 
 interface AuthContextType {
+  currentUser: User | null;
   user: User | null;
-  currentUser: User | null; // Keep for backward compatibility
+  loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Mock authentication functions
+  // Simulate authentication initialization
+  useEffect(() => {
+    // Check if user is already logged in (saved in localStorage)
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
+    
+    // Simulate auth state change delay
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 500);
+    
+    return () => clearTimeout(timeout);
+  }, []);
+
+  // Simulate login functionality
   const login = async (email: string, password: string) => {
+    // Simple validation
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+    
+    // Simulate API call
     setLoading(true);
+    
     try {
-      // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // For demo purposes, any valid-looking email/password works
-      if (!email.includes('@') || password.length < 6) {
-        throw new Error('Invalid email or password');
-      }
-      
-      // Set mock user
-      const mockUser: User = {
-        uid: 'user123',
-        email,
+      // Create mock user
+      const user: User = {
+        uid: 'mock-user-id-123',
+        email: email,
         displayName: email.split('@')[0]
       };
       
-      setUser(mockUser);
-      // Save to session storage for persistence
-      sessionStorage.setItem('mockUser', JSON.stringify(mockUser));
-      
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      // Update state and localStorage
+      setCurrentUser(user);
+      localStorage.setItem('currentUser', JSON.stringify(user));
     } finally {
       setLoading(false);
     }
   };
 
+  // Simulate logout functionality
   const logout = async () => {
     setLoading(true);
+    
     try {
-      // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Clear user
-      setUser(null);
-      sessionStorage.removeItem('mockUser');
-      
-    } catch (error) {
-      console.error('Logout error:', error);
-      throw error;
+      // Clear user data
+      setCurrentUser(null);
+      localStorage.removeItem('currentUser');
     } finally {
       setLoading(false);
     }
   };
 
-  // Load user from session storage on initial render
-  useEffect(() => {
-    const savedUser = sessionStorage.getItem('mockUser');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
-  }, []);
-
-  const value = {
-    user,
-    currentUser: user, // Maintain backward compatibility
+  const value: AuthContextType = {
+    currentUser,
+    user: currentUser, // Alias for consistency
+    loading,
     login,
-    logout,
-    loading
+    logout
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};

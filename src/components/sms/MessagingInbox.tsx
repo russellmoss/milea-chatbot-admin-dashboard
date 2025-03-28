@@ -69,14 +69,34 @@ interface FilterState {
   dateRange: DateRange | null;
 }
 
-const MessagingInbox: React.FC = () => {
+interface MessagingInboxProps {
+  conversations: Conversation[];
+  selectedConversation: Conversation | null;
+  onConversationSelect: (conv: Conversation) => void;
+  onArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
+  onDelete: (conversationId: string) => Promise<void>;
+  onMessageRead: (messageId: string) => Promise<void>;
+  onConversationRead: (conversationId: string) => Promise<void>;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const MessagingInbox: React.FC<MessagingInboxProps> = ({
+  conversations,
+  selectedConversation,
+  onConversationSelect,
+  onArchiveToggle,
+  onDelete,
+  onMessageRead,
+  onConversationRead,
+  isLoading,
+  error
+}) => {
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
   const { draftMessages, setDraftMessage, clearDraftMessage } = useMessage();
   const { 
-    conversations, 
     setConversations, 
-    selectedConversation, 
     setSelectedConversation,
     sendMessage,
     markConversationAsRead,
@@ -84,8 +104,6 @@ const MessagingInbox: React.FC = () => {
     archiveConversation,
     unarchiveConversation,
     deleteConversation,
-    isLoading,
-    error: contextError,
     templates,
     handleArchiveToggle,
     fetchMessages
@@ -106,7 +124,7 @@ const MessagingInbox: React.FC = () => {
     const saved = localStorage.getItem('sidebarExpanded');
     return saved ? JSON.parse(saved) : false;
   });
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [isComposeModalOpen, setIsComposeModalOpen] = useState(false);
 
   // Add new state for keyboard navigation
@@ -245,6 +263,11 @@ const MessagingInbox: React.FC = () => {
 
   // Filter conversations based on selected folder, search query, and filters
   const filteredConversations = useMemo(() => {
+    // Skip filtering if no conversations
+    if (!conversations.length) {
+      return [];
+    }
+
     console.log('MessagingInbox: Filtering conversations', {
       totalConversations: conversations.length,
       selectedFolder,
@@ -293,7 +316,7 @@ const MessagingInbox: React.FC = () => {
     });
 
     return filtered;
-  }, [conversations, selectedFolder, filters]);
+  }, [conversations, selectedFolder, filters.searchQuery, filters.filterType, filters.dateRange]);
 
   // Handle conversation selection
   const handleConversationSelect = useCallback(async (conversation: Conversation, event: React.MouseEvent) => {
@@ -410,7 +433,7 @@ const MessagingInbox: React.FC = () => {
 
       toast.success('Conversation deleted successfully');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete conversation');
+      setLocalError(err instanceof Error ? err.message : 'Failed to delete conversation');
     }
   };
 

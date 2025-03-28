@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { BulkMessageCampaign, Contact } from '../../types/sms';
+import { BulkMessageCampaign, Contact, MessageTemplate } from '../../types/sms';
 import CampaignHistory from './CampaignHistory';
 import CampaignDetail from './CampaignDetail';
 import BulkMessaging from './BulkMessaging';
+import { toast } from 'react-hot-toast';
 
 interface CampaignManagementProps {
   contacts: Contact[];
-  onSendBulkMessage?: (message: string, recipients: string[], scheduleSettings?: any) => Promise<boolean>;
+  templates: MessageTemplate[];
+  onSendMessage: (message: string, phoneNumber: string) => Promise<void>;
 }
 
 const CampaignManagement: React.FC<CampaignManagementProps> = ({ 
   contacts,
-  onSendBulkMessage 
+  templates,
+  onSendMessage
 }) => {
   // State for campaigns and UI controls
   const [campaigns, setCampaigns] = useState<BulkMessageCampaign[]>([]);
@@ -92,24 +95,6 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
             },
             createdAt: '2023-04-20T08:45:00Z',
             updatedAt: '2023-04-20T08:50:00Z'
-          },
-          {
-            id: 'camp5',
-            name: 'Barrel Tasting Event',
-            message: 'Exclusive barrel tasting for club members this Saturday from 11am-4pm. Taste upcoming releases directly from the barrel with our winemaker! No RSVP needed.',
-            recipients: {
-              listIds: ['wine-club-platinum', 'wine-club-gold']
-            },
-            status: 'failed',
-            stats: {
-              total: 45,
-              sent: 12,
-              delivered: 10,
-              failed: 35,
-              responses: 0
-            },
-            createdAt: '2023-03-15T16:30:00Z',
-            updatedAt: '2023-03-15T16:35:00Z'
           }
         ];
         
@@ -117,59 +102,51 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
         setIsLoading(false);
       } catch (err) {
         console.error('Error fetching campaigns:', err);
-        setError('Failed to load campaigns. Please try again later.');
+        setError('Failed to fetch campaigns');
         setIsLoading(false);
       }
     };
-    
+
     fetchCampaigns();
   }, []);
 
-  // View campaign details
+  // Handle viewing a campaign
   const handleViewCampaign = (campaign: BulkMessageCampaign) => {
     setSelectedCampaign(campaign);
   };
-  
-  // Close campaign detail view
+
+  // Handle closing campaign detail
   const handleCloseDetail = () => {
     setSelectedCampaign(null);
   };
-  
-  // Clone a campaign
-  const handleCloneCampaign = (campaign: BulkMessageCampaign) => {
-    // Create a new campaign based on the selected one
-    const clonedCampaign: BulkMessageCampaign = {
-      ...campaign,
-      id: `clone_${Date.now()}`,
-      name: `${campaign.name} (Clone)`,
-      status: 'draft',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    // Add it to the campaigns list
-    setCampaigns(prev => [clonedCampaign, ...prev]);
-    
-    // Close detail view and show success message
-    setSelectedCampaign(null);
-    alert('Campaign cloned successfully! The cloned campaign is now available in draft status.');
+
+  // Handle cloning a campaign
+  const handleCloneCampaign = async (campaign: BulkMessageCampaign) => {
+    try {
+      // In a real app, this would be an API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const clonedCampaign: BulkMessageCampaign = {
+        ...campaign,
+        id: `camp_${Date.now()}`,
+        name: `${campaign.name} (Copy)`,
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      setCampaigns(prev => [clonedCampaign, ...prev]);
+      toast.success('Campaign cloned successfully');
+    } catch (error) {
+      console.error('Error cloning campaign:', error);
+      toast.error('Failed to clone campaign');
+    }
   };
-  
-  // Create a new campaign
-  const handleCreateCampaign = () => {
-    setShowNewCampaignModal(true);
-  };
-  
-  // Handle the creation of a new campaign
-  const handleCampaignCreated = (campaign: BulkMessageCampaign) => {
-    setCampaigns(prev => [campaign, ...prev]);
-    setShowNewCampaignModal(false);
-  };
-  
-  // Send bulk message (would connect to actual API in production)
+
+  // Handle sending a bulk message
   const handleSendBulkMessage = async (message: string, recipients: string[], scheduleSettings?: any) => {
     try {
-      // Simulate API call
+      // In a real app, this would be an API call
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       // Create a new campaign entry
@@ -191,7 +168,11 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
       // Add to campaigns list
       setCampaigns(prev => [newCampaign, ...prev]);
       
-      // Return success
+      // Send messages to each recipient
+      for (const phoneNumber of recipients) {
+        await onSendMessage(message, phoneNumber);
+      }
+      
       return true;
     } catch (error) {
       console.error('Error sending bulk message:', error);
@@ -205,7 +186,7 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-gray-900">Campaign Management</h2>
         <button
-          onClick={handleCreateCampaign}
+          onClick={() => setShowNewCampaignModal(true)}
           className="px-4 py-2 bg-primary text-white rounded hover:bg-darkBrown"
         >
           Create New Campaign
@@ -240,7 +221,7 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
             <BulkMessaging
               contacts={contacts}
               onClose={() => setShowNewCampaignModal(false)}
-              onSendBulkMessage={onSendBulkMessage || handleSendBulkMessage}
+              onSendBulkMessage={handleSendBulkMessage}
             />
           </div>
         </div>

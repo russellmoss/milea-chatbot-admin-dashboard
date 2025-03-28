@@ -1,83 +1,76 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Message } from '../types/sms';
+// src/contexts/MessageContext.tsx
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 
 interface MessageContextType {
-  selectedMessage: Message | null;
-  setSelectedMessage: React.Dispatch<React.SetStateAction<Message | null>>;
   draftMessages: Record<string, string>;
-  setDraftMessage: (conversationId: string, content: string) => void;
+  setDraftMessage: (conversationId: string, message: string) => void;
   clearDraftMessage: (conversationId: string) => void;
+  getDraftMessage: (conversationId: string) => string;
 }
 
 const MessageContext = createContext<MessageContextType | undefined>(undefined);
 
-export function useMessage() {
+export const MessageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Load draft messages from localStorage
+  const [draftMessages, setDraftMessages] = useState<Record<string, string>>(() => {
+    try {
+      const savedDrafts = localStorage.getItem('draftMessages');
+      return savedDrafts ? JSON.parse(savedDrafts) : {};
+    } catch (e) {
+      console.error('Error loading draft messages:', e);
+      return {};
+    }
+  });
+
+  // Save draft messages to localStorage when they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('draftMessages', JSON.stringify(draftMessages));
+    } catch (e) {
+      console.error('Error saving draft messages:', e);
+    }
+  }, [draftMessages]);
+
+  // Set a draft message for a conversation
+  const setDraftMessage = useCallback((conversationId: string, message: string) => {
+    setDraftMessages(prev => ({
+      ...prev,
+      [conversationId]: message
+    }));
+  }, []);
+
+  // Clear a draft message for a conversation
+  const clearDraftMessage = useCallback((conversationId: string) => {
+    setDraftMessages(prev => {
+      const newDrafts = { ...prev };
+      delete newDrafts[conversationId];
+      return newDrafts;
+    });
+  }, []);
+
+  // Get a draft message for a conversation
+  const getDraftMessage = useCallback((conversationId: string) => {
+    return draftMessages[conversationId] || '';
+  }, [draftMessages]);
+
+  return (
+    <MessageContext.Provider
+      value={{
+        draftMessages,
+        setDraftMessage,
+        clearDraftMessage,
+        getDraftMessage
+      }}
+    >
+      {children}
+    </MessageContext.Provider>
+  );
+};
+
+export const useMessage = () => {
   const context = useContext(MessageContext);
   if (context === undefined) {
     throw new Error('useMessage must be used within a MessageProvider');
   }
   return context;
-}
-
-export function MessageProvider({ children }: { children: ReactNode }) {
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-  const draftMessagesRef = useRef<Record<string, string>>({});
-  const [, forceUpdate] = useState({});
-
-  // Log context initialization
-  useEffect(() => {
-    console.log('MessageContext: Initializing provider', {
-      hasSelectedMessage: !!selectedMessage,
-      draftCount: Object.keys(draftMessagesRef.current).length
-    });
-  }, []);
-
-  const setDraftMessage = useCallback((conversationId: string, content: string) => {
-    console.log('MessageContext: Setting draft message', {
-      conversationId,
-      contentLength: content.length,
-      existingDraft: !!draftMessagesRef.current[conversationId]
-    });
-
-    draftMessagesRef.current = {
-      ...draftMessagesRef.current,
-      [conversationId]: content
-    };
-    forceUpdate({});
-  }, []);
-
-  const clearDraftMessage = useCallback((conversationId: string) => {
-    console.log('MessageContext: Clearing draft message', {
-      conversationId,
-      hadDraft: !!draftMessagesRef.current[conversationId]
-    });
-
-    const { [conversationId]: removed, ...rest } = draftMessagesRef.current;
-    draftMessagesRef.current = rest;
-    forceUpdate({});
-  }, []);
-
-  // Log when selected message changes
-  useEffect(() => {
-    console.log('MessageContext: Selected message changed', {
-      messageId: selectedMessage?.id,
-      direction: selectedMessage?.direction,
-      conversationId: selectedMessage?.conversationId
-    });
-  }, [selectedMessage]);
-
-  // Memoize the context value to prevent unnecessary re-renders
-  const value = useMemo(() => ({
-    selectedMessage,
-    setSelectedMessage,
-    draftMessages: draftMessagesRef.current,
-    setDraftMessage,
-    clearDraftMessage
-  }), [selectedMessage, setDraftMessage, clearDraftMessage]);
-
-  return (
-    <MessageContext.Provider value={value}>
-      {children}
-    </MessageContext.Provider>
-  );
-}
+};

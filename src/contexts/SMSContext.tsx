@@ -1,774 +1,535 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode, useRef } from 'react';
-import { useSocket } from './SocketContext';
-import { useAuth } from './AuthContext';
-import { Conversation, Message, MessageTemplate, Contact } from '../types/sms';
-import { mockSmsService } from '../services/mockSmsService';
+// src/contexts/SMSContext.tsx
+import React, { createContext, useState, useContext, useCallback, useEffect, useRef } from 'react';
+import { Conversation, Message, Contact, MessageTemplate } from '../types/sms';
+import { mockConversations, mockContacts, mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
-
-// Import mock data
-import { 
-  mockConversations, 
-  mockTemplates, 
-  mockContacts
-} from '../mocks/smsData';
 
 interface SMSContextType {
   conversations: Conversation[];
   setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
-  templates: MessageTemplate[];
-  setTemplates: React.Dispatch<React.SetStateAction<MessageTemplate[]>>;
-  contacts: Contact[];
   selectedConversation: Conversation | null;
   setSelectedConversation: React.Dispatch<React.SetStateAction<Conversation | null>>;
-  sendMessage: (content: string, phoneNumber: string, conversationId?: string) => Promise<Message>;
+  contacts: Contact[];
+  templates: MessageTemplate[];
+  selectedContacts: Contact[];
+  setSelectedContacts: React.Dispatch<React.SetStateAction<Contact[]>>;
+  sendMessage: (content: string, phoneNumber: string, conversationId?: string) => Promise<void>;
   markConversationAsRead: (conversationId: string) => Promise<void>;
   markMessageAsRead: (messageId: string) => Promise<void>;
-  fetchMessages: () => Promise<void>;
+  handleArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
   archiveConversation: (conversationId: string) => Promise<void>;
   unarchiveConversation: (conversationId: string) => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
   isLoading: boolean;
   error: string | null;
-  handleArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
+  fetchMessages: () => Promise<void>;
   toggleReadStatus: (conversationId: string) => Promise<void>;
-  createContact: (contact: Omit<Contact, 'id'>) => Promise<Contact>;
+  createContact: (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Contact>;
   updateContact: (id: string, contact: Partial<Contact>) => Promise<Contact>;
   deleteContact: (id: string) => Promise<void>;
+  lists: { id: string; name: string }[];
+  createList: (name: string) => Promise<{ id: string; name: string }>;
+  addContactToList: (contactId: string, listId: string) => Promise<void>;
+  removeContactFromList: (contactId: string, listId: string) => Promise<void>;
 }
 
 const SMSContext = createContext<SMSContextType | undefined>(undefined);
 
-export function SMSProvider({ children }: { children: ReactNode }) {
-  const { socket, isConnected } = useSocket();
-  const { user } = useAuth();
-  const mountedRef = useRef(false);
-  const initializedRef = useRef(false);
+export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lists, setLists] = useState<{ id: string; name: string }[]>([
+    { id: 'wine-club', name: 'Wine Club' },
+    { id: 'newsletter', name: 'Newsletter' },
+    { id: 'vip', name: 'VIP Customers' }
+  ]);
 
-  // Sort conversations by most recent message
-  const sortConversations = (convs: Conversation[]): Conversation[] => {
-    return [...convs].sort((a, b) => 
-      new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
-    );
-  };
+  // Initialize with mock data
+  useEffect(() => {
+    setConversations(mockConversations);
+    setContacts(mockContacts);
+    setTemplates(mockTemplates);
+  }, []);
 
   // Fetch messages
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      setIsLoading(true);
-      setError(null);
-      console.log('Fetching messages from mock data...');
+      // In a real app, this would be an API call
+      // For now, we'll just use our mock data with a small delay
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Use mock data directly
-      const sortedConversations = sortConversations(mockConversations);
-      
-      // Verify conversation structure
-      console.log('Verifying conversation structure:', {
-        totalConversations: sortedConversations.length,
-        sampleConversation: sortedConversations[0] ? {
-          id: sortedConversations[0].id,
-          customerName: sortedConversations[0].customerName,
-          phoneNumber: sortedConversations[0].phoneNumber,
-          messageCount: sortedConversations[0].messages.length,
-          unreadCount: sortedConversations[0].unreadCount,
-          lastMessageAt: sortedConversations[0].lastMessageAt,
-          timestamp: sortedConversations[0].timestamp,
-          archived: sortedConversations[0].archived,
-          deleted: sortedConversations[0].deleted
-        } : null
-      });
-
-      // Verify message structure
-      if (sortedConversations.length > 0) {
-        const sampleMessage = sortedConversations[0].messages[0];
-        console.log('Verifying message structure:', {
-          sampleMessage: sampleMessage ? {
-            id: sampleMessage.id,
-            direction: sampleMessage.direction,
-            content: sampleMessage.content,
-            phoneNumber: sampleMessage.phoneNumber,
-            timestamp: sampleMessage.timestamp,
-            status: sampleMessage.status,
-            read: sampleMessage.read,
-            conversationId: sampleMessage.conversationId
-          } : null
-        });
-      }
-
-      // Verify phone number format
-      const invalidPhoneNumbers = sortedConversations.filter(conv => 
-        !/^\+1 \(\d{3}\) \d{3}-\d{4}$/.test(conv.phoneNumber)
-      );
-      
-      if (invalidPhoneNumbers.length > 0) {
-        console.warn('Found conversations with invalid phone number format:', 
-          invalidPhoneNumbers.map(conv => ({
-            id: conv.id,
-            phoneNumber: conv.phoneNumber
-          }))
-        );
-      }
-
-      // Verify message timestamps
-      const invalidTimestamps = sortedConversations.filter(conv => 
-        !conv.messages.every(msg => new Date(msg.timestamp).toString() !== 'Invalid Date')
-      );
-      
-      if (invalidTimestamps.length > 0) {
-        console.warn('Found messages with invalid timestamps:', 
-          invalidTimestamps.map(conv => ({
-            id: conv.id,
-            messageCount: conv.messages.length
-          }))
-        );
-      }
-
-      setConversations(sortedConversations);
-      console.log('Successfully loaded conversations:', {
-        total: sortedConversations.length,
-        unreadCount: sortedConversations.reduce((sum, conv) => sum + conv.unreadCount, 0),
-        archivedCount: sortedConversations.filter(conv => conv.archived).length,
-        deletedCount: sortedConversations.filter(conv => conv.deleted).length
-      });
-    } catch (error) {
-      console.error('Error in fetchMessages:', error);
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to load conversations');
+      // Refresh with mock data
+      setConversations(mockConversations);
+      toast.success('Messages refreshed');
+    } catch (err) {
+      console.error('Error fetching messages:', err);
+      setError('Failed to fetch messages');
+      toast.error('Failed to fetch messages');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Fetch templates
-  const fetchTemplates = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      setTemplates(mockTemplates);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to load message templates');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch contacts
-  const fetchContacts = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      setContacts(mockContacts);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to load contacts');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Load initial data
-  useEffect(() => {
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      mountedRef.current = true;
-      console.log('SMSContext: Loading initial data');
-      
-      // Load all data in parallel
-      Promise.all([
-        fetchMessages(),
-        fetchTemplates(),
-        fetchContacts()
-      ]).catch(error => {
-        console.error('Error loading initial data:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load initial data');
-      });
-    }
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [user?.uid, fetchMessages, fetchTemplates, fetchContacts]); // Add missing dependencies
-
-  // Listen for socket events
-  useEffect(() => {
-    if (!socket) {
-      console.warn('SMSContext: No socket connection available');
-      return;
-    }
-
-    if (!mountedRef.current) {
-      console.warn('SMSContext: Component unmounted, skipping socket event setup');
-      return;
-    }
-
-    console.log('SMSContext: Setting up socket event listeners');
-
-    // Listen for new messages
-    const handleNewMessage = (message: Message) => {
-      if (!mountedRef.current) {
-        console.warn('SMSContext: Component unmounted, ignoring new message');
-        return;
-      }
-      
-      console.log('SMSContext: Received new message via socket', {
-        messageId: message.id,
-        direction: message.direction,
-        phoneNumber: message.phoneNumber,
-        timestamp: message.timestamp
-      });
-
-      setConversations(prevConversations => {
-        const conversationIndex = prevConversations.findIndex(
-          conv => conv.phoneNumber === message.phoneNumber
-        );
-
-        if (conversationIndex === -1) {
-          console.log('SMSContext: Creating new conversation for message', {
-            phoneNumber: message.phoneNumber,
-            messageId: message.id
-          });
-          // Create new conversation
-          const newConversation: Conversation = {
-            id: Date.now().toString(),
-            customerName: null,
-            phoneNumber: message.phoneNumber || '',
-            messages: [message],
-            unreadCount: 1,
-            lastMessageAt: message.timestamp,
-            timestamp: message.timestamp,
-            archived: false,
-            deleted: false
-          };
-          return [...prevConversations, newConversation];
-        }
-
-        console.log('SMSContext: Updating existing conversation', {
-          conversationId: prevConversations[conversationIndex].id,
-          messageId: message.id
-        });
-
-        // Update existing conversation
-        const updatedConversations = [...prevConversations];
-        const conversation = { ...updatedConversations[conversationIndex] };
-        conversation.messages = [...conversation.messages, message];
-        conversation.lastMessageAt = message.timestamp;
-        conversation.unreadCount += message.direction === 'inbound' ? 1 : 0;
-        updatedConversations[conversationIndex] = conversation;
-        return updatedConversations;
-      });
-    };
-
-    // Listen for message status updates
-    const handleMessageStatusUpdate = (data: { messageId: string; status: 'sent' | 'delivered' | 'read' | 'failed' }) => {
-      if (!mountedRef.current) {
-        console.warn('SMSContext: Component unmounted, ignoring status update');
-        return;
-      }
-      
-      console.log('SMSContext: Received message status update', {
-        messageId: data.messageId,
-        newStatus: data.status
-      });
-
-      setConversations(prevConversations => {
-        return prevConversations.map(conv => {
-          const messageIndex = conv.messages.findIndex(msg => msg.id === data.messageId);
-          if (messageIndex !== -1) {
-            console.log('SMSContext: Updating message status', {
-              conversationId: conv.id,
-              messageId: data.messageId,
-              oldStatus: conv.messages[messageIndex].status,
-              newStatus: data.status
-            });
-
-            const updatedMessages = [...conv.messages];
-            updatedMessages[messageIndex] = {
-              ...updatedMessages[messageIndex],
-              status: data.status
-            };
-            return { ...conv, messages: updatedMessages };
-          }
-          return conv;
-        });
-      });
-    };
-
-    socket.on('new-message', handleNewMessage);
-    socket.on('message-status-update', handleMessageStatusUpdate);
-
-    return () => {
-      // Only cleanup if we're actually unmounting, not just in strict mode
-      if (mountedRef.current) {
-        console.log('SMSContext: Cleaning up socket event listeners');
-        socket.off('new-message', handleNewMessage);
-        socket.off('message-status-update', handleMessageStatusUpdate);
-      }
-    };
-  }, [socket]); // Only depend on socket
+  }, []);
 
   // Send a message
-  const sendMessage = async (content: string, phoneNumber: string, conversationId?: string): Promise<Message> => {
-    console.log('SMSContext: Attempting to send message', {
-      contentLength: content.length,
-      phoneNumber,
-      conversationId,
-      isConnected,
-      timestamp: new Date().toISOString()
-    });
-
-    if (!isConnected || !socket) {
-      console.error('SMSContext: Cannot send message - socket not connected');
-      throw new Error('Socket connection not established');
+  const sendMessage = useCallback(async (content: string, phoneNumber: string, conversationId?: string) => {
+    if (!content.trim()) {
+      throw new Error('Message content cannot be empty');
     }
-
-    if (!phoneNumber) {
-      console.error('SMSContext: Cannot send message - phone number is required');
-      throw new Error('Phone number is required');
-    }
-
-    // Create optimistic message with guaranteed conversationId
-    const messageConversationId = conversationId || `conv_${Date.now()}`;
-    const optimisticMessage: Message = {
-      id: `temp_${Date.now()}`,
-      direction: 'outbound',
-      content,
-      timestamp: new Date().toISOString(),
-      status: 'sent',
-      read: true,
-      conversationId: messageConversationId,
-      phoneNumber
-    };
-
-    console.log('SMSContext: Created optimistic message', {
-      messageId: optimisticMessage.id,
-      conversationId: optimisticMessage.conversationId
-    });
 
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Optimistically update UI
-      console.log('SMSContext: Updating UI optimistically');
-      setConversations(prev => {
-        const updated = [...prev];
-        const conversationIndex = updated.findIndex(c => c.id === messageConversationId);
-        
-        if (conversationIndex !== -1) {
-          console.log('SMSContext: Found existing conversation, updating messages', {
-            conversationId: messageConversationId
-          });
-          updated[conversationIndex] = {
-            ...updated[conversationIndex],
-            messages: [...updated[conversationIndex].messages, optimisticMessage],
-            lastMessageAt: optimisticMessage.timestamp,
-            timestamp: optimisticMessage.timestamp,
-            unreadCount: 0
-          };
-        } else {
-          console.log('SMSContext: Creating new conversation for message', {
-            conversationId: messageConversationId
-          });
-          // Create new conversation
-          const newConversation: Conversation = {
-            id: messageConversationId,
-            customerName: null,
-            phoneNumber: phoneNumber,
-            messages: [optimisticMessage],
-            unreadCount: 0,
-            lastMessageAt: optimisticMessage.timestamp,
-            timestamp: optimisticMessage.timestamp,
-            archived: false,
-            deleted: false
-          };
-          updated.push(newConversation);
-        }
-        return updated;
-      });
-
-      // Emit message through socket
-      console.log('SMSContext: Emitting message through socket');
-      socket.emit('send-message', {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Create a new message
+      const newMessage: Message = {
+        id: `msg_${Date.now()}`,
+        direction: 'outbound',
         content,
         phoneNumber,
-        conversationId: messageConversationId
-      });
-
-      console.log('SMSContext: Message sent successfully');
-      return optimisticMessage;
+        timestamp: new Date().toISOString(),
+        status: 'sent',
+        read: true,
+        conversationId: conversationId || ''
+      };
+      
+      // Find or create conversation
+      let convo = conversations.find(c => c.id === conversationId || c.phoneNumber === phoneNumber);
+      
+      if (convo) {
+        // Update existing conversation
+        setConversations(prevConversations => 
+          prevConversations.map(c => {
+            if (c.id === convo?.id) {
+              return {
+                ...c,
+                messages: [...c.messages, newMessage],
+                lastMessageAt: newMessage.timestamp,
+                timestamp: newMessage.timestamp
+              };
+            }
+            return c;
+          })
+        );
+      } else {
+        // Create new conversation
+        const newConversation: Conversation = {
+          id: `conv_${Date.now()}`,
+          customerName: null,
+          phoneNumber,
+          messages: [newMessage],
+          unreadCount: 0,
+          lastMessageAt: newMessage.timestamp,
+          timestamp: newMessage.timestamp,
+          archived: false,
+          deleted: false
+        };
+        
+        setConversations(prev => [newConversation, ...prev]);
+        
+        // Also select the new conversation
+        setSelectedConversation(newConversation);
+      }
+      
+      // Simulate message being delivered after a delay
+      setTimeout(() => {
+        setConversations(prevConversations => 
+          prevConversations.map(c => {
+            if (c.id === (convo?.id || `conv_${Date.now()}`)) {
+              return {
+                ...c,
+                messages: c.messages.map(m => {
+                  if (m.id === newMessage.id) {
+                    return { ...m, status: 'delivered' };
+                  }
+                  return m;
+                })
+              };
+            }
+            return c;
+          })
+        );
+      }, 1000);
+      
+      return;
     } catch (error) {
-      console.error('SMSContext: Error sending message', {
-        error,
-        messageId: optimisticMessage.id,
-        conversationId: messageConversationId
-      });
-      setError(error instanceof Error ? error.message : 'Failed to send message');
-      throw error;
-    } finally {
-      setIsLoading(false);
+      console.error('Error sending message:', error);
+      throw new Error('Failed to send message');
     }
-  };
+  }, [conversations]);
 
   // Mark conversation as read
-  const markConversationAsRead = async (conversationId: string): Promise<void> => {
+  const markConversationAsRead = useCallback(async (conversationId: string) => {
     try {
-      setConversations(prev => {
-        return prev.map(conv => {
-          if (conv.id === conversationId) {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      setConversations(prevConversations => 
+        prevConversations.map(c => {
+          if (c.id === conversationId) {
             return {
-              ...conv,
+              ...c,
               unreadCount: 0,
-              messages: conv.messages.map(msg => ({
-                ...msg,
-                read: true,
-                readAt: new Date().toISOString(),
-                readBy: user?.uid
+              messages: c.messages.map(m => ({
+                ...m,
+                read: true
               }))
             };
           }
-          return conv;
-        });
-      });
+          return c;
+        })
+      );
     } catch (error) {
-      toast.error('Failed to mark conversation as read');
-      throw error;
+      console.error('Error marking conversation as read:', error);
+      throw new Error('Failed to mark conversation as read');
     }
-  };
+  }, []);
 
-  // Toggle read status
-  const toggleReadStatus = async (conversationId: string): Promise<void> => {
+  // Mark specific message as read
+  const markMessageAsRead = useCallback(async (messageId: string) => {
     try {
-      setConversations(prev => {
-        return prev.map(conv => {
-          if (conv.id === conversationId) {
-            const isRead = conv.unreadCount === 0;
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      setConversations(prevConversations => 
+        prevConversations.map(c => {
+          const hasMessage = c.messages.some(m => m.id === messageId);
+          if (hasMessage) {
             return {
-              ...conv,
-              unreadCount: isRead ? 1 : 0,
-              messages: conv.messages.map(msg => ({
-                ...msg,
-                read: !isRead,
-                readAt: !isRead ? new Date().toISOString() : undefined,
-                readBy: !isRead ? user?.uid : undefined
-              }))
+              ...c,
+              messages: c.messages.map(m => {
+                if (m.id === messageId) {
+                  return { ...m, read: true };
+                }
+                return m;
+              })
             };
           }
-          return conv;
-        });
-      });
+          return c;
+        })
+      );
     } catch (error) {
-      toast.error('Failed to toggle read status');
-      throw error;
+      console.error('Error marking message as read:', error);
+      throw new Error('Failed to mark message as read');
     }
-  };
+  }, []);
 
-  // Mark message as read
-  const markMessageAsRead = async (messageId: string): Promise<void> => {
+  // Toggle read status for a conversation
+  const toggleReadStatus = useCallback(async (conversationId: string) => {
     try {
-      setConversations(prev => {
-        return prev.map(conv => {
-          const messageIndex = conv.messages.findIndex(msg => msg.id === messageId);
-          if (messageIndex !== -1) {
-            const updatedMessages = [...conv.messages];
-            updatedMessages[messageIndex] = {
-              ...updatedMessages[messageIndex],
-              read: true,
-              readAt: new Date().toISOString(),
-              readBy: user?.uid
-            };
-            
-            // Update unread count
-            const unreadCount = updatedMessages.filter(msg => !msg.read).length;
-            
+      const conversation = conversations.find(c => c.id === conversationId);
+      if (!conversation) return;
+      
+      const isRead = conversation.unreadCount === 0;
+      
+      if (isRead) {
+        // Mark as unread
+        setConversations(prevConversations => 
+          prevConversations.map(c => {
+            if (c.id === conversationId) {
+              return {
+                ...c,
+                unreadCount: 1
+              };
+            }
+            return c;
+          })
+        );
+      } else {
+        // Mark as read
+        await markConversationAsRead(conversationId);
+      }
+    } catch (error) {
+      console.error('Error toggling read status:', error);
+      throw new Error('Failed to toggle read status');
+    }
+  }, [conversations, markConversationAsRead]);
+
+  // Archive conversation
+  const archiveConversation = useCallback(async (conversationId: string) => {
+    try {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      setConversations(prevConversations => 
+        prevConversations.map(c => {
+          if (c.id === conversationId) {
             return {
-              ...conv,
-              messages: updatedMessages,
-              unreadCount
+              ...c,
+              archived: true,
+              archivedAt: new Date().toISOString()
             };
           }
-          return conv;
-        });
+          return c;
+        })
+      );
+      
+      // If the archived conversation is currently selected, clear selection
+      setSelectedConversation(prev => {
+        if (prev?.id === conversationId) {
+          return null;
+        }
+        return prev;
       });
     } catch (error) {
-      toast.error('Failed to mark message as read');
-      throw error;
+      console.error('Error archiving conversation:', error);
+      throw new Error('Failed to archive conversation');
     }
-  };
+  }, []);
 
-  // Archive a conversation
-  const archiveConversation = async (conversationId: string): Promise<void> => {
+  // Unarchive conversation
+  const unarchiveConversation = useCallback(async (conversationId: string) => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Optimistically update UI
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, archived: true }
-            : conv
-        )
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      setConversations(prevConversations => 
+        prevConversations.map(c => {
+          if (c.id === conversationId) {
+            return {
+              ...c,
+              archived: false,
+              archivedAt: undefined
+            };
+          }
+          return c;
+        })
       );
-
-      await mockSmsService.archiveConversation(conversationId);
-      toast.success('Conversation archived successfully');
     } catch (error) {
-      // Revert optimistic update on error
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, archived: false }
-            : conv
-        )
-      );
-
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to archive conversation');
-      throw error;
-    } finally {
-      setIsLoading(false);
+      console.error('Error unarchiving conversation:', error);
+      throw new Error('Failed to unarchive conversation');
     }
-  };
+  }, []);
 
-  // Unarchive a conversation
-  const unarchiveConversation = async (conversationId: string): Promise<void> => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Optimistically update UI
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, archived: false }
-            : conv
-        )
-      );
-
-      await mockSmsService.unarchiveConversation(conversationId);
-      toast.success('Conversation unarchived successfully');
-    } catch (error) {
-      // Revert optimistic update on error
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, archived: true }
-            : conv
-        )
-      );
-
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to unarchive conversation');
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Delete a conversation
-  const deleteConversation = async (conversationId: string): Promise<void> => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Optimistically update UI
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, deleted: true }
-            : conv
-        )
-      );
-
-      await mockSmsService.deleteConversation(conversationId);
-      toast.success('Conversation deleted successfully');
-    } catch (error) {
-      // Revert optimistic update on error
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, deleted: false }
-            : conv
-        )
-      );
-
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to delete conversation');
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Handle archive toggle
-  const handleArchiveToggle = async (conversationId: string, archived: boolean): Promise<void> => {
+  // Archive/unarchive toggle
+  const handleArchiveToggle = useCallback(async (conversationId: string, archived: boolean) => {
     try {
       if (archived) {
         await archiveConversation(conversationId);
+        toast.success('Conversation archived');
       } else {
         await unarchiveConversation(conversationId);
+        toast.success('Conversation moved to inbox');
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error(`Failed to ${archived ? 'archive' : 'unarchive'} conversation`);
-      throw error;
+      console.error('Error toggling archive status:', error);
+      toast.error('Failed to update conversation');
     }
-  };
+  }, [archiveConversation, unarchiveConversation]);
 
-  // Create a new contact
-  const createContact = async (contact: Omit<Contact, 'id'>): Promise<Contact> => {
-    // Create optimistic contact
-    const optimisticContact: Contact = {
-      id: `temp_${Date.now()}`,
-      ...contact
-    };
-
+  // Delete conversation
+  const deleteConversation = useCallback(async (conversationId: string) => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Optimistically update UI
-      setContacts(prev => [...prev, optimisticContact]);
-
-      const newContact = await mockSmsService.createContact(contact);
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Update with real contact data
-      setContacts(prev => 
-        prev.map(c => c.id === optimisticContact.id ? newContact : c)
+      setConversations(prevConversations => 
+        prevConversations.map(c => {
+          if (c.id === conversationId) {
+            return {
+              ...c,
+              deleted: true
+            };
+          }
+          return c;
+        })
       );
       
-      toast.success('Contact created successfully');
+      // If the deleted conversation is currently selected, clear selection
+      setSelectedConversation(prev => {
+        if (prev?.id === conversationId) {
+          return null;
+        }
+        return prev;
+      });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      throw new Error('Failed to delete conversation');
+    }
+  }, []);
+
+  // Create contact
+  const createContact = useCallback(async (contactData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const newContact: Contact = {
+        ...contactData,
+        id: `contact_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      setContacts(prev => [...prev, newContact]);
+      
       return newContact;
     } catch (error) {
-      // Revert optimistic update on error
-      setContacts(prev => prev.filter(c => c.id !== optimisticContact.id));
-
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to create contact');
-      throw error;
-    } finally {
-      setIsLoading(false);
+      console.error('Error creating contact:', error);
+      throw new Error('Failed to create contact');
     }
-  };
+  }, []);
 
-  // Update a contact
-  const updateContact = async (id: string, contact: Partial<Contact>): Promise<Contact> => {
+  // Update contact
+  const updateContact = useCallback(async (id: string, contactData: Partial<Contact>) => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Optimistically update UI
-      setContacts(prev => 
-        prev.map(c => c.id === id ? { ...c, ...contact } : c)
-      );
-
-      const updatedContact = await mockSmsService.updateContact(id, contact);
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Update with real contact data
+      let updatedContact: Contact | null = null;
+      
       setContacts(prev => 
-        prev.map(c => c.id === id ? updatedContact : c)
+        prev.map(c => {
+          if (c.id === id) {
+            updatedContact = {
+              ...c,
+              ...contactData,
+              updatedAt: new Date().toISOString()
+            };
+            return updatedContact;
+          }
+          return c;
+        })
       );
       
-      toast.success('Contact updated successfully');
+      if (!updatedContact) {
+        throw new Error('Contact not found');
+      }
+      
       return updatedContact;
     } catch (error) {
-      // Revert optimistic update on error
-      setContacts(prev => 
-        prev.map(c => c.id === id ? { ...c } : c)
-      );
-
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to update contact');
-      throw error;
-    } finally {
-      setIsLoading(false);
+      console.error('Error updating contact:', error);
+      throw new Error('Failed to update contact');
     }
-  };
+  }, []);
 
-  // Delete a contact
-  const deleteContact = async (id: string): Promise<void> => {
+  // Delete contact
+  const deleteContact = useCallback(async (id: string) => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Optimistically update UI
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       setContacts(prev => prev.filter(c => c.id !== id));
-
-      await mockSmsService.deleteContact(id);
-      toast.success('Contact deleted successfully');
     } catch (error) {
-      // Revert optimistic update on error
-      setContacts(prev => [...prev]);
-
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      toast.error('Failed to delete contact');
-      throw error;
-    } finally {
-      setIsLoading(false);
+      console.error('Error deleting contact:', error);
+      throw new Error('Failed to delete contact');
     }
-  };
+  }, []);
 
-  // Memoize the context value to prevent unnecessary re-renders
-  const value = React.useMemo(() => ({
-    conversations,
-    setConversations,
-    templates,
-    setTemplates,
-    contacts,
-    selectedConversation,
-    setSelectedConversation,
-    sendMessage,
-    markConversationAsRead,
-    markMessageAsRead,
-    fetchMessages,
-    archiveConversation,
-    unarchiveConversation,
-    deleteConversation,
-    isLoading,
-    error,
-    handleArchiveToggle,
-    toggleReadStatus,
-    createContact,
-    updateContact,
-    deleteContact
-  }), [
-    conversations,
-    templates,
-    contacts,
-    selectedConversation,
-    isLoading,
-    error,
-    sendMessage,
-    markConversationAsRead,
-    markMessageAsRead,
-    fetchMessages,
-    archiveConversation,
-    unarchiveConversation,
-    deleteConversation,
-    handleArchiveToggle,
-    toggleReadStatus,
-    createContact,
-    updateContact,
-    deleteContact
-  ]);
+  // Create list
+  const createList = useCallback(async (name: string) => {
+    try {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      const newList = { id: `list_${Date.now()}`, name };
+      setLists(prev => [...prev, newList]);
+      return newList;
+    } catch (error) {
+      console.error('Error creating list:', error);
+      throw new Error('Failed to create list');
+    }
+  }, []);
+
+  // Add contact to list
+  const addContactToList = useCallback(async (contactId: string, listId: string) => {
+    try {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      setContacts(prev => 
+        prev.map(c => {
+          if (c.id === contactId) {
+            const updatedLists = c.lists ? [...c.lists] : [];
+            if (!updatedLists.includes(listId)) {
+              updatedLists.push(listId);
+            }
+            return {
+              ...c,
+              lists: updatedLists,
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return c;
+        })
+      );
+    } catch (error) {
+      console.error('Error adding contact to list:', error);
+      throw new Error('Failed to add contact to list');
+    }
+  }, []);
+
+  // Remove contact from list
+  const removeContactFromList = useCallback(async (contactId: string, listId: string) => {
+    try {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      setContacts(prev => 
+        prev.map(c => {
+          if (c.id === contactId && c.lists) {
+            return {
+              ...c,
+              lists: c.lists.filter(id => id !== listId),
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return c;
+        })
+      );
+    } catch (error) {
+      console.error('Error removing contact from list:', error);
+      throw new Error('Failed to remove contact from list');
+    }
+  }, []);
 
   return (
-    <SMSContext.Provider value={value}>
+    <SMSContext.Provider
+      value={{
+        conversations,
+        setConversations,
+        selectedConversation,
+        setSelectedConversation,
+        contacts,
+        templates,
+        selectedContacts,
+        setSelectedContacts,
+        sendMessage,
+        markConversationAsRead,
+        markMessageAsRead,
+        handleArchiveToggle,
+        archiveConversation,
+        unarchiveConversation,
+        deleteConversation,
+        isLoading,
+        error,
+        fetchMessages,
+        toggleReadStatus,
+        createContact,
+        updateContact,
+        deleteContact,
+        lists,
+        createList,
+        addContactToList,
+        removeContactFromList
+      }}
+    >
       {children}
     </SMSContext.Provider>
   );
-}
+};
 
-export function useSMS() {
+export const useSMS = () => {
   const context = useContext(SMSContext);
   if (context === undefined) {
     throw new Error('useSMS must be used within an SMSProvider');
   }
   return context;
-}
+};

@@ -3,28 +3,18 @@ import { Contact } from '../../types/sms';
 
 interface ContactListProps {
   contacts: Contact[];
-  onSelectContact: (contact: Contact) => void;
-  onCreateContact: () => void;
-  onSelectList: (list: string) => void;
-  listNames: string[];
-  selectedList: string;
-  onImportContacts?: () => void;
-  onCreateList?: () => void;
-  selectedContact?: Contact;
+  selectedContacts: Contact[];
+  onContactSelect: (list: Contact[]) => void;
+  onStatusChange: (contact: Contact, status: string) => void;
   isLoading?: boolean;
   error?: string | null;
 }
 
 const ContactList: React.FC<ContactListProps> = ({
   contacts,
-  onSelectContact,
-  onCreateContact,
-  onSelectList,
-  listNames,
-  selectedList,
-  onImportContacts,
-  onCreateList,
-  selectedContact,
+  selectedContacts,
+  onContactSelect,
+  onStatusChange,
   isLoading = false,
   error = null
 }) => {
@@ -36,7 +26,7 @@ const ContactList: React.FC<ContactListProps> = ({
   // Update filtered contacts when props change
   useEffect(() => {
     filterAndSortContacts();
-  }, [contacts, searchQuery, sortField, sortDirection, selectedList]);
+  }, [contacts, searchQuery, sortField, sortDirection]);
 
   // Filter and sort contacts based on search query, sort field, and sort direction
   const filterAndSortContacts = () => {
@@ -48,11 +38,7 @@ const ContactList: React.FC<ContactListProps> = ({
         contact.phoneNumber.includes(searchQuery) ||
         (contact.email && contact.email.toLowerCase().includes(searchQuery.toLowerCase()));
       
-      // Then filter by selected list if not "All Contacts"
-      const matchesList = selectedList === 'All Contacts' || 
-        (contact.lists && contact.lists.includes(selectedList));
-      
-      return matchesSearch && matchesList;
+      return matchesSearch;
     });
 
     // Then sort by the selected field
@@ -116,28 +102,6 @@ const ContactList: React.FC<ContactListProps> = ({
       <div className="p-4 border-b border-gray-200 bg-white">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-medium text-gray-900">Contact Management</h2>
-          <div className="flex space-x-2">
-            <button
-              onClick={onCreateContact}
-              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown"
-            >
-              <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              New Contact
-            </button>
-            {onImportContacts && (
-              <button
-                onClick={onImportContacts}
-                className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                </svg>
-                Import
-              </button>
-            )}
-          </div>
         </div>
         
         {/* Search and list selection */}
@@ -155,30 +119,6 @@ const ContactList: React.FC<ContactListProps> = ({
                 <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
               </svg>
             </div>
-          </div>
-          
-          <div className="flex space-x-2">
-            <select
-              className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
-              value={selectedList}
-              onChange={(e) => onSelectList(e.target.value)}
-            >
-              <option value="All Contacts">All Contacts</option>
-              {listNames.map(listName => (
-                <option key={listName} value={listName}>{listName}</option>
-              ))}
-            </select>
-            
-            {onCreateList && (
-              <button
-                onClick={onCreateList}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-              >
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -208,16 +148,8 @@ const ContactList: React.FC<ContactListProps> = ({
             <p className="text-gray-500 text-sm mb-4 text-center max-w-md">
               {searchQuery 
                 ? `No contacts match "${searchQuery}"`
-                : selectedList !== 'All Contacts'
-                  ? `No contacts in the "${selectedList}" list`
-                  : 'Get started by adding your first contact'}
+                : 'Get started by adding your first contact'}
             </p>
-            <button
-              onClick={onCreateContact}
-              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-darkBrown"
-            >
-              Add Contact
-            </button>
           </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-200">
@@ -280,9 +212,9 @@ const ContactList: React.FC<ContactListProps> = ({
               {filteredContacts.map(contact => (
                 <tr 
                   key={contact.id || contact.phoneNumber}
-                  onClick={() => onSelectContact(contact)}
+                  onClick={() => onContactSelect([contact])}
                   className={`${
-                    selectedContact?.id === contact.id ? 'bg-primary-50' : 'hover:bg-gray-50'
+                    selectedContacts.includes(contact) ? 'bg-primary-50' : 'hover:bg-gray-50'
                   } cursor-pointer`}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -337,11 +269,11 @@ const ContactList: React.FC<ContactListProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        onSelectContact(contact);
+                        onStatusChange(contact, contact.optIn ? 'optedOut' : 'optedIn');
                       }}
                       className="text-primary hover:text-darkBrown"
                     >
-                      View
+                      {contact.optIn ? 'Opt Out' : 'Opt In'}
                     </button>
                   </td>
                 </tr>

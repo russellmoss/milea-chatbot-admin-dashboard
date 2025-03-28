@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MessageTemplate } from '../../types/sms';
+import { toast } from 'react-hot-toast';
 
 // Template Editor Modal
 interface TemplateEditorProps {
@@ -145,208 +146,315 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({
   );
 };
 
-// Main Template Library Component
-const TemplateLibrary: React.FC = () => {
-  const [templates, setTemplates] = useState<MessageTemplate[]>([
-    {
-      id: 'template1',
-      name: 'Tasting Confirmation',
-      content: 'Your tasting reservation for {date} at {time} is confirmed. We look forward to welcoming you to Milea Estate Vineyard!',
-      category: 'Reservations',
-      variables: ['date', 'time'],
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: 'template2',
-      name: 'Wine Club Pickup',
-      content: 'Hello {name}, your wine club shipment for {month} is ready for pickup at the tasting room. We\'re open daily from 10 AM to 5 PM.',
-      category: 'Wine Club',
-      variables: ['name', 'month'],
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: 'template3',
-      name: 'Event Reminder',
-      content: 'Reminder: You\'re registered for our {event} on {date} at {time}. We look forward to seeing you!',
-      category: 'Events',
-      variables: ['event', 'date', 'time'],
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: 'template4',
-      name: 'Thank You',
-      content: 'Thank you for visiting Milea Estate Vineyard today! We hope you enjoyed your experience. Don\'t forget to follow us on social media and sign up for our newsletter for updates on events and new releases.',
-      category: 'General',
-      variables: [],
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    }
-  ]);
+interface TemplateLibraryProps {
+  templates: MessageTemplate[];
+  onSendMessage: (message: string, phoneNumber: string) => Promise<void>;
+}
 
+const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
+  templates,
+  onSendMessage
+}) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | undefined>(undefined);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<MessageTemplate | null>(null);
 
-  // Get unique categories
-  const categories = [
-    'All', 
-    ...Array.from(new Set(templates.map(t => t.category)))
-  ];
+  // Filter templates based on category and search query
+  const filteredTemplates = useMemo(() => {
+    return templates.filter(template => {
+      const matchesCategory = selectedCategory === 'All' || template.category === selectedCategory;
+      const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        template.content.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [templates, selectedCategory, searchQuery]);
 
-  // Filter templates
-  const filteredTemplates = templates.filter(template => {
-    const matchesCategory = selectedCategory === 'All' || template.category === selectedCategory;
-    const matchesSearch = 
-      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      template.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      template.category.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesCategory && matchesSearch;
-  });
-
-  // Handle template creation
-  const handleCreateTemplate = (templateData: Omit<MessageTemplate, 'id'>) => {
-    const newTemplate: MessageTemplate = {
-      ...templateData,
-      id: `template_${Date.now()}`
-    };
-    setTemplates([...templates, newTemplate]);
-    setIsEditorOpen(false);
-  };
-
-  // Handle template update
-  const handleUpdateTemplate = (templateData: Omit<MessageTemplate, 'id'>) => {
-    if (!editingTemplate) return;
-
-    setTemplates(templates.map(t => 
-      t.id === editingTemplate.id 
-        ? { ...editingTemplate, ...templateData } 
-        : t
-    ));
-    setIsEditorOpen(false);
-    setEditingTemplate(undefined);
-  };
+  // Get unique categories for the filter dropdown
+  const categories = useMemo(() => {
+    const uniqueCategories = new Set(templates.map(t => t.category));
+    return ['All', ...Array.from(uniqueCategories)];
+  }, [templates]);
 
   // Handle template deletion
-  const handleDeleteTemplate = (templateId: string) => {
-    if (window.confirm('Are you sure you want to delete this template?')) {
-      setTemplates(templates.filter(t => t.id !== templateId));
+  const handleDeleteTemplate = async (template: MessageTemplate) => {
+    setTemplateToDelete(template);
+    setShowDeleteConfirm(true);
+  };
+
+  // Confirm template deletion
+  const confirmDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+    
+    try {
+      // In a real app, this would be an API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Remove the template from the list
+      const updatedTemplates = templates.filter(t => t.id !== templateToDelete.id);
+      // Note: In a real app, we would call an API to delete the template
+      // and then update the parent component's state
+      
+      toast.success('Template deleted successfully');
+      setShowDeleteConfirm(false);
+      setTemplateToDelete(null);
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      toast.error('Failed to delete template');
     }
+  };
+
+  // Handle template edit
+  const handleEditTemplate = (template: MessageTemplate) => {
+    setEditingTemplate(template);
+    setShowCreateModal(true);
+  };
+
+  // Handle template creation/update
+  const handleSaveTemplate = async (templateData: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      // In a real app, this would be an API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      if (editingTemplate) {
+        // Update existing template
+        const updatedTemplate: MessageTemplate = {
+          ...editingTemplate,
+          ...templateData,
+          updatedAt: new Date().toISOString()
+        };
+        
+        // Note: In a real app, we would call an API to update the template
+        // and then update the parent component's state
+        
+        toast.success('Template updated successfully');
+      } else {
+        // Create new template
+        const newTemplate: MessageTemplate = {
+          ...templateData,
+          id: `template_${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        // Note: In a real app, we would call an API to create the template
+        // and then update the parent component's state
+        
+        toast.success('Template created successfully');
+      }
+      
+      setShowCreateModal(false);
+      setEditingTemplate(null);
+    } catch (error) {
+      console.error('Error saving template:', error);
+      toast.error('Failed to save template');
+    }
+  };
+
+  // Handle template usage
+  const handleUseTemplate = (template: MessageTemplate) => {
+    // In a real app, this would open a modal to select recipients
+    toast.success('Template selected. Please select recipients to send the message.');
   };
 
   return (
     <div className="space-y-6">
-      {/* Template Editor Modal */}
-      <TemplateEditor
-        isOpen={isEditorOpen}
-        template={editingTemplate}
-        onClose={() => {
-          setIsEditorOpen(false);
-          setEditingTemplate(undefined);
-        }}
-        onSave={editingTemplate ? handleUpdateTemplate : handleCreateTemplate}
-      />
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold text-gray-900">Message Templates</h2>
+        <button
+          onClick={() => {
+            setEditingTemplate(null);
+            setShowCreateModal(true);
+          }}
+          className="px-4 py-2 bg-primary text-white rounded hover:bg-darkBrown"
+        >
+          Create New Template
+        </button>
+      </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-primary">Message Templates</h2>
-          <button
-            onClick={() => {
-              setEditingTemplate(undefined);
-              setIsEditorOpen(true);
-            }}
-            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-darkBrown"
+      {/* Filters */}
+      <div className="flex space-x-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search templates..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+          />
+        </div>
+        <select
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+        >
+          {categories.map(category => (
+            <option key={category} value={category}>{category}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Template Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredTemplates.map(template => (
+          <div
+            key={template.id}
+            className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
           >
-            Create New Template
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex space-x-2">
-            {categories.map(category => (
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-medium text-gray-900">{template.name}</h3>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleEditTemplate(template)}
+                  className="text-primary hover:text-darkBrown"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDeleteTemplate(template)}
+                  className="text-red-600 hover:text-red-800"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">{template.content}</p>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-gray-400">{template.category}</span>
               <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`px-3 py-1 text-sm rounded-md ${
-                  selectedCategory === category
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                onClick={() => handleUseTemplate(template)}
+                className="px-3 py-1 bg-primary text-white text-sm rounded hover:bg-darkBrown"
               >
-                {category}
+                Use Template
               </button>
-            ))}
+            </div>
           </div>
+        ))}
+      </div>
 
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search templates..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
-            />
-            <svg 
-              className="absolute left-3 top-3 h-5 w-5 text-gray-400" 
-              xmlns="http://www.w3.org/2000/svg" 
-              viewBox="0 0 20 20" 
-              fill="currentColor"
-            >
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Templates Grid */}
-        {filteredTemplates.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            No templates found
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredTemplates.map(template => (
-              <div 
-                key={template.id} 
-                className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {template.name}
-                  </h3>
-                  <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
-                    {template.category}
-                  </span>
+      {/* Create/Edit Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              {editingTemplate ? 'Edit Template' : 'Create New Template'}
+            </h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              handleSaveTemplate({
+                name: formData.get('name') as string,
+                content: formData.get('content') as string,
+                category: formData.get('category') as string,
+                variables: (formData.get('variables') as string).split(',').map(v => v.trim()).filter(Boolean)
+              });
+            }}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Template Name
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    defaultValue={editingTemplate?.name}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
                 </div>
-                <p className="text-sm text-gray-600 mb-4 line-clamp-3">
-                  {template.content}
-                </p>
-                <div className="flex justify-end space-x-2">
-                  <button
-                    onClick={() => {
-                      setEditingTemplate(template);
-                      setIsEditorOpen(true);
-                    }}
-                    className="text-sm text-primary hover:text-darkBrown"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteTemplate(template.id)}
-                    className="text-sm text-red-600 hover:text-red-800"
-                  >
-                    Delete
-                  </button>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category
+                  </label>
+                  <input
+                    type="text"
+                    name="category"
+                    defaultValue={editingTemplate?.category}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Message Content
+                  </label>
+                  <textarea
+                    name="content"
+                    defaultValue={editingTemplate?.content}
+                    required
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Variables (comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    name="variables"
+                    defaultValue={editingTemplate?.variables.join(', ')}
+                    placeholder="e.g., name, date, time"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  />
                 </div>
               </div>
-            ))}
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setEditingTemplate(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-darkBrown"
+                >
+                  {editingTemplate ? 'Update Template' : 'Create Template'}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Delete Template
+            </h3>
+            <p className="text-gray-500 mb-6">
+              Are you sure you want to delete this template? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setTemplateToDelete(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteTemplate}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

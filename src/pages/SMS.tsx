@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSMSOperations } from '../hooks/useSMSOperations';
 import { useSMS } from '../contexts/SMSContext';
-import { Contact } from '../types/sms';
-import ContactList from '../components/sms/ContactList';
+import { Contact, Conversation, MessageTemplate, ContactList } from '../types/sms';
+import ContactListComponent from '../components/sms/ContactList';
 import ContactDetail from '../components/sms/ContactDetail';
 import ContactForm from '../components/sms/ContactForm';
 import BulkMessaging from '../components/sms/BulkMessaging';
@@ -30,16 +30,84 @@ const SMS: React.FC = () => {
 
   const {
     conversations,
+    templates,
+    selectedConversation,
+    setSelectedConversation,
+    selectedContacts,
+    setSelectedContacts,
     sendMessage,
-    handleArchiveToggle,
-    isLoading: conversationsLoading,
-    error: conversationsError
+    markConversationAsRead,
+    markMessageAsRead,
+    archiveConversation,
+    unarchiveConversation,
+    deleteConversation,
+    isLoading,
+    error
   } = useSMS();
 
   const [activeTab, setActiveTab] = useState<'messaging' | 'contacts' | 'campaigns' | 'templates'>('messaging');
+  const [showTestPanel, setShowTestPanel] = useState(false);
   const [showContactForm, setShowContactForm] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | undefined>(undefined);
   const [showBulkMessaging, setShowBulkMessaging] = useState(false);
+
+  // Handle conversation selection
+  const handleConversationSelect = (conv: Conversation) => {
+    setSelectedConversation(conv);
+  };
+
+  // Handle contact list selection
+  const handleContactListSelect = (list: Contact[]) => {
+    setSelectedContacts(list);
+  };
+
+  // Handle contact status change
+  const handleContactStatusChange = (contact: Contact, status: string): void => {
+    // Update contact status logic here
+    toast.success(`Contact ${contact.firstName} ${contact.lastName} status updated to ${status}`);
+  };
+
+  // Handle archive toggle
+  const handleArchiveToggle = async (conversationId: string, archived: boolean) => {
+    try {
+      if (archived) {
+        await archiveConversation(conversationId);
+      } else {
+        await unarchiveConversation(conversationId);
+      }
+      toast.success(`Conversation ${archived ? 'archived' : 'unarchived'} successfully`);
+    } catch (err) {
+      toast.error('Failed to update conversation status');
+    }
+  };
+
+  // Handle conversation deletion
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      await deleteConversation(conversationId);
+      toast.success('Conversation deleted successfully');
+    } catch (err) {
+      toast.error('Failed to delete conversation');
+    }
+  };
+
+  // Handle message read
+  const handleMessageRead = async (messageId: string) => {
+    try {
+      await markMessageAsRead(messageId);
+    } catch (err) {
+      toast.error('Failed to mark message as read');
+    }
+  };
+
+  // Handle conversation read
+  const handleConversationRead = async (conversationId: string) => {
+    try {
+      await markConversationAsRead(conversationId);
+    } catch (err) {
+      toast.error('Failed to mark conversation as read');
+    }
+  };
 
   // Handle contact selection
   const handleContactSelect = (contact: Contact) => {
@@ -83,21 +151,24 @@ const SMS: React.FC = () => {
     }
   };
 
-  // Handle sending a message to a contact
-  const handleSendMessageToContact = (phoneNumber: string) => {
-    // Find the conversation for this contact or create a new one
+  // Handle sending message to contact
+  const handleSendMessageToContact = async (message: string, phoneNumber: string): Promise<void> => {
+    try {
+      await sendMessage(message, phoneNumber);
+      toast.success('Message sent successfully');
+    } catch (err) {
+      toast.error('Failed to send message');
+      throw err;
+    }
+  };
+
+  // Wrapper function for ContactDetail's onSendMessage prop
+  const handleSendMessageToContactWrapper = (phoneNumber: string): void => {
+    // Switch to messaging tab and select/create conversation
+    setActiveTab('messaging');
     const existingConversation = conversations.find(conv => conv.phoneNumber === phoneNumber);
-    
     if (existingConversation) {
-      // Switch to messaging tab and select this conversation
-      setActiveTab('messaging');
-    } else {
-      // Switch to messaging tab, selection will happen when message is sent
-      setActiveTab('messaging');
-      toast('Forward functionality coming soon', {
-        icon: 'ℹ️',
-        duration: 3000
-      });
+      setSelectedConversation(existingConversation);
     }
   };
 
@@ -168,7 +239,17 @@ const SMS: React.FC = () => {
       <div className="flex-1 overflow-hidden">
         {activeTab === 'messaging' && (
           <div className="h-full">
-            <MessagingInbox />
+            <MessagingInbox
+              conversations={conversations}
+              selectedConversation={selectedConversation}
+              onConversationSelect={handleConversationSelect}
+              onArchiveToggle={handleArchiveToggle}
+              onDelete={handleDeleteConversation}
+              onMessageRead={handleMessageRead}
+              onConversationRead={handleConversationRead}
+              isLoading={isLoading}
+              error={error}
+            />
           </div>
         )}
 
@@ -176,16 +257,11 @@ const SMS: React.FC = () => {
           <div className="p-6">
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12 md:col-span-5 lg:col-span-4">
-                <ContactList
+                <ContactListComponent
                   contacts={contacts}
-                  onSelectContact={handleContactSelect}
-                  onCreateContact={() => {
-                    setEditingContact(undefined);
-                    setShowContactForm(true);
-                  }}
-                  onSelectList={() => {}}
-                  listNames={lists.map(list => list.name)}
-                  selectedList=""
+                  selectedContacts={selectedContacts}
+                  onContactSelect={handleContactListSelect}
+                  onStatusChange={handleContactStatusChange}
                   isLoading={contactsLoading}
                   error={contactsError}
                 />
@@ -207,7 +283,7 @@ const SMS: React.FC = () => {
                         toast.error('Failed to update opt-in status');
                       }
                     }}
-                    onSendMessage={handleSendMessageToContact}
+                    onSendMessage={handleSendMessageToContactWrapper}
                     onAddToList={async () => {
                       // This would normally show a modal to select lists
                       if (lists.length > 0 && selectedContact?.id) {
@@ -292,14 +368,18 @@ const SMS: React.FC = () => {
           <div className="p-6">
             <CampaignManagement 
               contacts={contacts}
-              onSendBulkMessage={handleSendBulkMessage}
+              templates={templates}
+              onSendMessage={handleSendMessageToContact}
             />
           </div>
         )}
 
         {activeTab === 'templates' && (
           <div className="p-6">
-            <TemplateLibrary />
+            <TemplateLibrary
+              templates={templates}
+              onSendMessage={handleSendMessageToContact}
+            />
           </div>
         )}
       </div>
