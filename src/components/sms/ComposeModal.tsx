@@ -140,6 +140,8 @@ const ComposeModal: React.FC<ComposeModalProps> = ({ isOpen, onClose }) => {
                     </label>
                     <input
                       type="tel"
+                      id="phoneNumber"
+                      name="phoneNumber"
                       value={phoneNumber}
                       onChange={handlePhoneNumberChange}
                       placeholder="+1234567890"

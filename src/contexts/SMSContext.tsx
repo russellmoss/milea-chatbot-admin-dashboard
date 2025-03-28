@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useRef } from 'react';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import { Conversation, Message, MessageTemplate, Contact } from '../types/sms';
@@ -9,8 +9,7 @@ import { toast } from 'react-hot-toast';
 import { 
   mockConversations, 
   mockTemplates, 
-  mockContacts,
-  mockContactLists
+  mockContacts
 } from '../mocks/smsData';
 
 interface SMSContextType {
@@ -32,6 +31,9 @@ interface SMSContextType {
   error: string | null;
   handleArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
   toggleReadStatus: (conversationId: string) => Promise<void>;
+  createContact: (contact: Omit<Contact, 'id'>) => Promise<Contact>;
+  updateContact: (id: string, contact: Partial<Contact>) => Promise<Contact>;
+  deleteContact: (id: string) => Promise<void>;
 }
 
 const SMSContext = createContext<SMSContextType | undefined>(undefined);
@@ -39,6 +41,8 @@ const SMSContext = createContext<SMSContextType | undefined>(undefined);
 export function SMSProvider({ children }: { children: ReactNode }) {
   const { socket, isConnected } = useSocket();
   const { user } = useAuth();
+  const mountedRef = useRef(false);
+  const initializedRef = useRef(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -46,131 +50,12 @@ export function SMSProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Log context initialization
-  useEffect(() => {
-    console.log('SMSContext: Initializing provider', {
-      hasSocket: !!socket,
-      isConnected,
-      userId: user?.uid,
-      initialConversationsCount: conversations.length,
-      initialTemplatesCount: templates.length,
-      initialContactsCount: contacts.length
-    });
-  }, [socket, isConnected, user?.uid]);
-
-  // Load initial data
-  useEffect(() => {
-    console.log('SMSContext: Loading initial data');
-    fetchMessages();
-    fetchTemplates();
-    fetchContacts();
-  }, []);
-
   // Sort conversations by most recent message
   const sortConversations = (convs: Conversation[]): Conversation[] => {
     return [...convs].sort((a, b) => 
       new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
     );
   };
-
-  // Listen for socket events
-  useEffect(() => {
-    if (!socket) {
-      console.warn('SMSContext: No socket connection available');
-      return;
-    }
-
-    console.log('SMSContext: Setting up socket event listeners');
-
-    // Listen for new messages
-    const handleNewMessage = (message: Message) => {
-      console.log('SMSContext: Received new message via socket', {
-        messageId: message.id,
-        direction: message.direction,
-        phoneNumber: message.phoneNumber,
-        timestamp: message.timestamp
-      });
-
-      setConversations(prevConversations => {
-        const conversationIndex = prevConversations.findIndex(
-          conv => conv.phoneNumber === message.phoneNumber
-        );
-
-        if (conversationIndex === -1) {
-          console.log('SMSContext: Creating new conversation for message', {
-            phoneNumber: message.phoneNumber,
-            messageId: message.id
-          });
-          // Create new conversation
-          const newConversation: Conversation = {
-            id: Date.now().toString(),
-            customerName: null,
-            phoneNumber: message.phoneNumber || '',
-            messages: [message],
-            unreadCount: 1,
-            lastMessageAt: message.timestamp,
-            timestamp: message.timestamp,
-            archived: false,
-            deleted: false
-          };
-          return [...prevConversations, newConversation];
-        }
-
-        console.log('SMSContext: Updating existing conversation', {
-          conversationId: prevConversations[conversationIndex].id,
-          messageId: message.id
-        });
-
-        // Update existing conversation
-        const updatedConversations = [...prevConversations];
-        const conversation = { ...updatedConversations[conversationIndex] };
-        conversation.messages = [...conversation.messages, message];
-        conversation.lastMessageAt = message.timestamp;
-        conversation.unreadCount += message.direction === 'inbound' ? 1 : 0;
-        updatedConversations[conversationIndex] = conversation;
-        return updatedConversations;
-      });
-    };
-
-    // Listen for message status updates
-    const handleMessageStatusUpdate = (data: { messageId: string; status: 'sent' | 'delivered' | 'read' | 'failed' }) => {
-      console.log('SMSContext: Received message status update', {
-        messageId: data.messageId,
-        newStatus: data.status
-      });
-
-      setConversations(prevConversations => {
-        return prevConversations.map(conv => {
-          const messageIndex = conv.messages.findIndex(msg => msg.id === data.messageId);
-          if (messageIndex !== -1) {
-            console.log('SMSContext: Updating message status', {
-              conversationId: conv.id,
-              messageId: data.messageId,
-              oldStatus: conv.messages[messageIndex].status,
-              newStatus: data.status
-            });
-
-            const updatedMessages = [...conv.messages];
-            updatedMessages[messageIndex] = {
-              ...updatedMessages[messageIndex],
-              status: data.status
-            };
-            return { ...conv, messages: updatedMessages };
-          }
-          return conv;
-        });
-      });
-    };
-
-    socket.on('new-message', handleNewMessage);
-    socket.on('message-status-update', handleMessageStatusUpdate);
-
-    return () => {
-      console.log('SMSContext: Cleaning up socket event listeners');
-      socket.off('new-message', handleNewMessage);
-      socket.off('message-status-update', handleMessageStatusUpdate);
-    };
-  }, [socket]);
 
   // Fetch messages
   const fetchMessages = async () => {
@@ -286,6 +171,146 @@ export function SMSProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     }
   };
+
+  // Load initial data
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      mountedRef.current = true;
+      console.log('SMSContext: Loading initial data');
+      
+      // Load all data in parallel
+      Promise.all([
+        fetchMessages(),
+        fetchTemplates(),
+        fetchContacts()
+      ]).catch(error => {
+        console.error('Error loading initial data:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load initial data');
+      });
+    }
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [user?.uid, fetchMessages, fetchTemplates, fetchContacts]); // Add missing dependencies
+
+  // Listen for socket events
+  useEffect(() => {
+    if (!socket) {
+      console.warn('SMSContext: No socket connection available');
+      return;
+    }
+
+    if (!mountedRef.current) {
+      console.warn('SMSContext: Component unmounted, skipping socket event setup');
+      return;
+    }
+
+    console.log('SMSContext: Setting up socket event listeners');
+
+    // Listen for new messages
+    const handleNewMessage = (message: Message) => {
+      if (!mountedRef.current) {
+        console.warn('SMSContext: Component unmounted, ignoring new message');
+        return;
+      }
+      
+      console.log('SMSContext: Received new message via socket', {
+        messageId: message.id,
+        direction: message.direction,
+        phoneNumber: message.phoneNumber,
+        timestamp: message.timestamp
+      });
+
+      setConversations(prevConversations => {
+        const conversationIndex = prevConversations.findIndex(
+          conv => conv.phoneNumber === message.phoneNumber
+        );
+
+        if (conversationIndex === -1) {
+          console.log('SMSContext: Creating new conversation for message', {
+            phoneNumber: message.phoneNumber,
+            messageId: message.id
+          });
+          // Create new conversation
+          const newConversation: Conversation = {
+            id: Date.now().toString(),
+            customerName: null,
+            phoneNumber: message.phoneNumber || '',
+            messages: [message],
+            unreadCount: 1,
+            lastMessageAt: message.timestamp,
+            timestamp: message.timestamp,
+            archived: false,
+            deleted: false
+          };
+          return [...prevConversations, newConversation];
+        }
+
+        console.log('SMSContext: Updating existing conversation', {
+          conversationId: prevConversations[conversationIndex].id,
+          messageId: message.id
+        });
+
+        // Update existing conversation
+        const updatedConversations = [...prevConversations];
+        const conversation = { ...updatedConversations[conversationIndex] };
+        conversation.messages = [...conversation.messages, message];
+        conversation.lastMessageAt = message.timestamp;
+        conversation.unreadCount += message.direction === 'inbound' ? 1 : 0;
+        updatedConversations[conversationIndex] = conversation;
+        return updatedConversations;
+      });
+    };
+
+    // Listen for message status updates
+    const handleMessageStatusUpdate = (data: { messageId: string; status: 'sent' | 'delivered' | 'read' | 'failed' }) => {
+      if (!mountedRef.current) {
+        console.warn('SMSContext: Component unmounted, ignoring status update');
+        return;
+      }
+      
+      console.log('SMSContext: Received message status update', {
+        messageId: data.messageId,
+        newStatus: data.status
+      });
+
+      setConversations(prevConversations => {
+        return prevConversations.map(conv => {
+          const messageIndex = conv.messages.findIndex(msg => msg.id === data.messageId);
+          if (messageIndex !== -1) {
+            console.log('SMSContext: Updating message status', {
+              conversationId: conv.id,
+              messageId: data.messageId,
+              oldStatus: conv.messages[messageIndex].status,
+              newStatus: data.status
+            });
+
+            const updatedMessages = [...conv.messages];
+            updatedMessages[messageIndex] = {
+              ...updatedMessages[messageIndex],
+              status: data.status
+            };
+            return { ...conv, messages: updatedMessages };
+          }
+          return conv;
+        });
+      });
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('message-status-update', handleMessageStatusUpdate);
+
+    return () => {
+      // Only cleanup if we're actually unmounting, not just in strict mode
+      if (mountedRef.current) {
+        console.log('SMSContext: Cleaning up socket event listeners');
+        socket.off('new-message', handleNewMessage);
+        socket.off('message-status-update', handleMessageStatusUpdate);
+      }
+    };
+  }, [socket]); // Only depend on socket
 
   // Send a message
   const sendMessage = async (content: string, phoneNumber: string, conversationId?: string): Promise<Message> => {
@@ -689,7 +714,8 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const value = {
+  // Memoize the context value to prevent unnecessary re-renders
+  const value = React.useMemo(() => ({
     conversations,
     setConversations,
     templates,
@@ -707,8 +733,30 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     isLoading,
     error,
     handleArchiveToggle,
-    toggleReadStatus
-  };
+    toggleReadStatus,
+    createContact,
+    updateContact,
+    deleteContact
+  }), [
+    conversations,
+    templates,
+    contacts,
+    selectedConversation,
+    isLoading,
+    error,
+    sendMessage,
+    markConversationAsRead,
+    markMessageAsRead,
+    fetchMessages,
+    archiveConversation,
+    unarchiveConversation,
+    deleteConversation,
+    handleArchiveToggle,
+    toggleReadStatus,
+    createContact,
+    updateContact,
+    deleteContact
+  ]);
 
   return (
     <SMSContext.Provider value={value}>

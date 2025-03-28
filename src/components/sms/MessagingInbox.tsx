@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { format, isToday, isYesterday, isWithinInterval, parseISO } from 'date-fns';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -125,31 +125,29 @@ const MessagingInbox: React.FC = () => {
     const saved = localStorage.getItem('composerExpanded');
     return saved ? JSON.parse(saved) : false;
   });
-  const [composerWidth, setComposerWidth] = useState(() => {
+
+  // Initialize composer width from localStorage
+  const getInitialComposerWidth = () => {
     const savedWidth = localStorage.getItem('composerWidth');
     return savedWidth ? parseInt(savedWidth, 10) : 400;
-  });
+  };
+
+  const composerWidthRef = useRef<number>(getInitialComposerWidth());
   const [isResizing, setIsResizing] = useState(false);
   const [startX, setStartX] = useState(0);
   const [startWidth, setStartWidth] = useState(0);
+  const resizeHandlersRef = useRef<{
+    move: (e: MouseEvent) => void;
+    end: () => void;
+  }>({
+    move: () => {},
+    end: () => {}
+  });
 
-  // Save composer state to localStorage
-  useEffect(() => {
-    localStorage.setItem('composerExpanded', JSON.stringify(isComposerExpanded));
-  }, [isComposerExpanded]);
-
-  // Handle resize start
-  const handleResizeStart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-    setStartX(e.clientX);
-    setStartWidth(composerWidth);
-    document.addEventListener('mousemove', handleResizeMove);
-    document.addEventListener('mouseup', handleResizeEnd);
-  };
+  const mountedRef = useRef(false);
 
   // Handle resize move
-  const handleResizeMove = (e: MouseEvent) => {
+  const handleResizeMove = useCallback((e: MouseEvent) => {
     if (!isResizing) return;
     
     // Calculate the width from the right edge of the screen
@@ -159,63 +157,91 @@ const MessagingInbox: React.FC = () => {
     // Add resistance near the edges
     if (newWidth < 350) {
       const resistance = (350 - newWidth) * 0.5;
-      setComposerWidth(Math.max(300, startWidth + diff - resistance));
+      composerWidthRef.current = Math.max(300, startWidth + diff - resistance);
     } else if (newWidth > 750) {
       const resistance = (newWidth - 750) * 0.5;
-      setComposerWidth(Math.min(800, startWidth + diff + resistance));
+      composerWidthRef.current = Math.min(800, startWidth + diff + resistance);
     } else {
-      setComposerWidth(newWidth);
+      composerWidthRef.current = newWidth;
     }
-  };
+  }, [isResizing, startX, startWidth]);
 
   // Handle resize end
-  const handleResizeEnd = () => {
+  const handleResizeEnd = useCallback(() => {
     setIsResizing(false);
-    document.removeEventListener('mousemove', handleResizeMove);
-    document.removeEventListener('mouseup', handleResizeEnd);
-  };
+    document.removeEventListener('mousemove', resizeHandlersRef.current.move);
+    document.removeEventListener('mouseup', resizeHandlersRef.current.end);
+    localStorage.setItem('composerWidth', composerWidthRef.current.toString());
+  }, []);
+
+  // Update resize handlers in ref
+  useEffect(() => {
+    resizeHandlersRef.current = {
+      move: handleResizeMove,
+      end: handleResizeEnd
+    };
+  }, [handleResizeMove, handleResizeEnd]);
+
+  // Handle resize start
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    setStartX(e.clientX);
+    setStartWidth(composerWidthRef.current);
+    document.addEventListener('mousemove', resizeHandlersRef.current.move);
+    document.addEventListener('mouseup', resizeHandlersRef.current.end);
+  }, []);
 
   // Handle composer expanded state changes
-  const handleComposerExpandedChange = (expanded: boolean) => {
+  const handleComposerExpandedChange = useCallback((expanded: boolean) => {
     console.log('MessagingInbox: Composer expanded state changed', {
       oldState: isComposerExpanded,
       newState: expanded
     });
     setIsComposerExpanded(expanded);
-  };
+    localStorage.setItem('composerExpanded', JSON.stringify(expanded));
+  }, [isComposerExpanded]);
 
   // Handle composer width changes
-  const handleComposerWidthChange = (width: number) => {
+  const handleComposerWidthChange = useCallback((width: number) => {
     console.log('MessagingInbox: Composer width changed', {
-      oldWidth: composerWidth,
+      oldWidth: composerWidthRef.current,
       newWidth: width
     });
-    setComposerWidth(width);
+    composerWidthRef.current = width;
     localStorage.setItem('composerWidth', width.toString());
-  };
+  }, []);
 
-  // Load initial data
+  // Save composer state to localStorage
   useEffect(() => {
-    console.log('MessagingInbox: Initial data load', {
-      conversationsCount: conversations.length,
-      selectedConversation: selectedConversation ? {
-        id: selectedConversation.id,
-        phoneNumber: selectedConversation.phoneNumber,
-        messageCount: selectedConversation.messages.length
-      } : null,
-      templatesCount: templates.length
-    });
-
-    if (conversations.length === 0) {
-      console.log('MessagingInbox: No conversations, fetching messages');
-      fetchMessages();
-    }
-  }, [fetchMessages, conversations.length, selectedConversation, templates.length]);
+    localStorage.setItem('composerExpanded', JSON.stringify(isComposerExpanded));
+  }, [isComposerExpanded]);
 
   // Save sidebar state to localStorage
   useEffect(() => {
     localStorage.setItem('sidebarExpanded', JSON.stringify(isSidebarExpanded));
   }, [isSidebarExpanded]);
+
+  // Load initial data
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      console.log('MessagingInbox: Initial data load', {
+        conversationsCount: conversations.length,
+        selectedConversation: selectedConversation ? {
+          id: selectedConversation.id,
+          phoneNumber: selectedConversation.phoneNumber,
+          messageCount: selectedConversation.messages.length
+        } : null,
+        templatesCount: templates.length
+      });
+
+      if (conversations.length === 0) {
+        console.log('MessagingInbox: No conversations, fetching messages');
+        fetchMessages();
+      }
+    }
+  }, [fetchMessages]);
 
   // Filter conversations based on selected folder, search query, and filters
   const filteredConversations = useMemo(() => {
@@ -661,6 +687,8 @@ const MessagingInbox: React.FC = () => {
                 <div className="relative flex-1 max-w-md">
                   <input
                     type="text"
+                    id="searchConversations"
+                    name="searchConversations"
                     placeholder="Search conversations... (⌘K)"
                     value={filters.searchQuery}
                     onChange={(e) => handleFilterChange({ searchQuery: e.target.value })}
@@ -784,7 +812,7 @@ const MessagingInbox: React.FC = () => {
                     isComposerExpanded ? 'fixed top-0 right-0 h-screen z-50 bg-white shadow-lg' : ''
                   }`}
                   style={{ 
-                    width: isComposerExpanded ? `${composerWidth}px` : 'auto',
+                    width: isComposerExpanded ? `${composerWidthRef.current}px` : 'auto',
                     transition: 'width 300ms ease-in-out',
                     right: isComposerExpanded ? 0 : 'auto'
                   }}
@@ -856,7 +884,7 @@ const MessagingInbox: React.FC = () => {
                         recipientPhone={selectedConversation.phoneNumber}
                         conversationId={selectedConversation.id}
                         isExpanded={isComposerExpanded}
-                        width={composerWidth}
+                        width={composerWidthRef.current}
                         onWidthChange={handleComposerWidthChange}
                         onExpandedChange={handleComposerExpandedChange}
                         onCancel={() => setIsComposerExpanded(false)}

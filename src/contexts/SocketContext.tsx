@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { useAuth } from './AuthContext';
 
 // Mock socket interface to mimic the real Socket.IO client
@@ -21,6 +21,28 @@ const createMockSocket = (): MockSocket => {
   let connected = false;
   const listeners: EventListeners = {};
 
+  const emitMessageSent = (messageId: string) => {
+    const sentCallbacks = listeners['message-sent'] || [];
+    sentCallbacks.forEach(cb => cb({ 
+      messageId, 
+      status: 'sent' 
+    }));
+  };
+
+  const emitMessageDelivered = (messageId: string) => {
+    const deliveredCallbacks = listeners['message-status-update'] || [];
+    deliveredCallbacks.forEach(cb => cb({ 
+      messageId, 
+      status: 'delivered' 
+    }));
+  };
+
+  const handleMessageSent = (messageId: string) => {
+    emitMessageSent(messageId);
+    // Schedule delivery notification
+    window.setTimeout(() => emitMessageDelivered(messageId), 2000);
+  };
+
   return {
     connected,
     on: (event, callback) => {
@@ -41,23 +63,8 @@ const createMockSocket = (): MockSocket => {
       if (event === 'send-message') {
         const [message] = args;
         
-        // Simulate message sent
-        setTimeout(() => {
-          const sentCallbacks = listeners['message-sent'] || [];
-          sentCallbacks.forEach(cb => cb({ 
-            messageId: message.id, 
-            status: 'sent' 
-          }));
-          
-          // Simulate delivery after a delay
-          setTimeout(() => {
-            const deliveredCallbacks = listeners['message-status-update'] || [];
-            deliveredCallbacks.forEach(cb => cb({ 
-              messageId: message.id, 
-              status: 'delivered' 
-            }));
-          }, 2000);
-        }, 500);
+        // Schedule message sent notification
+        window.setTimeout(() => handleMessageSent(message.id), 500);
       }
     },
     connect: () => {
@@ -93,15 +100,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [socket, setSocket] = useState<MockSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-
-  // Log context initialization
-  useEffect(() => {
-    console.log('SocketContext: Initializing provider', {
-      hasUser: !!user,
-      hasSocket: !!socket,
-      isConnected
-    });
-  }, [user, socket, isConnected]);
+  const mountedRef = useRef(false);
+  const socketRef = useRef<MockSocket | null>(null);
+  const initializedRef = useRef(false);
+  const timeoutRef = useRef<number>();
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   // Initialize socket connection
   useEffect(() => {
@@ -110,72 +113,90 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    console.log('SocketContext: Initializing socket connection', {
-      userId: user.uid
-    });
+    // Only initialize once
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      mountedRef.current = true;
+      console.log('SocketContext: Initializing socket connection', {
+        userId: user.uid,
+        hasExistingSocket: !!socketRef.current
+      });
 
-    // Create mock socket
-    const mockSocket: MockSocket = {
-      connected: false,
-      on: (event: string, callback: (data: any) => void) => {
-        console.log('SocketContext: Registered event listener', {
-          event,
-          hasCallback: !!callback
-        });
-      },
-      off: (event: string, callback: (data: any) => void) => {
-        console.log('SocketContext: Removed event listener', {
-          event,
-          hasCallback: !!callback
-        });
-      },
-      emit: (event: string, ...args: any[]) => {
-        console.log('SocketContext: Emitted event', {
-          event,
-          argsCount: args.length,
-          args
-        });
-      },
-      connect: () => {
-        console.log('SocketContext: Connecting socket');
-        mockSocket.connected = true;
-        setIsConnected(true);
-      },
-      disconnect: () => {
-        console.log('SocketContext: Disconnecting socket');
-        mockSocket.connected = false;
-        setIsConnected(false);
-      }
-    };
-
-    // Simulate connection
-    console.log('SocketContext: Simulating socket connection');
-    setTimeout(() => {
-      mockSocket.connect();
+      // Create mock socket instance
+      const mockSocket = createMockSocket();
+      
+      socketRef.current = mockSocket;
       setSocket(mockSocket);
-    }, 1000);
+
+      // Set up connection event handlers
+      mockSocket.on('connect', () => {
+        if (mountedRef.current) {
+          console.log('SocketContext: Socket connected');
+          setIsConnected(true);
+        }
+      });
+
+      mockSocket.on('disconnect', () => {
+        if (mountedRef.current) {
+          console.log('SocketContext: Socket disconnected');
+          setIsConnected(false);
+        }
+      });
+
+      // Simulate connection
+      console.log('SocketContext: Simulating socket connection');
+      timeoutRef.current = window.setTimeout(() => {
+        if (mountedRef.current && socketRef.current) {
+          socketRef.current.connect();
+        }
+      }, 1000);
+
+      // Store cleanup function
+      cleanupRef.current = () => {
+        console.log('SocketContext: Cleaning up socket connection');
+        if (timeoutRef.current) {
+          window.clearTimeout(timeoutRef.current);
+        }
+        if (socketRef.current?.connected) {
+          socketRef.current.disconnect();
+        }
+        socketRef.current = null;
+        setSocket(null);
+        setIsConnected(false);
+      };
+    }
 
     // Cleanup on unmount
     return () => {
-      console.log('SocketContext: Cleaning up socket connection');
-      if (mockSocket.connected) {
-        mockSocket.disconnect();
+      // Only cleanup if we're actually unmounting, not just in strict mode
+      if (mountedRef.current) {
+        mountedRef.current = false;
+        if (cleanupRef.current) {
+          cleanupRef.current();
+        }
       }
-      setSocket(null);
     };
-  }, [user]);
+  }, [user?.uid]); // Only depend on user ID
 
   // Log connection status changes
   useEffect(() => {
-    console.log('SocketContext: Connection status changed', {
-      isConnected,
-      hasSocket: !!socket,
-      userId: user?.uid
-    });
-  }, [isConnected, socket, user?.uid]);
+    if (mountedRef.current) {
+      console.log('SocketContext: Connection status changed', {
+        isConnected,
+        hasSocket: !!socketRef.current,
+        userId: user?.uid
+      });
+    }
+  }, [isConnected, user?.uid]);
+
+  // Memoize the context value to prevent unnecessary re-renders
+  const value = React.useMemo(() => ({
+    socket,
+    isConnected
+  }), [socket, isConnected]);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected }}>
+    <SocketContext.Provider value={value}>
       {children}
     </SocketContext.Provider>
   );

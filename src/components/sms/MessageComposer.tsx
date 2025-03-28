@@ -78,7 +78,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
     }
   }, [message]);
 
-  // Cleanup function
+  // Cleanup function - only run on unmount
   useEffect(() => {
     return () => {
       if (message.trim()) {
@@ -87,7 +87,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
         clearDraftMessage(conversation.id);
       }
     };
-  }, []); // Only run on unmount
+  }, []); // Empty dependency array means this only runs on unmount
 
   // Save draft message when message changes
   useEffect(() => {

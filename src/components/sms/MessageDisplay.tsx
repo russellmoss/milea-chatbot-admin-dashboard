@@ -43,6 +43,12 @@ export const MessageDisplay: React.FC<MessageDisplayProps> = React.memo(({
     });
   }, [messages.length, customerName, phoneNumber, conversation.id, conversation.unreadCount]);
 
+  // Memoize scrollToBottom function
+  const scrollToBottom = useCallback(() => {
+    console.log('MessageDisplay: Scrolling to bottom');
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     console.log('MessageDisplay: Messages updated', {
@@ -54,7 +60,7 @@ export const MessageDisplay: React.FC<MessageDisplayProps> = React.memo(({
     if (shouldAutoScroll) {
       scrollToBottom();
     }
-  }, [messages, shouldAutoScroll]);
+  }, [messages, shouldAutoScroll, scrollToBottom]);
 
   // Auto-mark as read when viewing
   useEffect(() => {
@@ -66,16 +72,6 @@ export const MessageDisplay: React.FC<MessageDisplayProps> = React.memo(({
       onMarkAsRead(conversation);
     }
   }, [conversation, onMarkAsRead]);
-
-  // Cleanup function for event listeners
-  useEffect(() => {
-    return () => {
-      if (resizeRef.current) {
-        window.removeEventListener('mousemove', handleResizeMove);
-        window.removeEventListener('mouseup', handleResizeEnd);
-      }
-    };
-  }, []);
 
   // Handle resize start
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -119,11 +115,6 @@ export const MessageDisplay: React.FC<MessageDisplayProps> = React.memo(({
       });
       setShouldAutoScroll(isAtBottom);
     }
-  };
-
-  const scrollToBottom = () => {
-    console.log('MessageDisplay: Scrolling to bottom');
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   // Handle message selection

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Message } from '../types/sms';
 
 interface MessageContextType {
@@ -21,13 +21,14 @@ export function useMessage() {
 
 export function MessageProvider({ children }: { children: ReactNode }) {
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-  const [draftMessages, setDraftMessages] = useState<Record<string, string>>({});
+  const draftMessagesRef = useRef<Record<string, string>>({});
+  const [, forceUpdate] = useState({});
 
   // Log context initialization
   useEffect(() => {
     console.log('MessageContext: Initializing provider', {
       hasSelectedMessage: !!selectedMessage,
-      draftCount: Object.keys(draftMessages).length
+      draftCount: Object.keys(draftMessagesRef.current).length
     });
   }, []);
 
@@ -35,36 +36,25 @@ export function MessageProvider({ children }: { children: ReactNode }) {
     console.log('MessageContext: Setting draft message', {
       conversationId,
       contentLength: content.length,
-      existingDraft: !!draftMessages[conversationId]
+      existingDraft: !!draftMessagesRef.current[conversationId]
     });
 
-    setDraftMessages(prev => {
-      const updated = {
-        ...prev,
-        [conversationId]: content
-      };
-      console.log('MessageContext: Updated draft messages', {
-        totalDrafts: Object.keys(updated).length,
-        updatedConversationId: conversationId
-      });
-      return updated;
-    });
+    draftMessagesRef.current = {
+      ...draftMessagesRef.current,
+      [conversationId]: content
+    };
+    forceUpdate({});
   }, []);
 
   const clearDraftMessage = useCallback((conversationId: string) => {
     console.log('MessageContext: Clearing draft message', {
       conversationId,
-      hadDraft: !!draftMessages[conversationId]
+      hadDraft: !!draftMessagesRef.current[conversationId]
     });
 
-    setDraftMessages(prev => {
-      const { [conversationId]: removed, ...rest } = prev;
-      console.log('MessageContext: Cleared draft message', {
-        remainingDrafts: Object.keys(rest).length,
-        clearedConversationId: conversationId
-      });
-      return rest;
-    });
+    const { [conversationId]: removed, ...rest } = draftMessagesRef.current;
+    draftMessagesRef.current = rest;
+    forceUpdate({});
   }, []);
 
   // Log when selected message changes
@@ -76,22 +66,14 @@ export function MessageProvider({ children }: { children: ReactNode }) {
     });
   }, [selectedMessage]);
 
-  // Log when draft messages change
-  useEffect(() => {
-    console.log('MessageContext: Draft messages updated', {
-      totalDrafts: Object.keys(draftMessages).length,
-      draftConversations: Object.keys(draftMessages)
-    });
-  }, [draftMessages]);
-
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     selectedMessage,
     setSelectedMessage,
-    draftMessages,
+    draftMessages: draftMessagesRef.current,
     setDraftMessage,
     clearDraftMessage
-  }), [selectedMessage, draftMessages, setDraftMessage, clearDraftMessage]);
+  }), [selectedMessage, setDraftMessage, clearDraftMessage]);
 
   return (
     <MessageContext.Provider value={value}>
