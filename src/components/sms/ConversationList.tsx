@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Conversation } from '../../types/sms';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
+import { useSMS } from '../../contexts/SMSContext';
+import ContextMenu from '../common/ContextMenu';
 
 interface ConversationListProps {
   conversations: Conversation[];
   selectedConversations: Set<string>;
   onConversationSelect: (conversation: Conversation, event: React.MouseEvent) => void;
-  onArchiveToggle: (conversationId: string, archived: boolean) => void;
+  onArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
   searchQuery: string;
+  focusedIndex: number;
 }
 
 const ConversationList: React.FC<ConversationListProps> = ({
@@ -15,69 +18,211 @@ const ConversationList: React.FC<ConversationListProps> = ({
   selectedConversations,
   onConversationSelect,
   onArchiveToggle,
-  searchQuery
+  searchQuery,
+  focusedIndex
 }) => {
+  const { markConversationAsRead, toggleReadStatus, deleteConversation, contacts } = useSMS();
+  const [hoveredConversation, setHoveredConversation] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    conversation: Conversation;
+    position: { x: number; y: number };
+  } | null>(null);
+
+  const formatTimestamp = (date: string) => {
+    const messageDate = new Date(date);
+    if (isToday(messageDate)) {
+      return format(messageDate, 'h:mm a');
+    } else if (isYesterday(messageDate)) {
+      return 'Yesterday';
+    } else {
+      return format(messageDate, 'MMM d');
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, conversation: Conversation) => {
+    e.preventDefault();
+    setContextMenu({
+      conversation,
+      position: { x: e.clientX, y: e.clientY }
+    });
+  };
+
+  const handleAddToContacts = (conversation: Conversation) => {
+    // TODO: Implement add to contacts functionality
+    console.log('Add to contacts:', conversation);
+  };
+
+  const isContactExists = (phoneNumber: string) => {
+    return contacts.some(contact => contact.phoneNumber === phoneNumber);
+  };
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white">
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="p-4 text-center text-gray-500">
             No conversations found
           </div>
         ) : (
-          <ul className="divide-y divide-gray-200">
-            {conversations.map((conversation) => (
-              <li
-                key={conversation.id}
-                onClick={(e) => onConversationSelect(conversation, e)}
-                className={`p-4 cursor-pointer hover:bg-gray-50 ${
-                  selectedConversations.has(conversation.id) ? 'bg-gray-50' : ''
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="flex-1 min-w-0">
+          <ul className="divide-y divide-gray-100">
+            {conversations.map((conversation, index) => {
+              const isUnread = conversation.unreadCount > 0;
+              const isSelected = selectedConversations.has(conversation.id);
+              const isHovered = hoveredConversation === conversation.id;
+              const isFocused = index === focusedIndex;
+              const lastMessage = conversation.messages[conversation.messages.length - 1];
+              const isExistingContact = isContactExists(conversation.phoneNumber);
+
+              return (
+                <li
+                  key={conversation.id}
+                  onClick={(e) => onConversationSelect(conversation, e)}
+                  onContextMenu={(e) => handleContextMenu(e, conversation)}
+                  onMouseEnter={() => setHoveredConversation(conversation.id)}
+                  onMouseLeave={() => setHoveredConversation(null)}
+                  className={`
+                    relative flex items-center p-4 cursor-pointer
+                    border-l-4 transition-colors duration-150
+                    ${isSelected ? 'border-primary bg-primary/5' : 'border-transparent'}
+                    ${isHovered ? 'bg-gray-50' : ''}
+                    ${isFocused ? 'bg-primary/10 ring-2 ring-primary ring-inset' : ''}
+                  `}
+                  tabIndex={0}
+                  role="button"
+                  aria-selected={isSelected}
+                  aria-label={`Conversation with ${conversation.customerName || conversation.phoneNumber}`}
+                >
+                  {/* Unread indicator */}
+                  {isUnread && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-primary rounded-full" />
+                  )}
+
+                  <div className="flex-1 min-w-0 ml-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-medium text-gray-900 truncate">
+                      <h3 className={`
+                        text-sm truncate
+                        ${isUnread ? 'font-semibold text-gray-900' : 'font-normal text-gray-700'}
+                      `}>
                         {conversation.customerName || conversation.phoneNumber}
                       </h3>
-                      {conversation.unreadCount > 0 && (
-                        <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
-                          {conversation.unreadCount}
-                        </span>
-                      )}
+                      <span className="text-xs text-gray-500 ml-2">
+                        {formatTimestamp(conversation.lastMessageAt)}
+                      </span>
                     </div>
-                    <p className="text-sm text-gray-500 truncate">
-                      {conversation.messages[conversation.messages.length - 1]?.content || 'No messages'}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {format(new Date(conversation.lastMessageAt), 'MMM d, h:mm a')}
+                    <p className={`
+                      text-sm truncate mt-1
+                      ${isUnread ? 'font-medium text-gray-900' : 'text-gray-600'}
+                    `}>
+                      {lastMessage?.content || 'No messages'}
                     </p>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onArchiveToggle(conversation.id, !conversation.archived);
-                    }}
-                    className={`p-1 rounded-full hover:bg-gray-100 transition-colors duration-150 ${
-                      conversation.archived ? 'text-primary' : 'text-gray-400'
-                    }`}
-                    title={conversation.archived ? 'Unarchive conversation' : 'Archive conversation'}
-                  >
-                    <svg 
-                      className="w-5 h-5" 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      viewBox="0 0 20 20" 
-                      fill="currentColor"
+
+                  {/* Action buttons - visible on hover */}
+                  <div className={`
+                    flex items-center space-x-2 ml-4
+                    ${isHovered ? 'opacity-100' : 'opacity-0'}
+                    transition-opacity duration-150
+                  `}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleContextMenu(e, conversation);
+                      }}
+                      className="p-1.5 rounded-full hover:bg-gray-200 transition-colors"
+                      title="More actions"
                     >
-                      <path d="M3 7v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            ))}
+                      <svg
+                        className="w-4 h-4 text-gray-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          position={contextMenu.position}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              label: contextMenu.conversation.unreadCount > 0 ? 'Mark as read' : 'Mark as unread',
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={contextMenu.conversation.unreadCount > 0
+                      ? "M5 13l4 4L19 7"
+                      : "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    }
+                  />
+                </svg>
+              ),
+              onClick: () => toggleReadStatus(contextMenu.conversation.id)
+            },
+            {
+              label: contextMenu.conversation.archived ? 'Unarchive' : 'Archive',
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
+                  />
+                </svg>
+              ),
+              onClick: () => onArchiveToggle(contextMenu.conversation.id, !contextMenu.conversation.archived)
+            },
+            {
+              label: 'Delete conversation',
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              ),
+              onClick: () => deleteConversation(contextMenu.conversation.id),
+              danger: true
+            },
+            {
+              label: isContactExists(contextMenu.conversation.phoneNumber) ? 'Contact exists' : 'Add to contacts',
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                  />
+                </svg>
+              ),
+              onClick: () => handleAddToContacts(contextMenu.conversation),
+              disabled: isContactExists(contextMenu.conversation.phoneNumber)
+            }
+          ]}
+        />
+      )}
     </div>
   );
 };

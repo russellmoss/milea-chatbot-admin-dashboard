@@ -50,29 +50,13 @@ const SMS: React.FC = () => {
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
   const [selectedFolder, setSelectedFolder] = useState('inbox');
   const [searchQuery, setSearchQuery] = useState('');
+  const [focusedConversationIndex, setFocusedConversationIndex] = useState<number>(-1);
+  const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
 
-  const handleSendMessage = async (content: string) => {
-    const currentConversation = conversations.find(conv => conv.id === selectedConversations.values().next().value);
-    if (!socket || !currentConversation) return;
-
-    try {
-      await sendMessage(content, currentConversation.phoneNumber);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      // Handle error (show toast, etc.)
-    }
-  };
-
-  const handleMessageAction = (action: string, messageId: string) => {
-    if (!socket) return;
-
-    switch (action) {
-      case 'mark-read':
-        socket.emit('mark-message-read', messageId);
-        break;
-      // Add other message actions as needed
-    }
-  };
+  // Load initial data
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
 
   const handleConversationSelect = (conversation: Conversation, event: React.MouseEvent) => {
     if (event.shiftKey) {
@@ -87,7 +71,38 @@ const SMS: React.FC = () => {
       return;
     }
 
+    // For single selection, clear the set and add only the selected conversation
+    setSelectedConversations(new Set([conversation.id]));
+    setCurrentConversation(conversation);
     setSelectedConversation(conversation);
+  };
+
+  const handleSendMessage = async (content: string) => {
+    if (!socket || !currentConversation) return;
+
+    try {
+      await sendMessage(content, currentConversation.phoneNumber);
+      await fetchMessages();
+      // Refresh the current conversation to get the new message
+      const updatedConversation = conversations.find(conv => conv.id === currentConversation.id);
+      if (updatedConversation) {
+        setCurrentConversation(updatedConversation);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+    }
+  };
+
+  const handleMessageAction = (action: string, messageId: string) => {
+    if (!socket) return;
+
+    switch (action) {
+      case 'mark-read':
+        socket.emit('mark-message-read', messageId);
+        break;
+      // Add other message actions as needed
+    }
   };
 
   const handleTemplateSelect = (templateId: string) => {
@@ -104,11 +119,13 @@ const SMS: React.FC = () => {
     return folder.filter(conversation);
   });
 
-  const currentConversation = conversations.find(conv => conv.id === selectedConversations.values().next().value);
-
   const handleDeleteConversation = async (conversationId: string) => {
     try {
       await deleteConversation(conversationId);
+      if (currentConversation?.id === conversationId) {
+        setCurrentConversation(null);
+        setSelectedConversations(new Set());
+      }
       toast.success('Conversation deleted successfully');
     } catch (error) {
       console.error('Error deleting conversation:', error);
@@ -155,43 +172,68 @@ const SMS: React.FC = () => {
             )}
           </button>
         </div>
-        <ConversationList
-          conversations={filteredConversations}
-          selectedConversations={selectedConversations}
-          onConversationSelect={handleConversationSelect}
-          onArchiveToggle={handleArchiveToggle}
-          searchQuery={searchQuery}
-        />
-        {currentConversation && (
-          <div className="flex-1 flex flex-col">
-            <ConversationHeader
-              conversation={currentConversation}
-              onArchiveToggle={handleArchiveToggle}
-              onDelete={() => handleDeleteConversation(currentConversation.id)}
-              onExport={() => {}}
-              onViewContact={() => {}}
-              onBlock={() => {}}
-              onAddToList={() => {}}
-            />
-            <MessageDisplay
-              messages={currentConversation.messages}
-              customerName={currentConversation.customerName}
-              phoneNumber={currentConversation.phoneNumber}
-              onMarkAsRead={(conversation) => {
-                markConversationAsRead(conversation.id);
-              }}
-              conversation={currentConversation}
-              onMessageAction={handleMessageAction}
-            />
-            <MessageComposer
-              onSend={handleSendMessage}
-              onTemplateSelect={handleTemplateSelect}
-              templates={templates}
-              recipientPhone={currentConversation.phoneNumber}
-              conversationId={currentConversation.id}
-            />
-          </div>
-        )}
+        <div className="flex-1 flex overflow-hidden">
+          <ConversationList
+            conversations={filteredConversations}
+            selectedConversations={selectedConversations}
+            onConversationSelect={handleConversationSelect}
+            onArchiveToggle={handleArchiveToggle}
+            searchQuery={searchQuery}
+            focusedIndex={focusedConversationIndex}
+          />
+          {currentConversation ? (
+            <div className="flex-1 flex flex-col border-l">
+              <ConversationHeader
+                conversation={currentConversation}
+                onArchiveToggle={handleArchiveToggle}
+                onDelete={() => handleDeleteConversation(currentConversation.id)}
+                onExport={() => {}}
+                onViewContact={() => {}}
+                onBlock={() => {}}
+                onAddToList={() => {}}
+              />
+              <MessageDisplay
+                messages={currentConversation.messages}
+                customerName={currentConversation.customerName}
+                phoneNumber={currentConversation.phoneNumber}
+                onMarkAsRead={(conversation) => {
+                  markConversationAsRead(conversation.id);
+                }}
+                conversation={currentConversation}
+                onMessageAction={handleMessageAction}
+              />
+              <MessageComposer
+                onSend={handleSendMessage}
+                onTemplateSelect={handleTemplateSelect}
+                templates={templates}
+                recipientPhone={currentConversation.phoneNumber}
+                conversationId={currentConversation.id}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center bg-gray-50">
+              <div className="text-center">
+                <svg
+                  className="mx-auto h-12 w-12 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                  />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No conversation selected</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Select a conversation from the list to start messaging
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

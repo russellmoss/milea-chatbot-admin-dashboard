@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { Message, Conversation } from '../../types/sms';
 import MessageActions from './MessageActions';
 
@@ -22,11 +22,14 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (shouldAutoScroll) {
+      scrollToBottom();
+    }
+  }, [messages, shouldAutoScroll]);
 
   // Auto-mark as read when viewing
   useEffect(() => {
@@ -34,6 +37,13 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
       onMarkAsRead(conversation);
     }
   }, [conversation, onMarkAsRead]);
+
+  // Handle scroll events to determine if we should auto-scroll
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 50;
+    setShouldAutoScroll(isAtBottom);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -45,18 +55,13 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   };
 
   // Format date for header
-  const formatDateHeader = (date: string) => {
-    const messageDate = new Date(date);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    if (messageDate.toDateString() === today.toDateString()) {
+  const formatDateHeader = (date: Date) => {
+    if (isToday(date)) {
       return 'Today';
-    } else if (messageDate.toDateString() === yesterday.toDateString()) {
+    } else if (isYesterday(date)) {
       return 'Yesterday';
     } else {
-      return format(messageDate, 'MMMM d, yyyy');
+      return format(date, 'MMMM d, yyyy');
     }
   };
 
@@ -70,7 +75,14 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
     return groups;
   }, {} as { [date: string]: Message[] });
 
-  // No messages yet
+  // Sort messages within each group by timestamp
+  Object.keys(groupedMessages).forEach(date => {
+    groupedMessages[date].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+  });
+
+  // No messages 
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50 p-6">
@@ -86,13 +98,16 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+    <div 
+      className="flex-1 overflow-y-auto bg-gray-50 p-4"
+      onScroll={handleScroll}
+    >
       <div className="space-y-8">
         {Object.entries(groupedMessages).map(([date, dateMessages]) => (
           <div key={date} className="space-y-4">
             <div className="flex justify-center">
               <span className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-full">
-                {formatDateHeader(date)}
+                {formatDateHeader(new Date(date))}
               </span>
             </div>
 
@@ -106,7 +121,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                 <div className={`relative max-w-[75%] px-4 py-2 rounded-lg shadow-sm ${
                   message.direction === 'outbound'
                     ? 'bg-primary text-white rounded-br-none'
-                    : 'bg-white text-gray-800 rounded-bl-none'
+                    : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'
                 }`}>
                   <p className="whitespace-pre-wrap">{message.content}</p>
                   <div className={`flex items-center mt-1 text-xs ${
@@ -114,10 +129,24 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                   }`}>
                     <span>{formatMessageTime(message.timestamp)}</span>
                     {message.direction === 'outbound' && (
-                      <span className="ml-2">
-                        {message.status === 'sent' && '✓'}
-                        {message.status === 'delivered' && '✓✓'}
-                        {message.status === 'read' && '✓✓'}
+                      <span className="ml-2 flex items-center">
+                        {message.status === 'sent' && (
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        {message.status === 'delivered' && (
+                          <svg className="w-3 h-3 ml-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        {message.status === 'read' && (
+                          <svg className="w-3 h-3 ml-0.5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
                       </span>
                     )}
                   </div>

@@ -55,58 +55,174 @@ const mockOutboundMessages = [
   "Tastings are $25 per person, which is waived with a 2-bottle purchase or for wine club members.",
 ];
 
-// Mock conversations
+// Helper function to generate timestamps
+const generateTimestamp = (daysAgo: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return date.toISOString();
+};
+
+// Mock conversations with winery-related content
 export const mockConversations: Conversation[] = [
   {
-    id: 'conv_1',
-    customerName: 'John Doe',
-    phoneNumber: '+12345678901',
-    lastMessageAt: new Date().toISOString(),
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-    unreadCount: 0,
-    archived: false,
-    deleted: false,
+    id: 'conv_001',
+    customerName: 'Sarah Johnson',
+    phoneNumber: '+1 (555) 123-4567',
     messages: [
       {
-        id: 'msg_1',
+        id: 'msg_001_1',
         direction: 'inbound',
-        content: 'Hi, I need help with my order',
-        phoneNumber: '+12345678901',
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        content: 'Hi! I\'d like to make a reservation for a wine tasting this Saturday at 2pm. Do you have availability?',
+        phoneNumber: '+1 (555) 123-4567',
+        timestamp: generateTimestamp(2),
         status: 'received',
-        read: true
+        read: true,
+        conversationId: 'conv_001'
       },
       {
-        id: 'msg_2',
+        id: 'msg_001_2',
         direction: 'outbound',
-        content: 'Hello, how can I help you today?',
-        phoneNumber: '+12345678901',
-        timestamp: new Date().toISOString(),
-        status: 'sent',
-        read: true
+        content: 'Hello Sarah! Yes, we have availability for a wine tasting this Saturday at 2pm. Would you like to book it? We offer tastings of 5 wines for $25 per person.',
+        phoneNumber: '+1 (555) 123-4567',
+        timestamp: generateTimestamp(2),
+        status: 'delivered',
+        read: true,
+        conversationId: 'conv_001'
+      },
+      {
+        id: 'msg_001_3',
+        direction: 'inbound',
+        content: 'Yes, that sounds perfect! I\'ll be bringing my husband. Can you confirm the reservation?',
+        phoneNumber: '+1 (555) 123-4567',
+        timestamp: generateTimestamp(2),
+        status: 'received',
+        read: true,
+        conversationId: 'conv_001'
       }
-    ]
+    ],
+    unreadCount: 0,
+    lastMessageAt: generateTimestamp(2),
+    timestamp: generateTimestamp(2),
+    archived: false,
+    deleted: false
   },
   {
-    id: 'conv_2',
-    customerName: 'Jane Smith',
-    phoneNumber: '+19876543210',
-    lastMessageAt: new Date(Date.now() - 7200000).toISOString(),
-    timestamp: new Date(Date.now() - 7200000).toISOString(),
-    unreadCount: 2,
-    archived: false,
-    deleted: false,
+    id: 'conv_002',
+    customerName: 'Michael Chen',
+    phoneNumber: '+1 (555) 234-5678',
     messages: [
       {
-        id: 'msg_3',
-        direction: 'outbound',
-        content: 'Your order has been shipped!',
-        phoneNumber: '+19876543210',
-        timestamp: new Date(Date.now() - 7200000).toISOString(),
-        status: 'delivered',
-        read: true
+        id: 'msg_002_1',
+        direction: 'inbound',
+        content: 'I received my wine club shipment today but one of the bottles was broken. What should I do?',
+        phoneNumber: '+1 (555) 234-5678',
+        timestamp: generateTimestamp(1),
+        status: 'received',
+        read: false,
+        conversationId: 'conv_002'
       }
-    ]
+    ],
+    unreadCount: 1,
+    lastMessageAt: generateTimestamp(1),
+    timestamp: generateTimestamp(1),
+    archived: false,
+    deleted: false
+  },
+  {
+    id: 'conv_003',
+    customerName: 'Emma Rodriguez',
+    phoneNumber: '+1 (555) 345-6789',
+    messages: [
+      {
+        id: 'msg_003_1',
+        direction: 'inbound',
+        content: 'I\'m interested in joining your wine club. What are the benefits and pricing?',
+        phoneNumber: '+1 (555) 345-6789',
+        timestamp: generateTimestamp(3),
+        status: 'received',
+        read: true,
+        conversationId: 'conv_003'
+      },
+      {
+        id: 'msg_003_2',
+        direction: 'outbound',
+        content: 'Hi Emma! Our wine club offers quarterly shipments of 3 bottles, exclusive member events, and 15% off all purchases. Membership is $150/quarter. Would you like more details?',
+        phoneNumber: '+1 (555) 345-6789',
+        timestamp: generateTimestamp(3),
+        status: 'delivered',
+        read: true,
+        conversationId: 'conv_003'
+      }
+    ],
+    unreadCount: 0,
+    lastMessageAt: generateTimestamp(3),
+    timestamp: generateTimestamp(3),
+    archived: false,
+    deleted: false
+  },
+  {
+    id: 'conv_004',
+    customerName: 'David Thompson',
+    phoneNumber: '+1 (555) 456-7890',
+    messages: [
+      {
+        id: 'msg_004_1',
+        direction: 'inbound',
+        content: 'I ordered a case of your 2018 Cabernet Sauvignon but haven\'t received a shipping confirmation yet. Can you check the status?',
+        phoneNumber: '+1 (555) 456-7890',
+        timestamp: generateTimestamp(0),
+        status: 'received',
+        read: false,
+        conversationId: 'conv_004'
+      }
+    ],
+    unreadCount: 1,
+    lastMessageAt: generateTimestamp(0),
+    timestamp: generateTimestamp(0),
+    archived: false,
+    deleted: false
+  },
+  {
+    id: 'conv_005',
+    customerName: 'Lisa Anderson',
+    phoneNumber: '+1 (555) 567-8901',
+    messages: [
+      {
+        id: 'msg_005_1',
+        direction: 'inbound',
+        content: 'I\'m planning a bridal shower and would like to know if you offer private events?',
+        phoneNumber: '+1 (555) 567-8901',
+        timestamp: generateTimestamp(4),
+        status: 'received',
+        read: true,
+        conversationId: 'conv_005'
+      },
+      {
+        id: 'msg_005_2',
+        direction: 'outbound',
+        content: 'Hi Lisa! Yes, we offer private events in our tasting room and outdoor patio. We can accommodate up to 40 guests. Would you like to schedule a tour?',
+        phoneNumber: '+1 (555) 567-8901',
+        timestamp: generateTimestamp(4),
+        status: 'delivered',
+        read: true,
+        conversationId: 'conv_005'
+      },
+      {
+        id: 'msg_005_3',
+        direction: 'inbound',
+        content: 'That would be great! What times are available for tours this week?',
+        phoneNumber: '+1 (555) 567-8901',
+        timestamp: generateTimestamp(4),
+        status: 'received',
+        read: true,
+        conversationId: 'conv_005'
+      }
+    ],
+    unreadCount: 0,
+    lastMessageAt: generateTimestamp(4),
+    timestamp: generateTimestamp(4),
+    archived: false,
+    deleted: false
   }
 ];
 

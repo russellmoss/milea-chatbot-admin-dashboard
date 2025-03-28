@@ -1,18 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { format } from 'date-fns';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { format, isToday, isYesterday, isWithinInterval, parseISO } from 'date-fns';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import MessageDisplay from './MessageDisplay';
 import MessageComposer from './MessageComposer';
 import TemplateSelector from './TemplateSelector';
 import FolderSidebar from './FolderSidebar';
+import ConversationList from './ConversationList';
+import ComposeModal from './ComposeModal';
 import { Conversation, Message, Folder, DateRange, MessageTemplate } from '../../types/sms';
 import { toast } from 'react-hot-toast';
 import { useSMS } from '../../contexts/SMSContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMessage } from '../../contexts/MessageContext';
-import ConversationList from './ConversationList';
 import ConversationHeader from './ConversationHeader';
 import MessageActions from './MessageActions';
 
@@ -62,6 +63,12 @@ interface ConversationHeaderProps {
   onAddToList: () => void;
 }
 
+interface FilterState {
+  searchQuery: string;
+  filterType: 'all' | 'unread' | 'archived';
+  dateRange: DateRange | null;
+}
+
 const MessagingInbox: React.FC = () => {
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
@@ -85,7 +92,6 @@ const MessagingInbox: React.FC = () => {
   } = useSMS();
 
   const [selectedFolder, setSelectedFolder] = useState('inbox');
-  const [searchQuery, setSearchQuery] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -101,6 +107,18 @@ const MessagingInbox: React.FC = () => {
     return saved ? JSON.parse(saved) : false;
   });
   const [error, setError] = useState<string | null>(null);
+  const [isComposeModalOpen, setIsComposeModalOpen] = useState(false);
+
+  // Add new state for keyboard navigation
+  const [focusedConversationIndex, setFocusedConversationIndex] = useState<number>(-1);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+
+  // Add new state for filters
+  const [filters, setFilters] = useState<FilterState>({
+    searchQuery: '',
+    filterType: 'all',
+    dateRange: null
+  });
 
   // Load initial data
   useEffect(() => {
@@ -116,20 +134,40 @@ const MessagingInbox: React.FC = () => {
     localStorage.setItem('sidebarExpanded', JSON.stringify(isSidebarExpanded));
   }, [isSidebarExpanded]);
 
-  // Filter conversations based on selected folder and search query
+  // Filter conversations based on selected folder, search query, and filters
   const filteredConversations = useMemo(() => {
     return conversations.filter((conversation: Conversation) => {
+      // Apply folder filter
       const folder = FOLDERS.find(f => f.id === selectedFolder);
       if (!folder) return false;
-      
       const matchesFolder = folder.filter(conversation);
-      const matchesSearch = searchQuery === '' || 
-        conversation.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conversation.phoneNumber.includes(searchQuery);
-      
-      return matchesFolder && matchesSearch;
+      if (!matchesFolder) return false;
+
+      // Apply search filter
+      const matchesSearch = filters.searchQuery === '' || 
+        conversation.customerName?.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
+        conversation.phoneNumber.includes(filters.searchQuery) ||
+        conversation.messages.some(msg => 
+          msg.content.toLowerCase().includes(filters.searchQuery.toLowerCase())
+        );
+
+      // Apply filter type
+      const matchesFilterType = 
+        filters.filterType === 'all' ||
+        (filters.filterType === 'unread' && conversation.unreadCount > 0) ||
+        (filters.filterType === 'archived' && conversation.archived);
+
+      // Apply date range filter
+      const matchesDateRange = !filters.dateRange || (
+        isWithinInterval(parseISO(conversation.lastMessageAt), {
+          start: filters.dateRange.from,
+          end: filters.dateRange.to
+        })
+      );
+
+      return matchesSearch && matchesFilterType && matchesDateRange;
     });
-  }, [conversations, selectedFolder, searchQuery]);
+  }, [conversations, selectedFolder, filters]);
 
   // Handle conversation selection
   const handleConversationSelect = async (conversation: Conversation, event: React.MouseEvent) => {
@@ -177,13 +215,8 @@ const MessagingInbox: React.FC = () => {
   };
 
   // Handle marking a conversation as read
-  const handleMarkAsRead = async () => {
-    if (!selectedConversation) return;
-    try {
-      await markConversationAsRead(selectedConversation.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark conversation as read');
-    }
+  const handleMarkAsRead = (conversation: Conversation) => {
+    markConversationAsRead(conversation.id);
   };
 
   // Handle conversation deletion
@@ -273,152 +306,312 @@ const MessagingInbox: React.FC = () => {
     }
   };
 
+  // Handle keyboard navigation
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Only handle keyboard events if we're not in an input field
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowUp':
+        e.preventDefault();
+        setFocusedConversationIndex(prev => {
+          if (prev <= 0) return filteredConversations.length - 1;
+          return prev - 1;
+        });
+        break;
+
+      case 'ArrowDown':
+        e.preventDefault();
+        setFocusedConversationIndex(prev => {
+          if (prev >= filteredConversations.length - 1) return 0;
+          return prev + 1;
+        });
+        break;
+
+      case 'Enter':
+        e.preventDefault();
+        if (focusedConversationIndex >= 0 && focusedConversationIndex < filteredConversations.length) {
+          const conversation = filteredConversations[focusedConversationIndex];
+          handleConversationSelect(conversation, e as unknown as React.MouseEvent);
+        }
+        break;
+
+      case 'Escape':
+        e.preventDefault();
+        if (selectedConversation) {
+          setSelectedConversation(null);
+        } else if (isComposeModalOpen) {
+          setIsComposeModalOpen(false);
+        }
+        break;
+
+      case 'n':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          setIsComposeModalOpen(true);
+        }
+        break;
+
+      case '?':
+        e.preventDefault();
+        setShowKeyboardShortcuts(prev => !prev);
+        break;
+    }
+  }, [filteredConversations, focusedConversationIndex, selectedConversation, isComposeModalOpen]);
+
+  // Add keyboard event listener
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  // Reset focused index when conversations change
+  useEffect(() => {
+    setFocusedConversationIndex(-1);
+  }, [filteredConversations]);
+
+  // Handle filter changes
+  const handleFilterChange = (newFilters: Partial<FilterState>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  };
+
+  // Clear all filters
+  const handleClearFilters = () => {
+    setFilters({
+      searchQuery: '',
+      filterType: 'all',
+      dateRange: null
+    });
+  };
+
+  const handleExportConversation = () => {
+    // TODO: Implement export functionality
+    console.log('Export conversation');
+  };
+
+  const handleViewContact = () => {
+    // TODO: Implement view contact functionality
+    console.log('View contact');
+  };
+
+  const handleBlockContact = () => {
+    // TODO: Implement block contact functionality
+    console.log('Block contact');
+  };
+
+  const handleAddToList = () => {
+    // TODO: Implement add to list functionality
+    console.log('Add to list');
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="h-full flex flex-col">
-        <div className="flex-none border-b border-gray-200 p-4">
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-              <span className="block sm:inline">{error}</span>
-              <button
-                className="absolute top-0 bottom-0 right-0 px-4 py-3"
-                onClick={() => setError(null)}
-              >
-                <span className="sr-only">Dismiss</span>
-                <svg className="fill-current h-4 w-4" role="button" viewBox="0 0 20 20">
-                  <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z" />
-                </svg>
-              </button>
-            </div>
-          )}
+      <div className="flex h-full">
+        {/* Sidebar */}
+        <FolderSidebar
+          folders={FOLDERS}
+          conversations={conversations}
+          selectedFolder={selectedFolder}
+          onFolderSelect={setSelectedFolder}
+          onArchiveToggle={handleArchiveToggle}
+          onDrop={handleDrop}
+          isExpanded={isSidebarExpanded}
+        />
 
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                title={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
-              >
-                <svg
-                  className={`w-5 h-5 text-gray-600 transform transition-transform duration-200 ${
-                    isSidebarExpanded ? 'rotate-180' : ''
-                  }`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+          <div className="flex flex-col border-b">
+            {/* Top bar with search and actions */}
+            <div className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  title={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                </svg>
-              </button>
-              <h2 className="text-xl font-semibold text-gray-900">
-                {selectedFolder === 'inbox' ? 'Inbox' : 
-                 selectedFolder === 'archive' ? 'Archive' : 'Deleted'}
-              </h2>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search conversations..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                />
-                <svg
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+                  <svg
+                    className={`w-5 h-5 text-gray-600 transform transition-transform duration-200 ${
+                      isSidebarExpanded ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  </svg>
+                </button>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {selectedFolder === 'inbox' ? 'Inbox' : 
+                   selectedFolder === 'archive' ? 'Archive' : 'Deleted'}
+                </h2>
+              </div>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setShowKeyboardShortcuts(prev => !prev)}
+                  className="text-gray-500 hover:text-gray-700"
+                  title="Keyboard shortcuts (?)"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setIsComposeModalOpen(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                  title="New message (⌘N)"
+                >
+                  <svg
+                    className="-ml-1 mr-2 h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Compose
+                </button>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={fetchMessages}
-                disabled={isLoading}
-                className={`px-3 py-1.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 ${
-                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isLoading ? (
-                  <>
-                    <span className="inline-block mr-1">
-                      <svg className="animate-spin h-4 w-4 text-gray-500 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    </span>
-                    Loading...
-                  </>
-                ) : (
-                  'Refresh'
+
+            {/* Filters bar */}
+            <div className="px-4 py-3 bg-gray-50 border-t">
+              <div className="flex items-center gap-4">
+                {/* Search input */}
+                <div className="relative flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Search conversations... (⌘K)"
+                    value={filters.searchQuery}
+                    onChange={(e) => handleFilterChange({ searchQuery: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                  <svg
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+
+                {/* Filter type buttons */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleFilterChange({ filterType: 'all' })}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      filters.filterType === 'all'
+                        ? 'bg-primary text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => handleFilterChange({ filterType: 'unread' })}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      filters.filterType === 'unread'
+                        ? 'bg-primary text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Unread
+                  </button>
+                  <button
+                    onClick={() => handleFilterChange({ filterType: 'archived' })}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      filters.filterType === 'archived'
+                        ? 'bg-primary text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Archived
+                  </button>
+                </div>
+
+                {/* Date range selector */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={filters.dateRange?.from ? format(filters.dateRange.from, 'yyyy-MM-dd') : ''}
+                    onChange={(e) => handleFilterChange({
+                      dateRange: {
+                        from: e.target.value ? new Date(e.target.value) : new Date(),
+                        to: filters.dateRange?.to || new Date()
+                      }
+                    })}
+                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm"
+                  />
+                  <span className="text-gray-500">to</span>
+                  <input
+                    type="date"
+                    value={filters.dateRange?.to ? format(filters.dateRange.to, 'yyyy-MM-dd') : ''}
+                    onChange={(e) => handleFilterChange({
+                      dateRange: {
+                        from: filters.dateRange?.from || new Date(),
+                        to: e.target.value ? new Date(e.target.value) : new Date()
+                      }
+                    })}
+                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+
+                {/* Clear filters button */}
+                {(filters.searchQuery || filters.filterType !== 'all' || filters.dateRange) && (
+                  <button
+                    onClick={handleClearFilters}
+                    className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear filters
+                  </button>
                 )}
-              </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 grid grid-cols-[auto_1fr_1fr] overflow-hidden">
-          {/* Sidebar Column */}
-          <div className="relative border-r border-gray-200">
-            <FolderSidebar
-              folders={FOLDERS}
-              conversations={conversations}
-              selectedFolder={selectedFolder}
-              onFolderSelect={setSelectedFolder}
-              onArchiveToggle={handleArchiveToggle}
-              onDrop={handleDrop}
-              isExpanded={isSidebarExpanded}
-            />
-          </div>
-
-          {/* Conversations List */}
-          <div className="flex flex-col min-w-0 border-r border-gray-200">
+          {/* Conversation List */}
+          <div className="flex-1 flex overflow-hidden">
             <ConversationList
               conversations={filteredConversations}
               selectedConversations={selectedConversations}
               onConversationSelect={handleConversationSelect}
               onArchiveToggle={handleArchiveToggle}
-              searchQuery={searchQuery}
+              searchQuery={filters.searchQuery}
+              focusedIndex={focusedConversationIndex}
             />
-          </div>
 
-          {/* Message Display */}
-          <div className="flex-1 flex flex-col min-w-0">
-            {selectedConversation ? (
-              <>
+            {/* Message Display */}
+            {selectedConversations.size === 1 && selectedConversation && (
+              <div className="flex-1 flex flex-col border-l">
                 <ConversationHeader
                   conversation={selectedConversation}
                   onArchiveToggle={handleArchiveToggle}
                   onDelete={handleDeleteConversation}
-                  onExport={() => toast('Export functionality coming soon', {
-                    icon: 'ℹ️',
-                    duration: 3000
-                  })}
-                  onViewContact={() => toast('View contact functionality coming soon', {
-                    icon: 'ℹ️',
-                    duration: 3000
-                  })}
-                  onBlock={() => toast('Block functionality coming soon', {
-                    icon: 'ℹ️',
-                    duration: 3000
-                  })}
-                  onAddToList={() => toast('Add to list functionality coming soon', {
-                    icon: 'ℹ️',
-                    duration: 3000
-                  })}
+                  onExport={handleExportConversation}
+                  onViewContact={handleViewContact}
+                  onBlock={handleBlockContact}
+                  onAddToList={handleAddToList}
                 />
                 <MessageDisplay
                   messages={selectedConversation.messages}
@@ -426,13 +619,7 @@ const MessagingInbox: React.FC = () => {
                   phoneNumber={selectedConversation.phoneNumber}
                   onMarkAsRead={handleMarkAsRead}
                   conversation={selectedConversation}
-                  onMessageAction={(action, messageId) => {
-                    const message = selectedConversation.messages.find(m => m.id === messageId);
-                    if (message) {
-                      setSelectedMessage(message);
-                      handleMessageAction(action);
-                    }
-                  }}
+                  onMessageAction={handleMessageAction}
                 />
                 <MessageComposer
                   onSend={handleSendMessage}
@@ -441,34 +628,74 @@ const MessagingInbox: React.FC = () => {
                   recipientPhone={selectedConversation.phoneNumber}
                   conversationId={selectedConversation.id}
                 />
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-500 bg-gray-50">
-                <div className="text-center p-6">
-                  <svg 
-                    className="mx-auto h-12 w-12 text-gray-400" 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
-                    stroke="currentColor" 
-                    aria-hidden="true"
-                  >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" 
-                    />
-                  </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No conversation selected</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Select a conversation from the list or start a new one.
-                  </p>
-                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Compose Modal */}
+      <ComposeModal
+        isOpen={isComposeModalOpen}
+        onClose={() => setIsComposeModalOpen(false)}
+      />
+
+      {/* Keyboard Shortcuts Modal */}
+      {showKeyboardShortcuts && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Keyboard Shortcuts</h3>
+              <button
+                onClick={() => setShowKeyboardShortcuts(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Navigation</h4>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    <li className="flex justify-between">
+                      <span>Up/Down arrows</span>
+                      <span className="text-gray-400">Navigate conversations</span>
+                    </li>
+                    <li className="flex justify-between">
+                      <span>Enter</span>
+                      <span className="text-gray-400">Select conversation</span>
+                    </li>
+                    <li className="flex justify-between">
+                      <span>Escape</span>
+                      <span className="text-gray-400">Close conversation/modal</span>
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Actions</h4>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    <li className="flex justify-between">
+                      <span>⌘N</span>
+                      <span className="text-gray-400">New message</span>
+                    </li>
+                    <li className="flex justify-between">
+                      <span>⌘K</span>
+                      <span className="text-gray-400">Search conversations</span>
+                    </li>
+                    <li className="flex justify-between">
+                      <span>?</span>
+                      <span className="text-gray-400">Show/hide shortcuts</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </DndProvider>
   );
 };

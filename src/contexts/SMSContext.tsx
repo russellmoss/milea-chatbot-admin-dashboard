@@ -31,6 +31,7 @@ interface SMSContextType {
   isLoading: boolean;
   error: string | null;
   handleArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
+  toggleReadStatus: (conversationId: string) => Promise<void>;
 }
 
 const SMSContext = createContext<SMSContextType | undefined>(undefined);
@@ -51,6 +52,13 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     fetchTemplates();
     fetchContacts();
   }, []);
+
+  // Sort conversations by most recent message
+  const sortConversations = (convs: Conversation[]): Conversation[] => {
+    return [...convs].sort((a, b) => 
+      new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+    );
+  };
 
   // Listen for socket events
   useEffect(() => {
@@ -122,8 +130,9 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await mockSmsService.getConversations();
-      setConversations(data);
+      // Use mock data directly
+      const sortedConversations = sortConversations(mockConversations);
+      setConversations(sortedConversations);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to load conversations');
@@ -137,8 +146,7 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await mockSmsService.getTemplates();
-      setTemplates(data);
+      setTemplates(mockTemplates);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to load message templates');
@@ -152,8 +160,7 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await mockSmsService.getContacts();
-      setContacts(data);
+      setContacts(mockContacts);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to load contacts');
@@ -257,54 +264,89 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Mark a conversation as read
+  // Mark conversation as read
   const markConversationAsRead = async (conversationId: string): Promise<void> => {
     try {
-      setIsLoading(true);
-      setError(null);
-      await mockSmsService.markAsRead(conversationId);
-      
-      // Update conversations state
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, unreadCount: 0 }
-            : conv
-        )
-      );
+      setConversations(prev => {
+        return prev.map(conv => {
+          if (conv.id === conversationId) {
+            return {
+              ...conv,
+              unreadCount: 0,
+              messages: conv.messages.map(msg => ({
+                ...msg,
+                read: true,
+                readAt: new Date().toISOString(),
+                readBy: user?.uid
+              }))
+            };
+          }
+          return conv;
+        });
+      });
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to mark conversation as read');
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // Mark a message as read
+  // Toggle read status
+  const toggleReadStatus = async (conversationId: string): Promise<void> => {
+    try {
+      setConversations(prev => {
+        return prev.map(conv => {
+          if (conv.id === conversationId) {
+            const isRead = conv.unreadCount === 0;
+            return {
+              ...conv,
+              unreadCount: isRead ? 1 : 0,
+              messages: conv.messages.map(msg => ({
+                ...msg,
+                read: !isRead,
+                readAt: !isRead ? new Date().toISOString() : undefined,
+                readBy: !isRead ? user?.uid : undefined
+              }))
+            };
+          }
+          return conv;
+        });
+      });
+    } catch (error) {
+      toast.error('Failed to toggle read status');
+      throw error;
+    }
+  };
+
+  // Mark message as read
   const markMessageAsRead = async (messageId: string): Promise<void> => {
     try {
-      setIsLoading(true);
-      setError(null);
-      await mockSmsService.markAsRead(messageId);
-      
-      // Update conversations state
-      setConversations(prev => 
-        prev.map(conv => ({
-          ...conv,
-          messages: conv.messages.map(msg => 
-            msg.id === messageId 
-              ? { ...msg, read: true }
-              : msg
-          )
-        }))
-      );
+      setConversations(prev => {
+        return prev.map(conv => {
+          const messageIndex = conv.messages.findIndex(msg => msg.id === messageId);
+          if (messageIndex !== -1) {
+            const updatedMessages = [...conv.messages];
+            updatedMessages[messageIndex] = {
+              ...updatedMessages[messageIndex],
+              read: true,
+              readAt: new Date().toISOString(),
+              readBy: user?.uid
+            };
+            
+            // Update unread count
+            const unreadCount = updatedMessages.filter(msg => !msg.read).length;
+            
+            return {
+              ...conv,
+              messages: updatedMessages,
+              unreadCount
+            };
+          }
+          return conv;
+        });
+      });
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast.error('Failed to mark message as read');
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -538,7 +580,8 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     deleteConversation,
     isLoading,
     error,
-    handleArchiveToggle
+    handleArchiveToggle,
+    toggleReadStatus
   };
 
   return (
