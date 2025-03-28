@@ -94,7 +94,8 @@ const SMS: React.FC = () => {
     } else {
       // Switch to messaging tab, selection will happen when message is sent
       setActiveTab('messaging');
-      toast.info('Switch to messaging tab to start a new conversation', {
+      toast('Forward functionality coming soon', {
+        icon: 'ℹ️',
         duration: 3000
       });
     }

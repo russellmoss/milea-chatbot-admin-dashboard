@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Contact } from '../components/sms/ContactForm';
+import { Contact } from '../types/sms';
 
 // Define types
 export interface ContactList {

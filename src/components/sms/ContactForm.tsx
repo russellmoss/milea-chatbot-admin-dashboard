@@ -1,25 +1,9 @@
 import React, { useState, useEffect } from 'react';
-
-// Define types for contact
-export interface Contact {
-  id?: string;
-  firstName: string;
-  lastName: string;
-  phoneNumber: string;
-  email?: string;
-  birthdate?: string;
-  tags?: string[];
-  notes?: string;
-  optIn: boolean;
-  lists?: string[];
-  createdAt?: string;
-  updatedAt?: string;
-  lastContact?: string;
-}
+import { Contact } from '../../types/sms';
 
 interface ContactFormProps {
-  contact?: Contact;
-  onSubmit: (contact: Contact) => void;
+  contact?: Omit<Contact, 'id'> & { id?: string };
+  onSubmit: (contact: Omit<Contact, 'id'> & { id?: string }) => void;
   onCancel: () => void;
   isSubmitting?: boolean;
 }
@@ -31,7 +15,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
   isSubmitting = false
 }) => {
   // Initialize form state with provided contact or defaults
-  const [formData, setFormData] = useState<Contact>({
+  const [formData, setFormData] = useState<Omit<Contact, 'id'> & { id?: string }>({
     firstName: '',
     lastName: '',
     phoneNumber: '',
@@ -40,7 +24,9 @@ const ContactForm: React.FC<ContactFormProps> = ({
     tags: [],
     notes: '',
     optIn: true,
-    lists: []
+    lists: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   });
 
   // Tag input state
@@ -60,7 +46,8 @@ const ContactForm: React.FC<ContactFormProps> = ({
         tags: contact.tags || [],
         notes: contact.notes || '',
         lists: contact.lists || [],
-        lastContact: contact.lastContact || ''
+        createdAt: contact.createdAt || new Date().toISOString(),
+        updatedAt: contact.updatedAt || new Date().toISOString()
       });
     }
   }, [contact]);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Contact } from './ContactForm';
+import { Contact } from '../../types/sms';
 
 interface ContactListProps {
   contacts: Contact[];

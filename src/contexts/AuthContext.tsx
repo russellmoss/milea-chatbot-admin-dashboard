@@ -8,7 +8,8 @@ interface User {
 }
 
 interface AuthContextType {
-  currentUser: User | null;
+  user: User | null;
+  currentUser: User | null; // Keep for backward compatibility
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
@@ -17,7 +18,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Mock authentication functions
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         displayName: email.split('@')[0]
       };
       
-      setCurrentUser(mockUser);
+      setUser(mockUser);
       // Save to session storage for persistence
       sessionStorage.setItem('mockUser', JSON.stringify(mockUser));
       
@@ -58,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Clear user
-      setCurrentUser(null);
+      setUser(null);
       sessionStorage.removeItem('mockUser');
       
     } catch (error) {
@@ -73,13 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const savedUser = sessionStorage.getItem('mockUser');
     if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
+      setUser(JSON.parse(savedUser));
     }
     setLoading(false);
   }, []);
 
   const value = {
-    currentUser,
+    user,
+    currentUser: user, // Maintain backward compatibility
     login,
     logout,
     loading

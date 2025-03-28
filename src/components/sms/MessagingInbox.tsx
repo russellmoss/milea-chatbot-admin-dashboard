@@ -259,8 +259,10 @@ const MessagingInbox: React.FC = () => {
           }
           break;
         case 'forward':
-          // This would normally open a forward dialog
-          toast.info('Forward functionality coming soon');
+          toast('Forward functionality coming soon', {
+            icon: 'ℹ️',
+            duration: 3000
+          });
           break;
         default:
           console.warn('Unknown message action:', action);
@@ -401,10 +403,22 @@ const MessagingInbox: React.FC = () => {
                   conversation={selectedConversation}
                   onArchiveToggle={handleArchiveToggle}
                   onDelete={handleDeleteConversation}
-                  onExport={() => toast.info('Export functionality coming soon')}
-                  onViewContact={() => toast.info('View contact functionality coming soon')}
-                  onBlock={() => toast.info('Block functionality coming soon')}
-                  onAddToList={() => toast.info('Add to list functionality coming soon')}
+                  onExport={() => toast('Export functionality coming soon', {
+                    icon: 'ℹ️',
+                    duration: 3000
+                  })}
+                  onViewContact={() => toast('View contact functionality coming soon', {
+                    icon: 'ℹ️',
+                    duration: 3000
+                  })}
+                  onBlock={() => toast('Block functionality coming soon', {
+                    icon: 'ℹ️',
+                    duration: 3000
+                  })}
+                  onAddToList={() => toast('Add to list functionality coming soon', {
+                    icon: 'ℹ️',
+                    duration: 3000
+                  })}
                 />
                 <MessageDisplay
                   messages={selectedConversation.messages}
