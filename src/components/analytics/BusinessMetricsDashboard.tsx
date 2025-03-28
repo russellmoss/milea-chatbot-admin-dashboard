@@ -12,6 +12,7 @@ import {
   Filler
 } from 'chart.js';
 import DateRangeSelector from './DateRangeSelector';
+import type { MetricCardProps } from './MetricCard';
 import MetricCard from './MetricCard';
 import TrendIndicator from './TrendIndicator';
 import CustomReportBuilder from './CustomReportBuilder';

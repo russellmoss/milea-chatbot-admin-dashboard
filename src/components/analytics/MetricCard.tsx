@@ -1,6 +1,30 @@
 import React, { useState } from 'react';
 import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+  ChartData
+} from 'chart.js';
 import TrendIndicator from './TrendIndicator';
+
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 interface MetricCardProps {
   title: string;
@@ -47,12 +71,12 @@ const MetricCard: React.FC<MetricCardProps> = ({
   const color = getCategoryColor(category);
 
   // Prepare chart data
-  const data = chartData ? {
-    labels: chartData.labels,
+  const data: ChartData<'line', number[], string> = {
+    labels: chartData?.labels || [],
     datasets: [
       {
         label: title,
-        data: chartData.values,
+        data: chartData?.values || [],
         borderColor: color,
         backgroundColor: `${color}20`, // 20% opacity
         tension: 0.4,
@@ -61,7 +85,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
         borderWidth: 2,
       },
     ],
-  } : undefined;
+  };
 
   const chartOptions = {
     responsive: true,
@@ -181,4 +205,10 @@ const MetricCard: React.FC<MetricCardProps> = ({
   );
 };
 
-export default MetricCard;
+// Export both the type and the component
+export type { MetricCardProps };
+export { MetricCard };
+
+// Make MetricCard the default export
+const DefaultMetricCard = MetricCard;
+export default DefaultMetricCard;
