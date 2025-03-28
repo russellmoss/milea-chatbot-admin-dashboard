@@ -152,16 +152,17 @@ const MessagingInbox: React.FC = () => {
   const handleResizeMove = (e: MouseEvent) => {
     if (!isResizing) return;
     
-    const diff = e.clientX - startX; // Changed to negative diff for right-to-left movement
-    const newWidth = Math.max(300, Math.min(800, startWidth - diff));
+    // Calculate the width from the right edge of the screen
+    const diff = startX - e.clientX; // Positive when dragging left
+    const newWidth = Math.max(300, Math.min(800, startWidth + diff));
     
     // Add resistance near the edges
     if (newWidth < 350) {
       const resistance = (350 - newWidth) * 0.5;
-      setComposerWidth(Math.max(300, startWidth - diff - resistance));
+      setComposerWidth(Math.max(300, startWidth + diff - resistance));
     } else if (newWidth > 750) {
       const resistance = (newWidth - 750) * 0.5;
-      setComposerWidth(Math.min(800, startWidth - diff + resistance));
+      setComposerWidth(Math.min(800, startWidth + diff + resistance));
     } else {
       setComposerWidth(newWidth);
     }
@@ -769,16 +770,7 @@ const MessagingInbox: React.FC = () => {
             />
 
             {selectedConversation ? (
-              <div 
-                className={`flex-1 flex flex-col border-l relative ${
-                  isComposerExpanded ? 'fixed top-0 right-0 h-screen z-50 bg-white' : ''
-                }`}
-                style={{ 
-                  width: isComposerExpanded ? `${composerWidth}px` : 'auto',
-                  transition: 'width 300ms ease-in-out',
-                  right: isComposerExpanded ? 0 : 'auto'
-                }}
-              >
+              <div className="flex-1 flex flex-col border-l relative">
                 {/* Backdrop when expanded */}
                 {isComposerExpanded && (
                   <div 
@@ -786,88 +778,92 @@ const MessagingInbox: React.FC = () => {
                     onClick={() => setIsComposerExpanded(false)}
                   />
                 )}
-
-                {/* Resize handle */}
-                <div
-                  className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize group ${
-                    isResizing ? 'bg-primary/30' : ''
+                
+                <div 
+                  className={`flex-1 flex flex-col overflow-hidden ${
+                    isComposerExpanded ? 'fixed top-0 right-0 h-screen z-50 bg-white shadow-lg' : ''
                   }`}
-                  onMouseDown={handleResizeStart}
-                  title="Drag to resize"
+                  style={{ 
+                    width: isComposerExpanded ? `${composerWidth}px` : 'auto',
+                    transition: 'width 300ms ease-in-out',
+                    right: isComposerExpanded ? 0 : 'auto'
+                  }}
                 >
-                  {/* Visual indicator */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors duration-200 ${
-                    isResizing 
-                      ? 'bg-primary' 
-                      : 'bg-gray-300 group-hover:bg-primary/50'
-                  }`} />
-                  
-                  {/* Constraint indicators */}
-                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-2 h-8 flex items-center justify-center transition-opacity duration-200 ${
-                    isResizing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  }`}>
-                    <div className="w-1 h-6 bg-gray-400 rounded-full" />
-                  </div>
-                </div>
-
-                {/* Toggle button */}
-                <button
-                  onClick={() => setIsComposerExpanded(!isComposerExpanded)}
-                  className="absolute right-2 top-2 p-1 rounded-full hover:bg-gray-100 transition-colors z-50"
-                  title={isComposerExpanded ? "Collapse composer" : "Expand composer"}
-                >
-                  <svg
-                    className={`w-4 h-4 transform transition-transform duration-200 ${
-                      isComposerExpanded ? 'rotate-180' : ''
+                  {/* Resize handle */}
+                  <div
+                    className={`absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize z-50 ${
+                      isResizing ? 'bg-primary/30' : ''
                     }`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                    onMouseDown={handleResizeStart}
+                    title="Drag to resize"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
+                    {/* Visual indicator */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors duration-200 ${
+                      isResizing 
+                        ? 'bg-primary' 
+                        : 'bg-gray-300 hover:bg-primary/50'
+                    }`} />
+                  </div>
+                  
+                  {/* Toggle expand/collapse button */}
+                  <button
+                    onClick={() => setIsComposerExpanded(!isComposerExpanded)}
+                    className="absolute top-4 right-4 p-2 rounded-full bg-white shadow-md hover:bg-gray-100 z-50"
+                    title={isComposerExpanded ? "Collapse composer" : "Expand composer"}
+                  >
+                    <svg
+                      className={`w-5 h-5 text-gray-700 transform transition-transform duration-200 ${
+                        isComposerExpanded ? 'rotate-180' : ''
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 9l4-4 4 4m0 6l-4 4-4-4"
+                      />
+                    </svg>
+                  </button>
 
-                {/* Message container */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <ConversationHeader
-                    conversation={selectedConversation}
-                    onArchiveToggle={handleArchiveToggle}
-                    onDelete={() => handleDeleteConversation(selectedConversation.id)}
-                    onExport={handleExportConversation}
-                    onViewContact={handleViewContact}
-                    onBlock={handleBlockContact}
-                    onAddToList={handleAddToList}
-                  />
-                  <MessageDisplay
-                    messages={selectedConversation.messages}
-                    customerName={selectedConversation.customerName}
-                    phoneNumber={selectedConversation.phoneNumber}
-                    conversation={selectedConversation}
-                    onMarkAsRead={handleMarkAsRead}
-                    onMessageSelect={handleMessageSelect}
-                    onMessageAction={handleMessageAction}
-                  />
-                  <div className="relative border-t">
-                    <MessageComposer
-                      onSend={handleSendMessage}
-                      onTemplateSelect={handleTemplateSelect}
-                      templates={templates}
-                      recipientPhone={selectedConversation.phoneNumber}
-                      conversationId={selectedConversation.id}
-                      isExpanded={isComposerExpanded}
-                      width={composerWidth}
-                      onWidthChange={handleComposerWidthChange}
-                      onExpandedChange={handleComposerExpandedChange}
-                      onCancel={() => setIsComposerExpanded(false)}
+                  {/* Message container */}
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <ConversationHeader
                       conversation={selectedConversation}
-                      onToggleExpand={() => setIsComposerExpanded(!isComposerExpanded)}
+                      onArchiveToggle={handleArchiveToggle}
+                      onDelete={() => handleDeleteConversation(selectedConversation.id)}
+                      onExport={handleExportConversation}
+                      onViewContact={handleViewContact}
+                      onBlock={handleBlockContact}
+                      onAddToList={handleAddToList}
                     />
+                    <MessageDisplay
+                      messages={selectedConversation.messages}
+                      customerName={selectedConversation.customerName}
+                      phoneNumber={selectedConversation.phoneNumber}
+                      conversation={selectedConversation}
+                      onMarkAsRead={handleMarkAsRead}
+                      onMessageSelect={handleMessageSelect}
+                      onMessageAction={handleMessageAction}
+                    />
+                    <div className="relative border-t">
+                      <MessageComposer
+                        onSend={handleSendMessage}
+                        onTemplateSelect={handleTemplateSelect}
+                        templates={templates}
+                        recipientPhone={selectedConversation.phoneNumber}
+                        conversationId={selectedConversation.id}
+                        isExpanded={isComposerExpanded}
+                        width={composerWidth}
+                        onWidthChange={handleComposerWidthChange}
+                        onExpandedChange={handleComposerExpandedChange}
+                        onCancel={() => setIsComposerExpanded(false)}
+                        conversation={selectedConversation}
+                        onToggleExpand={() => setIsComposerExpanded(!isComposerExpanded)}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
