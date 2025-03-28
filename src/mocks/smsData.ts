@@ -55,195 +55,110 @@ const mockOutboundMessages = [
   "Tastings are $25 per person, which is waived with a 2-bottle purchase or for wine club members.",
 ];
 
-// Create mock conversations
+// Mock conversations
 export const mockConversations: Conversation[] = [
   {
-    id: 'conv1',
-    customerName: 'Jane Smith',
-    phoneNumber: '+15551234567',
-    messages: generateMessages('conv1', 7),
-    unreadCount: 2,
+    id: 'conv_1',
+    customerName: 'John Doe',
+    phoneNumber: '+12345678901',
     lastMessageAt: new Date().toISOString(),
-    timestamp: new Date().toISOString(),
-    archived: false,
-    deleted: false
-  },
-  {
-    id: 'conv2',
-    customerName: 'Michael Johnson',
-    phoneNumber: '+15552345678',
-    messages: generateMessages('conv2', 4),
-    unreadCount: 1,
-    lastMessageAt: new Date(Date.now() - 45 * 60000).toISOString(), // 45 minutes ago
-    timestamp: new Date(Date.now() - 120 * 60000).toISOString(),
-    archived: false,
-    deleted: false
-  },
-  {
-    id: 'conv3',
-    customerName: 'Emily Davis',
-    phoneNumber: '+15553456789',
-    messages: generateMessages('conv3', 10),
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
     unreadCount: 0,
-    lastMessageAt: new Date(Date.now() - 90 * 60000).toISOString(), // 1.5 hours ago
-    timestamp: new Date(Date.now() - 180 * 60000).toISOString(),
     archived: false,
-    deleted: false
+    deleted: false,
+    messages: [
+      {
+        id: 'msg_1',
+        direction: 'inbound',
+        content: 'Hi, I need help with my order',
+        phoneNumber: '+12345678901',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        status: 'received',
+        read: true
+      },
+      {
+        id: 'msg_2',
+        direction: 'outbound',
+        content: 'Hello, how can I help you today?',
+        phoneNumber: '+12345678901',
+        timestamp: new Date().toISOString(),
+        status: 'sent',
+        read: true
+      }
+    ]
   },
   {
-    id: 'conv4',
-    customerName: 'Robert Wilson',
-    phoneNumber: '+15554567890',
-    messages: generateMessages('conv4', 3),
-    unreadCount: 0,
-    lastMessageAt: new Date(Date.now() - 6 * 3600000).toISOString(), // 6 hours ago
-    timestamp: new Date(Date.now() - 24 * 3600000).toISOString(), 
-    archived: true, // Archived conversation
-    deleted: false
-  },
-  {
-    id: 'conv5',
-    customerName: null, // Unknown customer
-    phoneNumber: '+15555678901',
-    messages: generateMessages('conv5', 2),
-    unreadCount: 1,
-    lastMessageAt: new Date(Date.now() - 30 * 60000).toISOString(), // 30 minutes ago
-    timestamp: new Date(Date.now() - 30 * 60000).toISOString(),
+    id: 'conv_2',
+    customerName: 'Jane Smith',
+    phoneNumber: '+19876543210',
+    lastMessageAt: new Date(Date.now() - 7200000).toISOString(),
+    timestamp: new Date(Date.now() - 7200000).toISOString(),
+    unreadCount: 2,
     archived: false,
-    deleted: false
-  },
-  {
-    id: 'conv6',
-    customerName: 'Sarah Thompson',
-    phoneNumber: '+15556789012',
-    messages: generateMessages('conv6', 8),
-    unreadCount: 0,
-    lastMessageAt: new Date(Date.now() - 2 * 24 * 3600000).toISOString(), // 2 days ago
-    timestamp: new Date(Date.now() - 7 * 24 * 3600000).toISOString(),
-    archived: false,
-    deleted: false
+    deleted: false,
+    messages: [
+      {
+        id: 'msg_3',
+        direction: 'outbound',
+        content: 'Your order has been shipped!',
+        phoneNumber: '+19876543210',
+        timestamp: new Date(Date.now() - 7200000).toISOString(),
+        status: 'delivered',
+        read: true
+      }
+    ]
   }
 ];
 
-// Mock contacts (matching conversation people plus more)
+// Mock contacts
 export const mockContacts: Contact[] = [
   {
-    id: 'contact1',
+    id: 'contact_1',
+    firstName: 'John',
+    lastName: 'Doe',
+    phoneNumber: '+12345678901',
+    email: 'john.doe@example.com',
+    optIn: true,
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000).toISOString(),
+    lists: ['VIP', 'Newsletter'],
+    tags: ['Customer', 'VIP'],
+    notes: 'Preferred customer'
+  },
+  {
+    id: 'contact_2',
     firstName: 'Jane',
     lastName: 'Smith',
-    phoneNumber: '+15551234567',
+    phoneNumber: '+19876543210',
     email: 'jane.smith@example.com',
     optIn: true,
-    createdAt: new Date(Date.now() - 90 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 5 * 24 * 3600000).toISOString(),
-    lists: ['wine-club-gold', 'newsletter'],
-    tags: ['regular', 'wine-club']
+    createdAt: new Date(Date.now() - 172800000).toISOString(),
+    updatedAt: new Date(Date.now() - 172800000).toISOString(),
+    lists: ['Newsletter'],
+    tags: ['Customer'],
+    notes: 'Regular customer'
+  }
+];
+
+// Mock templates
+export const mockTemplates: MessageTemplate[] = [
+  {
+    id: 'template_1',
+    name: 'Welcome Message',
+    content: 'Welcome to our service! We\'re glad to have you on board.',
+    variables: [],
+    category: 'General',
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000).toISOString()
   },
   {
-    id: 'contact2',
-    firstName: 'Michael',
-    lastName: 'Johnson',
-    phoneNumber: '+15552345678',
-    email: 'michael.johnson@example.com',
-    optIn: true,
-    createdAt: new Date(Date.now() - 120 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 10 * 24 * 3600000).toISOString(),
-    lists: ['wine-club-platinum'],
-    tags: ['VIP', 'high-value']
-  },
-  {
-    id: 'contact3',
-    firstName: 'Emily',
-    lastName: 'Davis',
-    phoneNumber: '+15553456789',
-    email: 'emily.davis@example.com',
-    optIn: true,
-    createdAt: new Date(Date.now() - 60 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 2 * 24 * 3600000).toISOString(),
-    lists: ['newsletter'],
-    tags: ['local', 'event-attendee']
-  },
-  {
-    id: 'contact4',
-    firstName: 'Robert',
-    lastName: 'Wilson',
-    phoneNumber: '+15554567890',
-    email: 'robert.wilson@example.com',
-    optIn: false, // Opted out
-    createdAt: new Date(Date.now() - 150 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 24 * 3600000).toISOString(),
-    lists: [],
-    tags: ['former-member']
-  },
-  {
-    id: 'contact5',
-    firstName: 'Unknown',
-    lastName: 'Customer',
-    phoneNumber: '+15555678901',
-    optIn: true,
-    createdAt: new Date(Date.now() - 1 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 24 * 3600000).toISOString()
-  },
-  {
-    id: 'contact6',
-    firstName: 'Sarah',
-    lastName: 'Thompson',
-    phoneNumber: '+15556789012',
-    email: 'sarah.thompson@example.com',
-    optIn: true,
-    createdAt: new Date(Date.now() - 200 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 15 * 24 * 3600000).toISOString(),
-    lists: ['wine-club-silver', 'newsletter', 'event-invites'],
-    tags: ['wine-club', 'event-regular']
-  },
-  // Additional contacts that aren't in conversations yet
-  {
-    id: 'contact7',
-    firstName: 'David',
-    lastName: 'Brown',
-    phoneNumber: '+15557890123',
-    email: 'david.brown@example.com',
-    optIn: true,
-    createdAt: new Date(Date.now() - 45 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 45 * 24 * 3600000).toISOString(),
-    lists: ['newsletter'],
-    tags: ['prospect']
-  },
-  {
-    id: 'contact8',
-    firstName: 'Amanda',
-    lastName: 'Miller',
-    phoneNumber: '+15558901234',
-    email: 'amanda.miller@example.com',
-    optIn: true,
-    createdAt: new Date(Date.now() - 30 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 30 * 24 * 3600000).toISOString(),
-    lists: ['wine-club-gold'],
-    tags: ['wine-club', 'referred']
-  },
-  {
-    id: 'contact9',
-    firstName: 'James',
-    lastName: 'Taylor',
-    phoneNumber: '+15559012345',
-    email: 'james.taylor@example.com',
-    optIn: false,
-    createdAt: new Date(Date.now() - 180 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 20 * 24 * 3600000).toISOString(),
-    lists: [],
-    tags: ['unsubscribed']
-  },
-  {
-    id: 'contact10',
-    firstName: 'Olivia',
-    lastName: 'Garcia',
-    phoneNumber: '+15550123456',
-    email: 'olivia.garcia@example.com',
-    optIn: true,
-    createdAt: new Date(Date.now() - 75 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 3 * 24 * 3600000).toISOString(),
-    lists: ['wine-club-platinum', 'event-invites'],
-    tags: ['VIP', 'wine-club', 'large-orders']
+    id: 'template_2',
+    name: 'Order Confirmation',
+    content: 'Thank you for your order! Your order number is {orderNumber}.',
+    variables: ['orderNumber'],
+    category: 'Orders',
+    createdAt: new Date(Date.now() - 172800000).toISOString(),
+    updatedAt: new Date(Date.now() - 172800000).toISOString()
   }
 ];
 
@@ -287,55 +202,6 @@ export const mockContactLists: ContactList[] = [
     description: 'Contacts to invite to special events',
     contacts: ['contact6', 'contact10'],
     createdAt: new Date(Date.now() - 180 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 30 * 24 * 3600000).toISOString()
-  }
-];
-
-// Mock message templates
-export const mockTemplates: MessageTemplate[] = [
-  {
-    id: 'template1',
-    name: 'Wine Club Pickup Reminder',
-    content: 'Hello {name}, your wine club shipment for {month} is ready for pickup at the tasting room. We\'re open daily from 10 AM to 5 PM.',
-    variables: ['name', 'month'],
-    category: 'Wine Club',
-    createdAt: new Date(Date.now() - 90 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 90 * 24 * 3600000).toISOString()
-  },
-  {
-    id: 'template2',
-    name: 'Tasting Reservation Confirmation',
-    content: 'Thank you for reserving a tasting on {date} at {time}. We look forward to hosting you at our winery! Please arrive 5-10 minutes early to check in.',
-    variables: ['date', 'time'],
-    category: 'Reservations',
-    createdAt: new Date(Date.now() - 120 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 30 * 24 * 3600000).toISOString()
-  },
-  {
-    id: 'template3',
-    name: 'Event Invitation',
-    content: 'You\'re invited to our {event} on {date} from {startTime} to {endTime}. RSVP by replying YES or NO to this message. We hope to see you there!',
-    variables: ['event', 'date', 'startTime', 'endTime'],
-    category: 'Events',
-    createdAt: new Date(Date.now() - 60 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 60 * 24 * 3600000).toISOString()
-  },
-  {
-    id: 'template4',
-    name: 'Follow-up Thank You',
-    content: 'Thank you for visiting us today, {name}! We hope you enjoyed your experience. Feel free to reach out if you have any questions about the wines you tasted.',
-    variables: ['name'],
-    category: 'General',
-    createdAt: new Date(Date.now() - 150 * 24 * 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 45 * 24 * 3600000).toISOString()
-  },
-  {
-    id: 'template5',
-    name: 'New Release Announcement',
-    content: 'We\'re excited to announce the release of our {wine} on {date}. As a valued customer, you have early access to purchase before public release!',
-    variables: ['wine', 'date'],
-    category: 'Marketing',
-    createdAt: new Date(Date.now() - 30 * 24 * 3600000).toISOString(),
     updatedAt: new Date(Date.now() - 30 * 24 * 3600000).toISOString()
   }
 ];

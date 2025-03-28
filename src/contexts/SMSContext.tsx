@@ -2,6 +2,8 @@ import React, { createContext, useState, useContext, useEffect, ReactNode } from
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import { Conversation, Message, MessageTemplate, Contact } from '../types/sms';
+import { mockSmsService } from '../services/mockSmsService';
+import { toast } from 'react-hot-toast';
 
 // Import mock data
 import { 
@@ -19,7 +21,7 @@ interface SMSContextType {
   contacts: Contact[];
   selectedConversation: Conversation | null;
   setSelectedConversation: React.Dispatch<React.SetStateAction<Conversation | null>>;
-  sendMessage: (content: string, phoneNumber: string, conversationId?: string) => Promise<any>;
+  sendMessage: (content: string, phoneNumber: string, conversationId?: string) => Promise<Message>;
   markConversationAsRead: (conversationId: string) => Promise<void>;
   markMessageAsRead: (messageId: string) => Promise<void>;
   fetchMessages: () => Promise<void>;
@@ -36,18 +38,18 @@ const SMSContext = createContext<SMSContextType | undefined>(undefined);
 export function SMSProvider({ children }: { children: ReactNode }) {
   const { socket, isConnected } = useSocket();
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
-  const [templates, setTemplates] = useState<MessageTemplate[]>(mockTemplates);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load initial data
   useEffect(() => {
-    // In a real app, we would fetch data from an API here
-    // For now, we'll just use our mock data
-    setConversations(mockConversations);
-    setTemplates(mockTemplates);
+    fetchMessages();
+    fetchTemplates();
+    fetchContacts();
   }, []);
 
   // Listen for socket events
@@ -115,269 +117,355 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     };
   }, [socket]);
 
-  // Fetch messages - this would normally call an API
+  // Fetch messages
   const fetchMessages = async () => {
-    setIsLoading(true);
-    setError(null);
-
     try {
-      // Simulate API call with a delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // In a real app, we'd fetch from the API
-      // For mock purposes, we'll just refresh with the same data
-      setConversations([...mockConversations]);
-      
+      setIsLoading(true);
+      const data = await mockSmsService.getConversations();
+      setConversations(data);
       setIsLoading(false);
-    } catch (err) {
-      setError('Failed to fetch messages');
+    } catch (error) {
       setIsLoading(false);
-      console.error('Error fetching messages:', err);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to load conversations');
+    }
+  };
+
+  // Fetch templates
+  const fetchTemplates = async () => {
+    try {
+      const data = await mockSmsService.getTemplates();
+      setTemplates(data);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to load message templates');
+    }
+  };
+
+  // Fetch contacts
+  const fetchContacts = async () => {
+    try {
+      const data = await mockSmsService.getContacts();
+      setContacts(data);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to load contacts');
     }
   };
 
   // Send a message
-  const sendMessage = async (content: string, phoneNumber: string, conversationId?: string) => {
-    if (!content.trim() || !phoneNumber) {
-      throw new Error('Message content and phone number are required');
-    }
+  const sendMessage = async (content: string, phoneNumber: string, conversationId?: string): Promise<Message> => {
+    // Create optimistic message
+    const optimisticMessage: Message = {
+      id: `temp_${Date.now()}`,
+      direction: 'outbound',
+      content,
+      timestamp: new Date().toISOString(),
+      status: 'sent',
+      read: true,
+      conversationId: conversationId || `conv_${Date.now()}`,
+      phoneNumber
+    };
 
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+    // Optimistically update UI
+    setConversations(prev => {
+      const updated = [...prev];
+      const conversationIndex = updated.findIndex(c => c.id === optimisticMessage.conversationId);
       
-      // Create a new message
-      const newMessage: Message = {
-        id: `msg_${Date.now()}`,
-        direction: 'outbound',
-        content,
-        phoneNumber,
-        timestamp: new Date().toISOString(),
-        status: 'sent',
-        read: true
-      };
-
-      // Find or create conversation
-      let foundConversation = false;
-      
-      setConversations(prevConversations => {
-        const updatedConversations = prevConversations.map(conv => {
-          if ((conversationId && conv.id === conversationId) || (!conversationId && conv.phoneNumber === phoneNumber)) {
-            foundConversation = true;
-            return {
-              ...conv,
-              messages: [...conv.messages, newMessage],
-              lastMessageAt: newMessage.timestamp
-            };
-          }
-          return conv;
-        });
-
-        // If conversation doesn't exist, create a new one
-        if (!foundConversation) {
-          const contact = mockContacts.find(c => c.phoneNumber === phoneNumber);
-          const newConversation: Conversation = {
-            id: `conv_${Date.now()}`,
-            customerName: contact ? `${contact.firstName} ${contact.lastName}` : null,
-            phoneNumber,
-            messages: [newMessage],
-            unreadCount: 0,
-            lastMessageAt: newMessage.timestamp,
-            timestamp: newMessage.timestamp,
-            archived: false,
-            deleted: false
-          };
-          return [...updatedConversations, newConversation];
-        }
-
-        return updatedConversations;
-      });
-
-      // Simulate message status update after a delay
-      setTimeout(() => {
-        setConversations(prevConversations => {
-          return prevConversations.map(conv => {
-            const messageIndex = conv.messages.findIndex(msg => msg.id === newMessage.id);
-            if (messageIndex !== -1) {
-              const updatedMessages = [...conv.messages];
-              updatedMessages[messageIndex] = {
-                ...updatedMessages[messageIndex],
-                status: 'delivered'
-              };
-              return { ...conv, messages: updatedMessages };
-            }
-            return conv;
-          });
-        });
-      }, 2000);
-
-      return { success: true, messageId: newMessage.id, status: 'sent' };
-    } catch (err) {
-      console.error('Error sending message:', err);
-      throw err;
-    }
-  };
-
-  // Mark conversation as read
-  const markConversationAsRead = async (conversationId: string) => {
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      setConversations(prevConversations => {
-        return prevConversations.map(conv => {
-          if (conv.id === conversationId) {
-            const updatedMessages = conv.messages.map(msg => {
-              if (msg.direction === 'inbound' && !msg.read) {
-                return { ...msg, read: true };
-              }
-              return msg;
-            });
-            
-            return {
-              ...conv,
-              messages: updatedMessages,
-              unreadCount: 0
-            };
-          }
-          return conv;
-        });
-      });
-    } catch (err) {
-      console.error('Error marking conversation as read:', err);
-      throw err;
-    }
-  };
-
-  // Mark message as read
-  const markMessageAsRead = async (messageId: string) => {
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      setConversations(prevConversations => {
-        const updatedConversations = [...prevConversations];
-        
-        for (let i = 0; i < updatedConversations.length; i++) {
-          const conversation = updatedConversations[i];
-          const messageIndex = conversation.messages.findIndex(msg => msg.id === messageId);
-          
-          if (messageIndex !== -1) {
-            const message = conversation.messages[messageIndex];
-            
-            if (message.direction === 'inbound' && !message.read) {
-              const updatedMessages = [...conversation.messages];
-              updatedMessages[messageIndex] = {
-                ...message,
-                read: true,
-                readAt: new Date().toISOString()
-              };
-              
-              updatedConversations[i] = {
-                ...conversation,
-                messages: updatedMessages,
-                unreadCount: Math.max(0, conversation.unreadCount - 1)
-              };
-            }
-            break;
-          }
-        }
-        
-        return updatedConversations;
-      });
-    } catch (err) {
-      console.error('Error marking message as read:', err);
-      throw err;
-    }
-  };
-
-  // Archive conversation
-  const archiveConversation = async (conversationId: string) => {
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      setConversations(prevConversations => {
-        return prevConversations.map(conv => {
-          if (conv.id === conversationId) {
-            return {
-              ...conv,
-              archived: true,
-              archivedAt: new Date().toISOString()
-            };
-          }
-          return conv;
-        });
-      });
-    } catch (err) {
-      console.error('Error archiving conversation:', err);
-      throw err;
-    }
-  };
-
-  // Unarchive conversation
-  const unarchiveConversation = async (conversationId: string) => {
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      setConversations(prevConversations => {
-        return prevConversations.map(conv => {
-          if (conv.id === conversationId) {
-            return {
-              ...conv,
-              archived: false,
-              archivedAt: undefined
-            };
-          }
-          return conv;
-        });
-      });
-    } catch (err) {
-      console.error('Error unarchiving conversation:', err);
-      throw err;
-    }
-  };
-
-  // Delete conversation
-  const deleteConversation = async (conversationId: string) => {
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      setConversations(prevConversations => {
-        return prevConversations.map(conv => {
-          if (conv.id === conversationId) {
-            return {
-              ...conv,
-              deleted: true
-            };
-          }
-          return conv;
-        });
-      });
-      
-      // If the deleted conversation is selected, deselect it
-      if (selectedConversation?.id === conversationId) {
-        setSelectedConversation(null);
+      if (conversationIndex !== -1) {
+        updated[conversationIndex] = {
+          ...updated[conversationIndex],
+          messages: [...updated[conversationIndex].messages, optimisticMessage],
+          lastMessageAt: optimisticMessage.timestamp,
+          timestamp: optimisticMessage.timestamp,
+          unreadCount: 0
+        };
+      } else {
+        // Create new conversation if it doesn't exist
+        const newConversation: Conversation = {
+          id: optimisticMessage.conversationId,
+          phoneNumber: phoneNumber || '',
+          customerName: 'Unknown',
+          messages: [optimisticMessage],
+          lastMessageAt: optimisticMessage.timestamp,
+          timestamp: optimisticMessage.timestamp,
+          unreadCount: 0,
+          archived: false,
+          deleted: false
+        };
+        updated.push(newConversation);
       }
-    } catch (err) {
-      console.error('Error deleting conversation:', err);
-      throw err;
+      
+      return updated;
+    });
+
+    try {
+      const message = await mockSmsService.sendMessage(content, phoneNumber, conversationId);
+      
+      // Update with real message data
+      setConversations(prev => {
+        return prev.map(conv => {
+          if (conv.id === message.conversationId) {
+            return {
+              ...conv,
+              messages: conv.messages.map(msg => 
+                msg.id === optimisticMessage.id ? message : msg
+              ),
+              lastMessageAt: message.timestamp,
+              timestamp: message.timestamp
+            };
+          }
+          return conv;
+        });
+      });
+
+      toast.success('Message sent successfully');
+      return message;
+    } catch (error) {
+      // Revert optimistic update on error
+      setConversations(prev => {
+        return prev.map(conv => {
+          if (conv.id === optimisticMessage.conversationId) {
+            return {
+              ...conv,
+              messages: conv.messages.filter(msg => msg.id !== optimisticMessage.id),
+              lastMessageAt: conv.messages[conv.messages.length - 1]?.timestamp || conv.timestamp,
+              timestamp: conv.messages[conv.messages.length - 1]?.timestamp || conv.timestamp
+            };
+          }
+          return conv;
+        });
+      });
+
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to send message');
+      throw error;
     }
   };
 
-  // Toggle archive status
-  const handleArchiveToggle = async (conversationId: string, archived: boolean) => {
+  // Mark a conversation as read
+  const markConversationAsRead = async (conversationId: string): Promise<void> => {
+    try {
+      await mockSmsService.markAsRead(conversationId);
+      
+      // Update conversations state
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, unreadCount: 0 }
+            : conv
+        )
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to mark conversation as read');
+      throw error;
+    }
+  };
+
+  // Mark a message as read
+  const markMessageAsRead = async (messageId: string): Promise<void> => {
+    try {
+      await mockSmsService.markAsRead(messageId);
+      
+      // Update conversations state
+      setConversations(prev => 
+        prev.map(conv => ({
+          ...conv,
+          messages: conv.messages.map(msg => 
+            msg.id === messageId 
+              ? { ...msg, read: true }
+              : msg
+          )
+        }))
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to mark message as read');
+      throw error;
+    }
+  };
+
+  // Archive a conversation
+  const archiveConversation = async (conversationId: string): Promise<void> => {
+    // Optimistically update UI
+    setConversations(prev => 
+      prev.map(conv => 
+        conv.id === conversationId 
+          ? { ...conv, archived: true }
+          : conv
+      )
+    );
+
+    try {
+      await mockSmsService.archiveConversation(conversationId);
+      toast.success('Conversation archived successfully');
+    } catch (error) {
+      // Revert optimistic update on error
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, archived: false }
+            : conv
+        )
+      );
+
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to archive conversation');
+      throw error;
+    }
+  };
+
+  // Unarchive a conversation
+  const unarchiveConversation = async (conversationId: string): Promise<void> => {
+    // Optimistically update UI
+    setConversations(prev => 
+      prev.map(conv => 
+        conv.id === conversationId 
+          ? { ...conv, archived: false }
+          : conv
+      )
+    );
+
+    try {
+      await mockSmsService.unarchiveConversation(conversationId);
+      toast.success('Conversation unarchived successfully');
+    } catch (error) {
+      // Revert optimistic update on error
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, archived: true }
+            : conv
+        )
+      );
+
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to unarchive conversation');
+      throw error;
+    }
+  };
+
+  // Delete a conversation
+  const deleteConversation = async (conversationId: string): Promise<void> => {
+    // Optimistically update UI
+    setConversations(prev => 
+      prev.map(conv => 
+        conv.id === conversationId 
+          ? { ...conv, deleted: true }
+          : conv
+      )
+    );
+
+    try {
+      await mockSmsService.deleteConversation(conversationId);
+      toast.success('Conversation deleted successfully');
+    } catch (error) {
+      // Revert optimistic update on error
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, deleted: false }
+            : conv
+        )
+      );
+
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to delete conversation');
+      throw error;
+    }
+  };
+
+  // Handle archive toggle
+  const handleArchiveToggle = async (conversationId: string, archived: boolean): Promise<void> => {
     try {
       if (archived) {
         await archiveConversation(conversationId);
       } else {
         await unarchiveConversation(conversationId);
       }
-    } catch (err) {
-      console.error('Error toggling archive status:', err);
-      throw err;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error(`Failed to ${archived ? 'archive' : 'unarchive'} conversation`);
+      throw error;
+    }
+  };
+
+  // Create a new contact
+  const createContact = async (contact: Omit<Contact, 'id'>): Promise<Contact> => {
+    // Create optimistic contact
+    const optimisticContact: Contact = {
+      id: `temp_${Date.now()}`,
+      ...contact
+    };
+
+    // Optimistically update UI
+    setContacts(prev => [...prev, optimisticContact]);
+
+    try {
+      const newContact = await mockSmsService.createContact(contact);
+      
+      // Update with real contact data
+      setContacts(prev => 
+        prev.map(c => c.id === optimisticContact.id ? newContact : c)
+      );
+      
+      toast.success('Contact created successfully');
+      return newContact;
+    } catch (error) {
+      // Revert optimistic update on error
+      setContacts(prev => prev.filter(c => c.id !== optimisticContact.id));
+
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to create contact');
+      throw error;
+    }
+  };
+
+  // Update a contact
+  const updateContact = async (id: string, contact: Partial<Contact>): Promise<Contact> => {
+    // Optimistically update UI
+    setContacts(prev => 
+      prev.map(c => c.id === id ? { ...c, ...contact } : c)
+    );
+
+    try {
+      const updatedContact = await mockSmsService.updateContact(id, contact);
+      
+      // Update with real contact data
+      setContacts(prev => 
+        prev.map(c => c.id === id ? updatedContact : c)
+      );
+      
+      toast.success('Contact updated successfully');
+      return updatedContact;
+    } catch (error) {
+      // Revert optimistic update on error
+      setContacts(prev => 
+        prev.map(c => c.id === id ? { ...c } : c)
+      );
+
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to update contact');
+      throw error;
+    }
+  };
+
+  // Delete a contact
+  const deleteContact = async (id: string): Promise<void> => {
+    // Optimistically update UI
+    setContacts(prev => prev.filter(c => c.id !== id));
+
+    try {
+      await mockSmsService.deleteContact(id);
+      toast.success('Contact deleted successfully');
+    } catch (error) {
+      // Revert optimistic update on error
+      setContacts(prev => [...prev]);
+
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      toast.error('Failed to delete contact');
+      throw error;
     }
   };
 
@@ -386,7 +474,7 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     setConversations,
     templates,
     setTemplates,
-    contacts: mockContacts, // Provide mock contacts
+    contacts,
     selectedConversation,
     setSelectedConversation,
     sendMessage,
@@ -401,7 +489,11 @@ export function SMSProvider({ children }: { children: ReactNode }) {
     handleArchiveToggle
   };
 
-  return <SMSContext.Provider value={value}>{children}</SMSContext.Provider>;
+  return (
+    <SMSContext.Provider value={value}>
+      {children}
+    </SMSContext.Provider>
+  );
 }
 
 export function useSMS() {
