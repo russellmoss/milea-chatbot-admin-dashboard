@@ -17,6 +17,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const isValidEmail = (email: string) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +47,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Simple validation
     if (!email || !password) {
       throw new Error('Email and password are required');
+    }
+
+    // Validate email format
+    if (!isValidEmail(email)) {
+      throw new Error('Invalid email format');
     }
     
     // Simulate API call
