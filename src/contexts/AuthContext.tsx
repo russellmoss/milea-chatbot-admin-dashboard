@@ -1,10 +1,12 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { adminLogin } from '../apis/auth/apis';
 
 interface User {
   uid: string;
   email: string;
   displayName?: string;
+  accessToken?: string;
 }
 
 interface AuthContextType {
@@ -58,13 +60,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Create mock user
+      const userAdminLoginResponse = await adminLogin({ email, password });
       const user: User = {
-        uid: 'mock-user-id-123',
+        uid: userAdminLoginResponse.data.user.id,
         email: email,
-        displayName: email.split('@')[0]
+        displayName: email.split('@')[0],
+        accessToken: userAdminLoginResponse.data.token
       };
       
       // Update state and localStorage
