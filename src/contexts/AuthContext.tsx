@@ -1,5 +1,6 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { login as userLogin } from '../apis/auth/apis';
 
 interface User {
   uid: string;
@@ -44,22 +45,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Email and password are required');
     }
     
-    // Simulate API call
     setLoading(true);
-    
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const loginResponse = await userLogin({ email, password });
+      if (loginResponse.role !== 'admin') {
+        throw new Error('Access denied: Admins only');
+      }
       
       // Create mock user
       const user: User = {
-        uid: 'mock-user-id-123',
-        email: email,
-        displayName: email.split('@')[0]
+        uid: loginResponse.user_id,
+        email: loginResponse.email,
+        displayName: loginResponse.email.split('@')[0]
       };
       
       // Update state and localStorage
       setCurrentUser(user);
       localStorage.setItem('currentUser', JSON.stringify(user));
+      localStorage.setItem('milea_admin_dashboard_accessToken', loginResponse.access_token);
+      localStorage.setItem('milea_admin_dashboard_refreshToken', loginResponse.refresh_token);
     } finally {
       setLoading(false);
     }
