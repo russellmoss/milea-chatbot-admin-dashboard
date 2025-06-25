@@ -14,7 +14,9 @@ import {
   ChartData, 
   Filler
 } from 'chart.js';
-import { Line, Bar, Doughnut, Radar } from 'react-chartjs-2';
+import { Bar, Doughnut, Radar } from 'react-chartjs-2';
+import { emptyResponseTimeData } from './utils/QualityMetricsDashboard/static';
+import { fetchQualityMetricsCharts } from './utils/QualityMetricsDashboard/utils';
 
 // Register ChartJS components
 ChartJS.register(
@@ -32,42 +34,21 @@ ChartJS.register(
 );
 
 const QualityMetricsDashboard: React.FC = () => {
-  const [timeFrame, setTimeFrame] = useState('30days');
+  const [timeFrame, setTimeFrame] = useState<string>('7days');
+  const [responseTimeData, setResponseTimeData] = useState<ChartData<'bar'>>(emptyResponseTimeData);
+
+
+  // fectch metrics data for charts based on timeFrame
+  useEffect(() => {
+    const loadChartData = async () => {
+      const data = await fetchQualityMetricsCharts(timeFrame);
+      if (data) {
+        setResponseTimeData(data.avgResponseTimeData);
+      };
+    }
   
-  // Sample data for Interaction Quality Index
-  const qualityIndexData: ChartData<'line'> = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Interaction Quality Index',
-        data: [7.5, 7.8, 8.1, 8.3, 8.7, 8.6],
-        borderColor: '#5A3E00',
-        backgroundColor: 'rgba(90, 62, 0, 0.1)',
-        tension: 0.3,
-        fill: true
-      },
-      {
-        label: 'Benchmark',
-        data: [7.2, 7.3, 7.5, 7.6, 7.7, 7.8],
-        borderColor: '#AAAAAA',
-        borderDash: [5, 5],
-        tension: 0.3,
-        backgroundColor: 'transparent'
-      }
-    ]
-  };
-  
-  // Sample data for Response Time
-  const responseTimeData: ChartData<'bar'> = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Average Response Time (s)',
-        data: [3.2, 2.9, 2.7, 2.5, 2.3, 2.2],
-        backgroundColor: '#715100',
-      }
-    ]
-  };
+    loadChartData();
+  }, [timeFrame]);
   
   // Sample data for Query Type Distribution
   const queryTypeData: ChartData<'doughnut'> = {
@@ -126,17 +107,6 @@ const QualityMetricsDashboard: React.FC = () => {
       {/* Top metrics cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-500">Interaction Quality Index</h3>
-          <p className="text-2xl font-bold text-primary">8.6/10</p>
-          <div className="flex items-center mt-1">
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-green-500 h-2 rounded-full" style={{ width: '86%' }}></div>
-            </div>
-            <span className="text-xs text-green-600 ml-2">Good</span>
-          </div>
-        </div>
-        
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h3 className="text-sm font-medium text-gray-500">Response Accuracy</h3>
           <p className="text-2xl font-bold text-primary">92%</p>
           <p className="text-sm text-green-600 flex items-center">
@@ -178,31 +148,14 @@ const QualityMetricsDashboard: React.FC = () => {
           className="bg-white border border-gray-300 text-gray-700 py-1 px-2 pr-8 rounded leading-tight focus:outline-none focus:border-primary"
         >
           <option value="7days">Last 7 days</option>
-          <option value="30days">Last 30 days</option>
-          <option value="90days">Last 90 days</option>
+          <option value="1month">Last 1 month</option>
+          <option value="quarter">Last quarter</option>
           <option value="year">Last year</option>
         </select>
       </div>
       
       {/* Charts grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Quality Index Trend */}
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="text-lg font-medium text-primary mb-4">Quality Index Trend</h3>
-          <div className="h-64">
-            <Line data={qualityIndexData} options={{
-              ...chartOptions,
-              scales: {
-                y: {
-                  beginAtZero: false,
-                  min: 7,
-                  max: 10
-                }
-              }
-            }} />
-          </div>
-        </div>
-        
         {/* Response Time Trend */}
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h3 className="text-lg font-medium text-primary mb-4">Response Time Trend</h3>

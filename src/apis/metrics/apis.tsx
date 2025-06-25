@@ -1,16 +1,13 @@
 import { instance } from "../base/beinstance";
 
+// The data received from the API is in unit of milliseconds
 export const getAvgResponseTime = async (startDate: Date, endDate: Date): Promise<number> => {
-    const response = await instance.get("/metrics/average-response-time", {
-        params: { startDate, endDate }
-    });
+    const response = await instance.post("/metrics/average-response-time", { startTime: startDate, endTime: endDate });
     return response.data;
 };
 
 export const getQueryTypes = async (startDate: Date, endDate: Date): Promise<Record<string, number>> => {
-    const response = await instance.get("/metrics/query-type-count", {
-        params: { startDate, endDate }
-    });
+    const response = await instance.post("/metrics/query-type-count", { startTime: startDate, endTime: endDate });
     return response.data;
 };
 
