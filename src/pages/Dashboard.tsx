@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
 import {
@@ -16,6 +16,12 @@ import {
 // Import modal components
 import ExportModal from '../components/dashboard/ExportModal';
 import DateRangeModal from '../components/dashboard/DateRangeModal';
+
+// Import apis
+import { getConversationCount } from '../apis/metrics/apis';
+
+// Import utils
+import { computeConvRisePercent } from './utils/dashboard/utils';
 
 // Register ChartJS components
 ChartJS.register(
@@ -39,6 +45,10 @@ export default function Dashboard() {
   const [dateRange, setDateRange] = useState('30days');
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
   const [alertFilter, setAlertFilter] = useState('all');
+
+  // state for metrics
+  const [totalConvsThisMonth, setTotalConvsThisMonth] = useState<number>(0);
+  const [totalConvsLastMonth, setTotalConvsLastMonth] = useState<number>(0);
   
   // Sample data for the chart
   const chartData: ChartData<'line'> = {
@@ -153,6 +163,32 @@ export default function Dashboard() {
   const handleGoToKnowledgeManager = () => {
     navigate('/dashboard/knowledge');
   };
+
+
+  // pull metrics data
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const now = new Date();
+        const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0); // last day of last month
+
+        const [thisMonthData, lastMonthData] = await Promise.all([
+          getConversationCount(startOfThisMonth, now),
+          getConversationCount(startOfLastMonth, endOfLastMonth)
+        ]);
+
+        setTotalConvsThisMonth(thisMonthData);
+        setTotalConvsLastMonth(lastMonthData);
+      } catch (error) {
+        console.error('Error fetching metrics:', error);
+      }
+    };
+
+    fetchMetrics();
+  }, []);
+
   
   return (
     <div className="space-y-6">
@@ -180,12 +216,12 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <h3 className="text-sm font-medium text-gray-500">Total Conversations</h3>
-            <p className="text-2xl font-bold text-primary">843</p>
+            <p className="text-2xl font-bold text-primary">{totalConvsThisMonth}</p>
             <p className="text-sm text-green-600 flex items-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
               </svg>
-              12% from last month
+              {computeConvRisePercent(totalConvsThisMonth, totalConvsLastMonth)} from last month
             </p>
           </div>
           
