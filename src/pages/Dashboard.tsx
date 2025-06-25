@@ -22,7 +22,8 @@ import DateRangeModal from '../components/dashboard/DateRangeModal';
 import { getConversationCount, getFailedConversations, getUniqueIps, getUserCount, getConvClubSignups } from '../apis/metrics/apis';
 
 // Import utils
-import { computeRisePercent, calculateResolutionRate, computeDataCaptureRate, computeClubConversation } from './utils/dashboard/utils';
+import { computeRisePercent, calculateResolutionRate, computeDataCaptureRate, computeClubConversation, fetchConversationChartData } from './utils/dashboard/utils';
+import { convChartOptions, emptyConvChartData } from './utils/dashboard/chart';
 
 // Register ChartJS components
 ChartJS.register(
@@ -35,6 +36,7 @@ ChartJS.register(
   Legend
 );
 
+
 export default function Dashboard() {
   const navigate = useNavigate();
   
@@ -43,7 +45,7 @@ export default function Dashboard() {
   const [dateRangeModalOpen, setDateRangeModalOpen] = useState(false);
   
   // State for filters and selections
-  const [dateRange, setDateRange] = useState('30days');
+  const [dateRange, setDateRange] = useState<string>('7days');
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
   const [alertFilter, setAlertFilter] = useState('all');
 
@@ -56,40 +58,8 @@ export default function Dashboard() {
   const [dataCaptureRateLastMonth, setDataCaptureRateLastMonth] = useState<number>(0);
   const [clubConversationThisMonth, setClubConversationThisMonth] = useState<number>(0);
   const [clubConversationLastMonth, setClubConversationLastMonth] = useState<number>(0);
+  const [chartData, setChartData] = useState<ChartData<'line'>>(emptyConvChartData);
 
-  // Sample data for the chart
-  const chartData: ChartData<'line'> = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Conversations',
-        data: [65, 78, 90, 85, 112, 126],
-        borderColor: '#5A3E00',
-        backgroundColor: 'rgba(90, 62, 0, 0.1)',
-        tension: 0.3
-      },
-      {
-        label: 'Successful Resolutions',
-        data: [55, 68, 82, 75, 102, 115],
-        borderColor: '#715100',
-        backgroundColor: 'rgba(113, 81, 0, 0.1)',
-        tension: 0.3
-      }
-    ]
-  };
-  
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-      },
-      title: {
-        display: true,
-        text: 'Chatbot Performance',
-      },
-    },
-  };
   
   // Sample alerts data
   const alerts = [
@@ -215,6 +185,16 @@ export default function Dashboard() {
     fetchMetrics();
   }, []);
 
+  // fectch metrics for the conv chart
+  useEffect(() => {
+    const loadChartData = async () => {
+      const data = await fetchConversationChartData(dateRange, customDateRange);
+      if (data) { setChartData(data); }
+    };
+
+    loadChartData();
+  }, [dateRange, customDateRange]);
+
   
   return (
     <div className="space-y-6">
@@ -299,7 +279,7 @@ export default function Dashboard() {
                 className="bg-white border border-gray-300 text-gray-700 py-1 px-2 pr-8 rounded leading-tight focus:outline-none focus:border-primary"
               >
                 <option value="7days">Last 7 days</option>
-                <option value="30days">Last 30 days</option>
+                <option value="1month">Last 1 month</option>
                 <option value="quarter">Last quarter</option>
                 <option value="custom">Custom range</option>
               </select>
@@ -326,7 +306,7 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <Line data={chartData} options={chartOptions} />
+          <Line data={chartData!} options={convChartOptions} key={dateRange + JSON.stringify(customDateRange)} />
         </div>
       </div>
       
