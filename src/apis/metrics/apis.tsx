@@ -34,9 +34,7 @@ export const getConversationCount = async (startDate: Date, endDate: Date): Prom
 }
 
 export const getFailedConversations = async (startDate: Date, endDate: Date): Promise<Array<any>> => {
-    const response = await instance.get("/metrics/failed-conversations", {
-        params: { startDate, endDate }
-    });
+    const response = await instance.post("/metrics/failed-conversations", { startTime: startDate, endTime: endDate });
     return response.data;
 }
 

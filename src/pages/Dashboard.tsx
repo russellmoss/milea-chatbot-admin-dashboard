@@ -18,10 +18,10 @@ import ExportModal from '../components/dashboard/ExportModal';
 import DateRangeModal from '../components/dashboard/DateRangeModal';
 
 // Import apis
-import { getConversationCount } from '../apis/metrics/apis';
+import { getConversationCount, getFailedConversations } from '../apis/metrics/apis';
 
 // Import utils
-import { computeConvRisePercent } from './utils/dashboard/utils';
+import { computeRisePercent, calculateResolutionRate } from './utils/dashboard/utils';
 
 // Register ChartJS components
 ChartJS.register(
@@ -49,7 +49,9 @@ export default function Dashboard() {
   // state for metrics
   const [totalConvsThisMonth, setTotalConvsThisMonth] = useState<number>(0);
   const [totalConvsLastMonth, setTotalConvsLastMonth] = useState<number>(0);
-  
+  const [resolutionRateThisMonth, setResolutionRateThisMonth] = useState<number>(0);
+  const [resolutionRateLastMonth, setResolutionRateLastMonth] = useState<number>(0);
+
   // Sample data for the chart
   const chartData: ChartData<'line'> = {
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
@@ -174,13 +176,19 @@ export default function Dashboard() {
         const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0); // last day of last month
 
-        const [thisMonthData, lastMonthData] = await Promise.all([
+        const [thisMonthConv, lastMonthConv
+          , failedConvThisMonth, failedConvLastMonth
+        ] = await Promise.all([
           getConversationCount(startOfThisMonth, now),
-          getConversationCount(startOfLastMonth, endOfLastMonth)
+          getConversationCount(startOfLastMonth, endOfLastMonth),
+          getFailedConversations(startOfThisMonth, now),
+          getFailedConversations(startOfLastMonth, endOfLastMonth)
         ]);
 
-        setTotalConvsThisMonth(thisMonthData);
-        setTotalConvsLastMonth(lastMonthData);
+        setTotalConvsThisMonth(thisMonthConv);
+        setTotalConvsLastMonth(lastMonthConv);
+        setResolutionRateThisMonth(calculateResolutionRate(thisMonthConv, failedConvThisMonth.length));
+        setResolutionRateLastMonth(calculateResolutionRate(lastMonthConv, failedConvLastMonth.length));
       } catch (error) {
         console.error('Error fetching metrics:', error);
       }
@@ -221,18 +229,18 @@ export default function Dashboard() {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
               </svg>
-              {computeConvRisePercent(totalConvsThisMonth, totalConvsLastMonth)} from last month
+              {computeRisePercent(totalConvsThisMonth, totalConvsLastMonth)} from last month
             </p>
           </div>
           
           <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <h3 className="text-sm font-medium text-gray-500">Resolution Rate</h3>
-            <p className="text-2xl font-bold text-primary">92%</p>
+            <p className="text-2xl font-bold text-primary">{(resolutionRateThisMonth * 100).toFixed(2)}%</p>
             <p className="text-sm text-green-600 flex items-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
               </svg>
-              3% from last month
+              {computeRisePercent(resolutionRateThisMonth, resolutionRateLastMonth)} from last month
             </p>
           </div>
           

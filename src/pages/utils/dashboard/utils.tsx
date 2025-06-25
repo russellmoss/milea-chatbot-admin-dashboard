@@ -1,7 +1,14 @@
-export const computeConvRisePercent = (current: number, previous: number): string => {
+export const computeRisePercent = (current: number, previous: number): string => {
   if (previous === 0) {
-    return current > 0 ? '100%' : '0%';
+    if (current === 0) return '0%';
+    return '∞%';
   }
   const rise = ((current - previous) / previous) * 100;
-  return `${rise.toFixed(2)}%`;
-}
+  const sign = rise >= 0 ? '+' : '';
+  return `${sign}${rise.toFixed(2)}%`;
+};
+
+
+export const calculateResolutionRate = (total: number, failed: number): number => {
+  return total === 0 ? 0 : (total - failed) / total;
+};
