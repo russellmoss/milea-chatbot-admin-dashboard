@@ -14,17 +14,13 @@ export const getQueryTypes = async (startDate: Date, endDate: Date): Promise<Rec
     return response.data;
 };
 
-export const getUniqueIps = async (startDate: Date, endDate: Date): Promise<number> => {
-    const response = await instance.get("/metrics/unique-ip", {
-        params: { startDate, endDate }
-    });
+export const getUniqueIps = async (startDate: Date, endDate: Date): Promise<string[]> => {
+    const response = await instance.post("/metrics/unique-ip", { startTime: startDate, endTime: endDate });
     return response.data;
 };
 
 export const getUserCount = async (startDate: Date, endDate: Date): Promise<number> => {
-    const response = await instance.get("/metrics/user-count", {
-        params: { startDate, endDate }
-    });
+    const response = await instance.post("/metrics/user-count", { startTime: startDate, endTime: endDate });
     return response.data;
 }
 
@@ -42,5 +38,10 @@ export const getMsgDistribution = async (startDate: Date, endDate: Date): Promis
     const response = await instance.get("/metrics/message-distribution", {
         params: { startDate, endDate }
     });
+    return response.data;
+}
+
+export const getConvClubSignups = async (startDate: Date, endDate: Date): Promise<number> => {
+    const response = await instance.post("/metrics/conv-clubsignup", { startTime: startDate, endTime: endDate });
     return response.data;
 }

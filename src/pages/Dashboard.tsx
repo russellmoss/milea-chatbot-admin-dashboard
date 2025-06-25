@@ -12,16 +12,17 @@ import {
   Legend,
   ChartData
 } from 'chart.js';
+import { MoveRight, TrendingDown, TrendingUp } from 'lucide-react';
 
 // Import modal components
 import ExportModal from '../components/dashboard/ExportModal';
 import DateRangeModal from '../components/dashboard/DateRangeModal';
 
 // Import apis
-import { getConversationCount, getFailedConversations } from '../apis/metrics/apis';
+import { getConversationCount, getFailedConversations, getUniqueIps, getUserCount, getConvClubSignups } from '../apis/metrics/apis';
 
 // Import utils
-import { computeRisePercent, calculateResolutionRate } from './utils/dashboard/utils';
+import { computeRisePercent, calculateResolutionRate, computeDataCaptureRate, computeClubConversation } from './utils/dashboard/utils';
 
 // Register ChartJS components
 ChartJS.register(
@@ -51,6 +52,10 @@ export default function Dashboard() {
   const [totalConvsLastMonth, setTotalConvsLastMonth] = useState<number>(0);
   const [resolutionRateThisMonth, setResolutionRateThisMonth] = useState<number>(0);
   const [resolutionRateLastMonth, setResolutionRateLastMonth] = useState<number>(0);
+  const [dataCaptureRateThisMonth, setDataCaptureRateThisMonth] = useState<number>(0);
+  const [dataCaptureRateLastMonth, setDataCaptureRateLastMonth] = useState<number>(0);
+  const [clubConversationThisMonth, setClubConversationThisMonth] = useState<number>(0);
+  const [clubConversationLastMonth, setClubConversationLastMonth] = useState<number>(0);
 
   // Sample data for the chart
   const chartData: ChartData<'line'> = {
@@ -177,18 +182,31 @@ export default function Dashboard() {
         const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0); // last day of last month
 
         const [thisMonthConv, lastMonthConv
-          , failedConvThisMonth, failedConvLastMonth
+          , failedConvThisMonth, failedConvLastMonth,
+          uniqueIpsThisMonth, uniqueIpsLastMonth,
+          userCountThisMonth, userCountLastMonth,
+          convClubSignupsThisMonth, convClubSignupsLastMonth,
         ] = await Promise.all([
           getConversationCount(startOfThisMonth, now),
           getConversationCount(startOfLastMonth, endOfLastMonth),
           getFailedConversations(startOfThisMonth, now),
-          getFailedConversations(startOfLastMonth, endOfLastMonth)
+          getFailedConversations(startOfLastMonth, endOfLastMonth),
+          getUniqueIps(startOfThisMonth, now),
+          getUniqueIps(startOfLastMonth, endOfLastMonth),
+          getUserCount(startOfThisMonth, now),
+          getUserCount(startOfLastMonth, endOfLastMonth),
+          getConvClubSignups(startOfThisMonth, now),
+          getConvClubSignups(startOfLastMonth, endOfLastMonth)
         ]);
 
         setTotalConvsThisMonth(thisMonthConv);
         setTotalConvsLastMonth(lastMonthConv);
         setResolutionRateThisMonth(calculateResolutionRate(thisMonthConv, failedConvThisMonth.length));
         setResolutionRateLastMonth(calculateResolutionRate(lastMonthConv, failedConvLastMonth.length));
+        setDataCaptureRateThisMonth(computeDataCaptureRate(userCountThisMonth, uniqueIpsThisMonth.length));
+        setDataCaptureRateLastMonth(computeDataCaptureRate(userCountLastMonth, uniqueIpsLastMonth.length));
+        setClubConversationThisMonth(computeClubConversation(convClubSignupsThisMonth, userCountThisMonth));
+        setClubConversationLastMonth(computeClubConversation(convClubSignupsLastMonth, userCountLastMonth));
       } catch (error) {
         console.error('Error fetching metrics:', error);
       }
@@ -225,10 +243,10 @@ export default function Dashboard() {
           <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <h3 className="text-sm font-medium text-gray-500">Total Conversations</h3>
             <p className="text-2xl font-bold text-primary">{totalConvsThisMonth}</p>
-            <p className="text-sm text-green-600 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-              </svg>
+            <p className={`text-sm flex items-center gap-1 ${totalConvsThisMonth > totalConvsLastMonth ? 'text-green-600' : totalConvsThisMonth < totalConvsLastMonth ? 'text-red-600' : 'text-gray-600'}`}>
+              {totalConvsThisMonth > totalConvsLastMonth && <TrendingUp size={14} strokeWidth={2} />}
+              {totalConvsThisMonth === totalConvsLastMonth && <MoveRight size={14} strokeWidth={2} />}
+              {totalConvsThisMonth < totalConvsLastMonth && <TrendingDown size={14} strokeWidth={2} />}
               {computeRisePercent(totalConvsThisMonth, totalConvsLastMonth)} from last month
             </p>
           </div>
@@ -236,46 +254,34 @@ export default function Dashboard() {
           <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <h3 className="text-sm font-medium text-gray-500">Resolution Rate</h3>
             <p className="text-2xl font-bold text-primary">{(resolutionRateThisMonth * 100).toFixed(2)}%</p>
-            <p className="text-sm text-green-600 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-              </svg>
+            <p className={`text-sm flex items-center gap-1 ${resolutionRateThisMonth > resolutionRateLastMonth ? 'text-green-600' : resolutionRateThisMonth < resolutionRateLastMonth ? 'text-red-600' : 'text-gray-600'}`}>
+              {resolutionRateThisMonth > resolutionRateLastMonth && <TrendingUp size={14} strokeWidth={2} />}
+              {resolutionRateThisMonth === resolutionRateLastMonth && <MoveRight size={14} strokeWidth={2} />}
+              {resolutionRateThisMonth < resolutionRateLastMonth && <TrendingDown size={14} strokeWidth={2} />}
               {computeRisePercent(resolutionRateThisMonth, resolutionRateLastMonth)} from last month
             </p>
           </div>
           
           <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <h3 className="text-sm font-medium text-gray-500">Data Capture Rate</h3>
-            <p className="text-2xl font-bold text-primary">61%</p>
-            <p className="text-sm text-red-600 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-              5% from last month
+            <p className="text-2xl font-bold text-primary">{(dataCaptureRateThisMonth * 100).toFixed(2)}%</p>
+            <p className={`text-sm flex items-center gap-1 ${dataCaptureRateThisMonth > dataCaptureRateLastMonth ? 'text-green-600' : dataCaptureRateThisMonth < dataCaptureRateLastMonth ? 'text-red-600' : 'text-gray-600'}`}>
+              {dataCaptureRateThisMonth > dataCaptureRateLastMonth && <TrendingUp size={14} strokeWidth={2} />}
+              {dataCaptureRateThisMonth === dataCaptureRateLastMonth && <MoveRight size={14} strokeWidth={2} />}
+              {dataCaptureRateThisMonth < dataCaptureRateLastMonth && <TrendingDown size={14} strokeWidth={2} />}
+              {computeRisePercent(dataCaptureRateThisMonth, dataCaptureRateLastMonth)} from last month
             </p>
-          </div>
-          
-          {/* Quality Index Card */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-            <h3 className="text-sm font-medium text-gray-500">Quality Index</h3>
-            <p className="text-2xl font-bold text-primary">8.7</p>
-            <div className="flex items-center mt-1">
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-green-500 h-2 rounded-full" style={{ width: '87%' }}></div>
-              </div>
-              <span className="text-xs text-green-600 ml-2">Good</span>
-            </div>
           </div>
           
           {/* Club Conversion Card */}
           <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-            <h3 className="text-sm font-medium text-gray-500">Club Conversion</h3>
-            <p className="text-2xl font-bold text-primary">4.8%</p>
-            <p className="text-sm text-green-600 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-              </svg>
-              0.7% from last month
+            <h3 className="text-sm font-medium text-gray-500">Club Conversation</h3>
+            <p className="text-2xl font-bold text-primary">{(clubConversationThisMonth * 100).toFixed(2)}%</p>
+            <p className={`text-sm flex items-center gap-1 ${clubConversationThisMonth > clubConversationLastMonth ? 'text-green-600' : clubConversationThisMonth < clubConversationLastMonth ? 'text-red-600' : 'text-gray-600'}`}>
+              {clubConversationThisMonth > clubConversationLastMonth && <TrendingUp size={14} strokeWidth={2} />}
+              {clubConversationThisMonth === clubConversationLastMonth && <MoveRight size={14} strokeWidth={2} />}
+              {clubConversationThisMonth < clubConversationLastMonth && <TrendingDown size={14} strokeWidth={2} />}
+              {computeRisePercent(clubConversationThisMonth, clubConversationLastMonth)} from last month
             </p>
           </div>
         </div>

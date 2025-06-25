@@ -20,6 +20,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "firebase": "^10.7.1",
+    "lucide-react": "^0.523.0",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.3.0",
     "react-dnd": "^16.0.1",
