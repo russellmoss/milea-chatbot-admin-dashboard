@@ -200,12 +200,30 @@ const ResponseCoach: React.FC = () => {
             <div className="flex-1 p-4 overflow-y-auto">
               {/* chat history */}
               <div className="mb-4">
-                <div className="text-sm font-medium text-gray-500 mb-1">Chat History:</div>
-                <div className="bg-white p-3 rounded-lg border border-gray-200 space-y-2">
+                <div className="text-sm font-medium text-gray-500 mb-2">Chat History:</div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 flex flex-col gap-2">
                   {selectedConversation.messages.map((msg, index) => (
-                    <div key={index} className={`p-2 rounded-lg ${msg.sender === 'user' ? 'bg-blue-50 text-blue-800' : 'bg-gray-50 text-gray-800'}`}>
-                      <div className="font-medium">{msg.sender === 'user' ? 'User' : 'Bot'}</div>
-                      <div className="text-sm">{msg.content}</div>
+                    <div
+                      key={index}
+                      className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div>
+                        <div className="flex items-center mb-1 gap-2">
+                          <span className={`text-sm font-medium ${msg.sender === 'user' ? 'text-purple-600' : 'text-cyan-600'}`}>
+                            {msg.sender === 'user' ? 'User' : 'Bot'}
+                          </span>
+                          <time className="text-xs text-gray-400">
+                            {new Date(msg.timestamp).toLocaleTimeString(undefined, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            })}
+                          </time>
+                        </div>
+                        <div className={`px-4 py-2 rounded-xl max-w-xs text-sm ${msg.sender === 'user'? 'bg-violet-200 text-gray-800 rounded-bl-none': 'bg-cyan-800 text-white rounded-br-none'}`}>
+                          {msg.content}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
