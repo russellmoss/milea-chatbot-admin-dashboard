@@ -1,4 +1,6 @@
 import { instance } from "../base/beinstance";
+import { Feedback } from "./interfaces";
+
 
 // The data received from the API is in unit of milliseconds
 export const getAvgResponseTime = async (startDate: Date, endDate: Date): Promise<number> => {
@@ -40,5 +42,10 @@ export const getMsgDistribution = async (startDate: Date, endDate: Date): Promis
 
 export const getConvClubSignups = async (startDate: Date, endDate: Date): Promise<number> => {
     const response = await instance.post("/metrics/conv-clubsignup", { startTime: startDate, endTime: endDate });
+    return response.data;
+}
+
+export const getConvFeedbacks = async (startDate: Date, endDate: Date): Promise<Feedback[]> => {
+    const response = await instance.get("/metrics/conversation-feedback", { params: { startTime: startDate, endTime: endDate } });
     return response.data;
 }

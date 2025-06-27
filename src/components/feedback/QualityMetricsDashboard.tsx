@@ -15,7 +15,7 @@ import {
   Filler
 } from 'chart.js';
 import { Bar, Doughnut, Radar } from 'react-chartjs-2';
-import { emptyResponseTimeData } from './utils/QualityMetricsDashboard/static';
+import { emptyResponseTimeData, emptyQueryTypeData } from './utils/QualityMetricsDashboard/static';
 import { fetchQualityMetricsCharts } from './utils/QualityMetricsDashboard/utils';
 
 // Register ChartJS components
@@ -36,6 +36,7 @@ ChartJS.register(
 const QualityMetricsDashboard: React.FC = () => {
   const [timeFrame, setTimeFrame] = useState<string>('7days');
   const [responseTimeData, setResponseTimeData] = useState<ChartData<'bar'>>(emptyResponseTimeData);
+  const [queryTypeData, setQueryTypeData] = useState<ChartData<'doughnut'>>(emptyQueryTypeData);
 
 
   // fectch metrics data for charts based on timeFrame
@@ -44,31 +45,13 @@ const QualityMetricsDashboard: React.FC = () => {
       const data = await fetchQualityMetricsCharts(timeFrame);
       if (data) {
         setResponseTimeData(data.avgResponseTimeData);
+        setQueryTypeData(data.queryTypeData);
       };
     }
   
     loadChartData();
   }, [timeFrame]);
   
-  // Sample data for Query Type Distribution
-  const queryTypeData: ChartData<'doughnut'> = {
-    labels: ['Wine Info', 'Club Membership', 'Visiting Hours', 'Reservations', 'Events', 'Other'],
-    datasets: [
-      {
-        data: [35, 25, 15, 12, 8, 5],
-        backgroundColor: [
-          '#5A3E00', 
-          '#715100', 
-          '#8B6914', 
-          '#A67D28', 
-          '#C1923C',
-          '#DCAC50'
-        ],
-        borderColor: '#FFFFFF',
-        borderWidth: 1
-      }
-    ]
-  };
   
   // Sample data for Response Performance by Category
   const categoryPerformanceData: ChartData<'radar'> = {

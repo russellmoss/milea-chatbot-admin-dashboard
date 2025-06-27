@@ -19,11 +19,13 @@ import ExportModal from '../components/dashboard/ExportModal';
 import DateRangeModal from '../components/dashboard/DateRangeModal';
 
 // Import apis
-import { getConversationCount, getFailedConversations, getUniqueIps, getUserCount, getConvClubSignups } from '../apis/metrics/apis';
+import { getConversationCount, getFailedConversations, getUniqueIps, getUserCount, getConvClubSignups, getConvFeedbacks } from '../apis/metrics/apis';
+import { Feedback } from '../apis/metrics/interfaces';
 
 // Import utils
 import { computeRisePercent, calculateResolutionRate, computeDataCaptureRate, computeClubConversation, fetchConversationChartData } from './utils/dashboard/utils';
 import { convChartOptions, emptyConvChartData } from './utils/dashboard/chart';
+
 
 // Register ChartJS components
 ChartJS.register(
@@ -59,6 +61,7 @@ export default function Dashboard() {
   const [clubConversationThisMonth, setClubConversationThisMonth] = useState<number>(0);
   const [clubConversationLastMonth, setClubConversationLastMonth] = useState<number>(0);
   const [chartData, setChartData] = useState<ChartData<'line'>>(emptyConvChartData);
+  const [recentConvFeedbacks, setRecentConvFeedbacks] = useState<Feedback[]>([]);
 
   
   // Sample alerts data
@@ -156,6 +159,7 @@ export default function Dashboard() {
           uniqueIpsThisMonth, uniqueIpsLastMonth,
           userCountThisMonth, userCountLastMonth,
           convClubSignupsThisMonth, convClubSignupsLastMonth,
+          convFeedbacksThisMonth,
         ] = await Promise.all([
           getConversationCount(startOfThisMonth, now),
           getConversationCount(startOfLastMonth, endOfLastMonth),
@@ -166,7 +170,8 @@ export default function Dashboard() {
           getUserCount(startOfThisMonth, now),
           getUserCount(startOfLastMonth, endOfLastMonth),
           getConvClubSignups(startOfThisMonth, now),
-          getConvClubSignups(startOfLastMonth, endOfLastMonth)
+          getConvClubSignups(startOfLastMonth, endOfLastMonth),
+          getConvFeedbacks(startOfThisMonth, now),
         ]);
 
         setTotalConvsThisMonth(thisMonthConv);
@@ -177,6 +182,7 @@ export default function Dashboard() {
         setDataCaptureRateLastMonth(computeDataCaptureRate(userCountLastMonth, uniqueIpsLastMonth.length));
         setClubConversationThisMonth(computeClubConversation(convClubSignupsThisMonth, userCountThisMonth));
         setClubConversationLastMonth(computeClubConversation(convClubSignupsLastMonth, userCountLastMonth));
+        setRecentConvFeedbacks(convFeedbacksThisMonth.slice(0, 3))
       } catch (error) {
         console.error('Error fetching metrics:', error);
       }
@@ -423,39 +429,17 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-bold text-primary mb-4">Recent Feedback</h2>
           <div className="space-y-4">
-            {[
-              {
-                id: 1,
-                user: "User #764",
-                time: "Today, 3:42 PM",
-                comment: "The wine recommendations were perfect for my dinner party! Five stars!",
-                rating: 5
-              },
-              {
-                id: 2,
-                user: "User #582",
-                time: "Yesterday",
-                comment: "Couldn't book a reservation through the chat. Had to call instead.",
-                rating: 2
-              },
-              {
-                id: 3,
-                user: "User #921",
-                time: "2 days ago",
-                comment: "Good information but took a while to get the right answer about the 2021 Cabernet.",
-                rating: 3
-              }
-            ].map((feedback) => (
-              <div key={feedback.id} className="border-b border-gray-200 pb-3">
+            {recentConvFeedbacks.map((feedback, idx) => (
+              <div key={idx} className="border-b border-gray-200 pb-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{feedback.user}</span>
-                  <span className="text-xs text-gray-500">{feedback.time}</span>
+                  <span className="text-sm font-medium">User #{feedback.userId}</span>
+                  <span className="text-xs text-gray-500">{new Date(feedback.endTime).toLocaleDateString()}</span>
                 </div>
                 <div className="flex items-center mt-1 mb-2">
                   {[...Array(5)].map((_, i) => (
                     <svg 
                       key={i} 
-                      className={`h-4 w-4 ${i < feedback.rating ? 'text-yellow-400' : 'text-gray-300'}`} 
+                      className={`h-4 w-4 ${i < feedback.feedback.rating ? 'text-yellow-400' : 'text-gray-300'}`} 
                       xmlns="http://www.w3.org/2000/svg" 
                       viewBox="0 0 20 20" 
                       fill="currentColor"
@@ -465,7 +449,7 @@ export default function Dashboard() {
                   ))}
                 </div>
                 <p className="text-sm text-gray-700">
-                  {feedback.comment}
+                  {feedback.feedback.details}
                 </p>
               </div>
             ))}
