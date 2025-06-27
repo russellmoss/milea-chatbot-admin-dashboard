@@ -1,127 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Feedback } from './utils/ResponseCoach/interfaces';
+import { fetchFeedbacks, findFirstUserMsg } from './utils/ResponseCoach/utils';
+import { set } from 'date-fns';
 
-// Sample conversation data
-const SAMPLE_CONVERSATIONS = [
-  {
-    id: 1,
-    user: "User #452",
-    timestamp: "2023-05-15T14:32:00",
-    query: "I'm looking for a red wine that pairs well with steak. What do you recommend?",
-    response: "I'd be happy to help you find the perfect wine for your steak dinner! Our Cabernet Franc would be an excellent choice. It has rich flavors of black cherry and plum with subtle notes of herbs that complement red meat beautifully. The 2022 vintage is particularly good with grilled steaks. Would you like more information about this wine?",
-    feedback: {
-      rating: 5,
-      comment: "Exactly what I was looking for! Thank you."
-    },
-    category: "Wine Recommendations",
-    status: "Positive"
-  },
-  {
-    id: 2,
-    user: "User #387",
-    timestamp: "2023-05-14T11:20:00",
-    query: "Can I book a tasting for tomorrow at 2pm?",
-    response: "I'd be happy to help with booking a tasting! Our tasting room is open daily from 10am to 5pm. For reservations, I recommend using our online booking system at exploretock.com/mileaestatevineyard or you can call us directly at (845) 677-8463. Would you like me to help you navigate to our reservation page?",
-    feedback: {
-      rating: 3,
-      comment: "I wanted to book directly in the chat but was directed elsewhere."
-    },
-    category: "Reservations",
-    status: "Needs Improvement"
-  },
-  {
-    id: 3,
-    user: "User #521",
-    timestamp: "2023-05-13T16:05:00",
-    query: "What's the difference between your wine club tiers?",
-    response: "We offer three wine club membership tiers: Jumper, Grand Prix, and Triple Crown. The Jumper includes 3 bottles quarterly, Grand Prix includes 6 bottles, and Triple Crown includes 12 bottles. All members receive discounts on wine purchases, complimentary tastings, and special event invitations. The higher tiers include access to limited releases and special events. Would you like more details about a specific tier?",
-    feedback: {
-      rating: 5,
-      comment: "Very clear explanation, thank you."
-    },
-    category: "Wine Club",
-    status: "Positive"
-  },
-  {
-    id: 4,
-    user: "User #634",
-    timestamp: "2023-05-12T09:47:00",
-    query: "Do you have any white wines that aren't too sweet?",
-    response: "Yes, we have several dry white wines you might enjoy. Our Grüner Veltliner is crisp with notes of green apple and white pepper. The Chardonnay is medium-bodied with subtle oak influence. Both are dry styles that pair well with food. Would you like more information about either of these options?",
-    feedback: {
-      rating: 4,
-      comment: "Good suggestions but I wish there were more options."
-    },
-    category: "Wine Recommendations",
-    status: "Positive"
-  },
-  {
-    id: 5,
-    user: "User #289",
-    timestamp: "2023-05-11T13:22:00",
-    query: "How much is shipping for 6 bottles to California?",
-    response: "For shipping to California, the cost for 6 bottles would typically be around $28-32 depending on the exact location. However, we offer free shipping on orders of 12 bottles or more, or on orders over $150. Would you like to know about any current shipping promotions?",
-    feedback: {
-      rating: 2,
-      comment: "The shipping info was wrong. I was charged $40."
-    },
-    category: "Shipping & Delivery",
-    status: "Negative"
-  },
-  {
-    id: 6,
-    user: "User #176",
-    timestamp: "2023-05-10T15:50:00",
-    query: "What time do you close today?",
-    response: "Our tasting room is open until 5pm today. Last tastings are seated at 4:30pm. Is there anything else you'd like to know about visiting us?",
-    feedback: {
-      rating: 5,
-      comment: "Straightforward and helpful."
-    },
-    category: "Visiting Hours",
-    status: "Positive"
-  },
-  {
-    id: 7,
-    user: "User #742",
-    timestamp: "2023-05-09T11:03:00",
-    query: "Do you allow pets on the property?",
-    response: "We welcome well-behaved dogs on leashes in our outdoor areas, but service animals only are permitted inside the tasting room due to health regulations. We have water bowls available for your furry friends! Would you like any other information about visiting with pets?",
-    feedback: {
-      rating: 5,
-      comment: "Exactly what I needed to know, thanks!"
-    },
-    category: "Visiting Info",
-    status: "Positive"
-  },
-  {
-    id: 8,
-    user: "User #115",
-    timestamp: "2023-05-08T14:17:00",
-    query: "I'm trying to find info about your 2021 Pinot Noir",
-    response: "I'm happy to help you with information about our wines. However, I don't see a 2021 Pinot Noir in our current lineup. We offer several other red wines including our Cabernet Franc, Blaufränkisch, and red blends. Would you like information about any of these wines instead?",
-    feedback: {
-      rating: 1,
-      comment: "You definitely have a 2021 Pinot Noir. I bought it last month."
-    },
-    category: "Wine Info",
-    status: "Knowledge Gap"
-  }
-];
 
 const ResponseCoach: React.FC = () => {
-  const [filter, setFilter] = useState('all');
-  const [selectedConversation, setSelectedConversation] = useState(SAMPLE_CONVERSATIONS[0]);
+  const [filter, setFilter] = useState<string>('all');
+  const [selectedConversation, setSelectedConversation] = useState<Feedback | null>(null);
   const [improvedResponse, setImprovedResponse] = useState('');
   const [issueType, setIssueType] = useState('');
+  const [feedbackData, setFeedbackData] = useState<Feedback[]>([]);
+  const [currentFeedback, setCurrentFeedback] = useState<Feedback[]>([]);
+
+
+  useEffect(() => {
+      const loadFeedbackData = async () => {
+        const data = await fetchFeedbacks();
+        if (data) {
+          setFeedbackData(data);
+          switch (filter) {
+            case 'all':
+              setCurrentFeedback(data);
+              setSelectedConversation(data[0] || null);
+              break;
+            case 'negative':
+              setCurrentFeedback(data.filter(conv => conv.status === 'Negative'));
+              setSelectedConversation(data.find(conv => conv.status === 'Negative') || null);
+              break;
+            case 'gaps':
+              setCurrentFeedback(data.filter(conv => conv.status === 'Knowledge Gap'));
+              setSelectedConversation(data.find(conv => conv.status === 'Knowledge Gap') || null);
+              break;
+            case 'improvement':
+              setCurrentFeedback(data.filter(conv => conv.status === 'Needs Work'));
+              setSelectedConversation(data.find(conv => conv.status === 'Needs Work') || null);
+              break;
+            default:
+              break;
+          }
+        }
+      }
+
+      loadFeedbackData();
+    }, [filter]);
   
-  // Filter conversations based on selected filter
-  const filteredConversations = SAMPLE_CONVERSATIONS.filter(conv => {
-    if (filter === 'all') return true;
-    if (filter === 'negative') return conv.feedback.rating < 3;
-    if (filter === 'gaps') return conv.status === 'Knowledge Gap';
-    if (filter === 'improvement') return conv.status === 'Needs Improvement';
-    return true;
-  });
+  // // Filter conversations based on selected filter
+  // const filteredConversations = SAMPLE_CONVERSATIONS.filter(conv => {
+  //   if (filter === 'all') return true;
+  //   if (filter === 'negative') return conv.feedback.rating < 3;
+  //   if (filter === 'gaps') return conv.status === 'Knowledge Gap';
+  //   if (filter === 'improvement') return conv.status === 'Needs Improvement';
+  //   return true;
+  // });
   
   // Handle improved response submission
   const handleSubmitImprovement = () => {
@@ -182,7 +112,7 @@ const ResponseCoach: React.FC = () => {
         
         {/* Conversation list */}
         <div className="flex-1 overflow-y-auto">
-          {filteredConversations.map(conv => (
+          {currentFeedback.map((conv) => (
             <div
               key={conv.id}
               onClick={() => setSelectedConversation(conv)}
@@ -191,7 +121,7 @@ const ResponseCoach: React.FC = () => {
               }`}
             >
               <div className="flex justify-between items-center mb-1">
-                <span className="font-medium text-gray-900">{conv.user}</span>
+                <span className="font-medium text-gray-900">{conv.user.slice(0, 15) + (conv.user.length > 15 ? '...' : '')}</span>
                 <span className={`text-xs px-2 py-1 rounded-full ${
                   conv.status === 'Positive' ? 'bg-green-100 text-green-800' :
                   conv.status === 'Negative' ? 'bg-red-100 text-red-800' :
@@ -202,10 +132,17 @@ const ResponseCoach: React.FC = () => {
                 </span>
               </div>
               <div className="text-sm text-gray-500 mb-1">
-                {new Date(conv.timestamp).toLocaleString()}
+                {new Date(conv.timestamp).toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true,
+                })}
               </div>
               <div className="text-sm text-gray-900 truncate">
-                {conv.query}
+                {findFirstUserMsg(conv.messages).content}
               </div>
               <div className="flex items-center mt-2">
                 <div className="flex">
@@ -222,7 +159,7 @@ const ResponseCoach: React.FC = () => {
                   ))}
                 </div>
                 <span className="text-xs text-gray-500 ml-2">
-                  {conv.category}
+                  {conv.category || 'Others'}
                 </span>
               </div>
             </div>
@@ -248,25 +185,29 @@ const ResponseCoach: React.FC = () => {
                 </span>
               </div>
               <div className="text-sm text-gray-500">
-                {new Date(selectedConversation.timestamp).toLocaleString()} • {selectedConversation.category}
+                {new Date(selectedConversation.timestamp).toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true,
+                })} • {selectedConversation.category || 'Others'}
               </div>
             </div>
             
             {/* Conversation content */}
             <div className="flex-1 p-4 overflow-y-auto">
-              {/* User query */}
+              {/* chat history */}
               <div className="mb-4">
-                <div className="text-sm font-medium text-gray-500 mb-1">User Query:</div>
-                <div className="bg-white p-3 rounded-lg border border-gray-200">
-                  {selectedConversation.query}
-                </div>
-              </div>
-              
-              {/* Bot response */}
-              <div className="mb-4">
-                <div className="text-sm font-medium text-gray-500 mb-1">Bot Response:</div>
-                <div className="bg-white p-3 rounded-lg border border-gray-200">
-                  {selectedConversation.response}
+                <div className="text-sm font-medium text-gray-500 mb-1">Chat History:</div>
+                <div className="bg-white p-3 rounded-lg border border-gray-200 space-y-2">
+                  {selectedConversation.messages.map((msg, index) => (
+                    <div key={index} className={`p-2 rounded-lg ${msg.sender === 'user' ? 'bg-blue-50 text-blue-800' : 'bg-gray-50 text-gray-800'}`}>
+                      <div className="font-medium">{msg.sender === 'user' ? 'User' : 'Bot'}</div>
+                      <div className="text-sm">{msg.content}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
               
@@ -327,7 +268,7 @@ const ResponseCoach: React.FC = () => {
                       Improved Response
                     </label>
                     <textarea
-                      value={improvedResponse || selectedConversation.response}
+                      value={improvedResponse || selectedConversation.messages[1].content}
                       onChange={(e) => setImprovedResponse(e.target.value)}
                       rows={5}
                       className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"

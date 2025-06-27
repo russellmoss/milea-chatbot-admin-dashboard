@@ -1,4 +1,17 @@
 import { getAvgResponseTime, getQueryTypes } from "../../../../apis/metrics/apis";
+import { queryTypes } from "./static";
+
+const queryTypesMap: Record<string, string> = {
+    'wine_info': 'Wine Info',
+    'club_membership': 'Club Membership',
+    'visiting_hours': 'Visiting Hours',
+    'reservation': 'Reservation',
+    'events': 'Events',
+    'user_profile': 'User Profile',
+    'sms': 'SMS',
+    'referral': 'Referral',
+    'others': 'Others'
+}
 
 
 export const fetchQualityMetricsCharts = async (timeFrame: string) => {
@@ -106,6 +119,25 @@ export const fetchQualityMetricsCharts = async (timeFrame: string) => {
                     backgroundColor: '#715100',
                 }
             ],
+        },
+        "queryTypeData": {
+            labels: queryTypes,
+            datasets: [
+                {
+                    data: queryTypes.map(type => {
+                        const key = Object.keys(queryTypesMap).find(k => queryTypesMap[k] === type);
+                        return results.reduce((sum, { queryTypeDistribution }) => {
+                            if (key && queryTypeDistribution[key]) {
+                                return sum + queryTypeDistribution[key];
+                            }
+                            return sum;
+                        }, 0);
+                    }),
+                    backgroundColor: [ '#797d62', '#9b9b7a', '#d9ae94', '#e5c59e', '#f1dca7', '#f8d488', '#e4b074', '#d08c60', '#997b66'],
+                    borderColor: '#FFFFFF',
+                    borderWidth: 1
+                }
+            ]
         }
     }
 }
