@@ -3,13 +3,13 @@ import { Feedback, Message } from "../../../../apis/metrics/interfaces";
 import { Feedback as FeedbackData } from "./interfaces";
 
 const getFeedbackCategory = (feedback: Feedback): string => {
-    const queryTypes = [];
+    const queryTypes = new Set<string>();
     for (const message of feedback.messages) {
         if (message.sender === 'user' && message.queryType) {
-            queryTypes.push(message.queryType);
+            queryTypes.add(message.queryType);
         }
     }
-    return queryTypes.join(', ');
+    return Array.from(queryTypes).join(', ');
 }
 
 
