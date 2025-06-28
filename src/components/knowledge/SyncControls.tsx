@@ -1,4 +1,7 @@
+import { Settings } from 'lucide-react';
 import React, { useState } from 'react';
+import { getAllUrls } from '../../apis/scraper/apis';
+import { set } from 'date-fns';
 
 // Define types
 interface SyncSource {
@@ -60,6 +63,14 @@ const SyncControls: React.FC = () => {
       itemCount: 0
     }
   ]);
+
+  const handleRefreshUrls = async() => {
+    setAvailableUrlsLoading(true);
+    const urls = await getAllUrls(webBaseUrl);
+    setAvailableUrls(urls);
+    setSelectedUrls(urls);
+    setAvailableUrlsLoading(false);
+  }
   
   const [syncHistory, setSyncHistory] = useState<SyncHistoryItem[]>([
     {
@@ -128,6 +139,11 @@ const SyncControls: React.FC = () => {
   const [syncProgress, setSyncProgress] = useState<number | null>(null);
   const [schedulingModalOpen, setSchedulingModalOpen] = useState<boolean>(false);
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<SyncHistoryItem | null>(null);
+  const [settingOpen, setSettingOpen] = useState<string>("");
+  const [webBaseUrl, setWebBaseUrl] = useState<string>("");
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
+  const [availableUrls, setAvailableUrls] = useState<string[]>([]);
+  const [availableUrlsLoading, setAvailableUrlsLoading] = useState<boolean>(false);
   
   // Get status label and color
   const getStatusInfo = (status: string) => {
@@ -240,7 +256,17 @@ const SyncControls: React.FC = () => {
   const handleSchedule = () => {
     setSchedulingModalOpen(true);
   };
-  
+
+  const handleSettingOpen = (sourceId: string) => {
+    setSettingOpen(sourceId);
+  };
+
+  const handleToggleUrl = (url: string) => {
+    setSelectedUrls((prev) =>
+      prev.includes(url) ? prev.filter((item) => item !== url) : [...prev, url]
+    );
+  };
+
   // Handle history item click
   const handleHistoryItemClick = (item: SyncHistoryItem) => {
     setSelectedHistoryItem(item);
@@ -261,11 +287,19 @@ const SyncControls: React.FC = () => {
     <div className="space-y-6">
       {/* Sync status panel */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Content Sources</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Sync your knowledge base with external content sources.
-          </p>
+        <div className="px-4 py-5 sm:px-6 border-b border-gray-200 flex flex-row items-center justify-between">
+          <div className="flex flex-col">
+            <h3 className="text-lg font-medium text-gray-900">Content Sources</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Sync your knowledge base with external content sources.
+            </p>
+          </div>
+          <button
+            onClick={handleSchedule}
+            className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+          >
+            Schedule
+          </button>
         </div>
         
         <div className="bg-white overflow-hidden">
@@ -344,10 +378,10 @@ const SyncControls: React.FC = () => {
                             Sync Now
                           </button>
                           <button
-                            onClick={handleSchedule}
-                            className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                            onClick={() => handleSettingOpen(source.id)}
+                            className="inline-flex items-center px-2 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown focus:outline-none"
                           >
-                            Schedule
+                            <Settings size={16} />
                           </button>
                         </>
                       )}
@@ -586,6 +620,138 @@ const SyncControls: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Setting Modal for Website Content */}
+      {settingOpen && syncSources.find(source => source.id === settingOpen) && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" onClick={() => setSettingOpen("")}>
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <Settings size={24} className="text-blue-600" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                      Settings for {syncSources.find(source => source.id === settingOpen)?.name}
+                    </h3>
+                    {/* Add settings form here */}
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button 
+                  type="button" 
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium text-white hover:bg-darkBrown focus:outline-none sm:ml-3 sm:w-auto sm:text-sm"
+                  onClick={() => setSettingOpen("")}
+                >
+                  Save Settings
+                </button>
+                <button 
+                  type="button" 
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  onClick={() => setSettingOpen("")}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+  
+      {settingOpen && syncSources.find(source => source.id === settingOpen) && (
+        <div className="fixed z-50 inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div className="flex items-center gap-3">
+                <Settings className="text-blue-600" size={24} />
+                <h2 className="text-lg font-semibold">
+                  Settings for {syncSources.find(source => source.id === settingOpen)?.name}
+                </h2>
+              </div>
+              <button onClick={() => setSettingOpen("")} className="text-gray-500 hover:text-gray-800">
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5">
+              {/* Base URL Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Base URL for Scraping
+                </label>
+                <input
+                  type="text"
+                  value={webBaseUrl}
+                  onChange={(e) => setWebBaseUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Refresh Button */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">
+                  Fetch available subdomain URLs from base URL
+                </span>
+                <button
+                  onClick={() => { handleRefreshUrls(); }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Refresh URLs
+                </button>
+              </div>
+
+              {/* URL Structure Display */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Available URLs:</h3>
+                {availableUrls.length > 0 ? (
+                  <div className="max-h-60 overflow-auto border rounded-lg p-3 bg-gray-50">
+                    <ul className="space-y-2">
+                      {availableUrls.map((url, idx) => (
+                        <li key={idx} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedUrls.includes(url)}
+                            onChange={() => handleToggleUrl(url)}
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-800 break-words truncate">{url}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-400">{availableUrlsLoading ? "Loading..." : "No URLs fetched. Click refresh."}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 border-t px-6 py-4">
+              <button
+                onClick={() => setSettingOpen("")}
+                className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Save Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
