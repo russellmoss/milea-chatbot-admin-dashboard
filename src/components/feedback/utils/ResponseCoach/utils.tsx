@@ -26,7 +26,7 @@ export const fetchFeedbacks = async() => {
                 comment: feedback.feedback.details
             },
             category: getFeedbackCategory(feedback),
-            status: feedback.feedback.rating <= 2 ? 'Negative' : 'Positive',
+            status: feedback.feedback.rating <= 2 ? 'Negative' : 'All',
         }));
         return data;
     } catch (error) {

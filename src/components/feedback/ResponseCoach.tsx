@@ -4,7 +4,7 @@ import { fetchFeedbacks, findFirstUserMsg } from './utils/ResponseCoach/utils';
 
 
 const ResponseCoach: React.FC = () => {
-  const [filter, setFilter] = useState<string>('all');
+  const [filter, setFilter] = useState<string>('unread');
   const [selectedConversation, setSelectedConversation] = useState<Feedback | null>(null);
   const [improvedResponse, setImprovedResponse] = useState('');
   const [issueType, setIssueType] = useState('');
@@ -18,21 +18,21 @@ const ResponseCoach: React.FC = () => {
         if (data) {
           setFeedbackData(data);
           switch (filter) {
-            case 'all':
-              setCurrentFeedback(data);
-              setSelectedConversation(data[0] || null);
+            case 'unread':
+              setCurrentFeedback(data.filter(conv => conv.status === 'Unread'));
+              setSelectedConversation(data.find(conv => conv.status === 'Unread') || null);
               break;
             case 'negative':
               setCurrentFeedback(data.filter(conv => conv.status === 'Negative'));
               setSelectedConversation(data.find(conv => conv.status === 'Negative') || null);
               break;
-            case 'gaps':
-              setCurrentFeedback(data.filter(conv => conv.status === 'Knowledge Gap'));
-              setSelectedConversation(data.find(conv => conv.status === 'Knowledge Gap') || null);
+            case 'all':
+              setCurrentFeedback(data.filter(conv => conv.status === 'All'));
+              setSelectedConversation(data.find(conv => conv.status === 'All') || null);
               break;
-            case 'improvement':
-              setCurrentFeedback(data.filter(conv => conv.status === 'Needs Work'));
-              setSelectedConversation(data.find(conv => conv.status === 'Needs Work') || null);
+            case 'analyzed':
+              setCurrentFeedback(data.filter(conv => conv.status === 'Analyzed'));
+              setSelectedConversation(data.find(conv => conv.status === 'Analyzed') || null);
               break;
             default:
               break;
@@ -67,14 +67,14 @@ const ResponseCoach: React.FC = () => {
         <div className="border-b border-gray-200">
           <nav className="flex">
             <button
-              onClick={() => setFilter('all')}
+              onClick={() => setFilter('unread')}
               className={`px-3 py-2 text-sm font-medium flex-1 ${
-                filter === 'all'
+                filter === 'unread'
                   ? 'border-b-2 border-primary text-primary'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              All
+              Unread
             </button>
             <button
               onClick={() => setFilter('negative')}
@@ -87,24 +87,24 @@ const ResponseCoach: React.FC = () => {
               Negative
             </button>
             <button
-              onClick={() => setFilter('gaps')}
+              onClick={() => setFilter('all')}
               className={`px-3 py-2 text-sm font-medium flex-1 ${
-                filter === 'gaps'
+                filter === 'all'
                   ? 'border-b-2 border-primary text-primary'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              Gaps
+              All
             </button>
             <button
-              onClick={() => setFilter('improvement')}
+              onClick={() => setFilter('analyzed')}
               className={`px-3 py-2 text-sm font-medium flex-1 ${
-                filter === 'improvement'
+                filter === 'analyzed'
                   ? 'border-b-2 border-primary text-primary'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              Needs Work
+              Analyzed
             </button>
           </nav>
         </div>
@@ -122,9 +122,9 @@ const ResponseCoach: React.FC = () => {
               <div className="flex justify-between items-center mb-1">
                 <span className="font-medium text-gray-900">{conv.user.slice(0, 15) + (conv.user.length > 15 ? '...' : '')}</span>
                 <span className={`text-xs px-2 py-1 rounded-full ${
-                  conv.status === 'Positive' ? 'bg-green-100 text-green-800' :
+                  conv.status === 'Unread' ? 'bg-green-100 text-green-800' :
                   conv.status === 'Negative' ? 'bg-red-100 text-red-800' :
-                  conv.status === 'Knowledge Gap' ? 'bg-purple-100 text-purple-800' :
+                  conv.status === 'All' ? 'bg-purple-100 text-purple-800' :
                   'bg-yellow-100 text-yellow-800'
                 }`}>
                   {conv.status}
@@ -175,9 +175,9 @@ const ResponseCoach: React.FC = () => {
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium text-gray-900">{selectedConversation.user}</h3>
                 <span className={`text-sm px-2 py-1 rounded-full ${
-                  selectedConversation.status === 'Positive' ? 'bg-green-100 text-green-800' :
+                  selectedConversation.status === 'Unread' ? 'bg-green-100 text-green-800' :
                   selectedConversation.status === 'Negative' ? 'bg-red-100 text-red-800' :
-                  selectedConversation.status === 'Knowledge Gap' ? 'bg-purple-100 text-purple-800' :
+                  selectedConversation.status === 'All' ? 'bg-purple-100 text-purple-800' :
                   'bg-yellow-100 text-yellow-800'
                 }`}>
                   {selectedConversation.status}
@@ -208,8 +208,8 @@ const ResponseCoach: React.FC = () => {
                     >
                       <div>
                         <div className="flex items-center mb-1 gap-2">
-                          <span className={`text-sm font-medium ${msg.sender === 'user' ? 'text-purple-600' : 'text-cyan-600'}`}>
-                            {msg.sender === 'user' ? 'User' : 'Bot'}
+                          <span className={`text-sm font-medium ${msg.sender === 'user' ? 'text-purple-600' : msg.sender === 'bot' ? 'text-cyan-400' : 'text-gray-600'}`}>
+                            {msg.sender === 'user' ? 'User' : msg.sender === 'bot' ? 'Bot' : 'System'}
                           </span>
                           <time className="text-xs text-gray-400">
                             {new Date(msg.timestamp).toLocaleTimeString(undefined, {
@@ -260,7 +260,22 @@ const ResponseCoach: React.FC = () => {
               <div>
                 <div className="text-sm font-medium text-gray-500 mb-1">Improvement Suggestions:</div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <div className="mb-3">
+                  <div className="mb-3 gap-2 flex flex-col">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Response Selection
+                    </label>
+                    <select
+                      value={issueType}
+                      onChange={(e) => setIssueType(e.target.value)}
+                      className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary truncate"
+                    >
+                      {selectedConversation.messages.map((msg, index) => (
+                        msg.sender ==='bot' && 
+                        <option key={index} value={msg.content}>
+                          {msg.content.length > 100 ? msg.content.slice(0, 100) + '...' : msg.content}
+                        </option>
+                      ))}
+                    </select>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Issue Classification
                     </label>

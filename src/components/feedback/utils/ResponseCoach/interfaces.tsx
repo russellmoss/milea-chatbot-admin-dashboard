@@ -11,5 +11,5 @@ export interface Feedback {
         comment: string;
     };
     category: string;
-    status: "Positive" | "Negative" | "Knowledge Gap" | "Needs Work"
+    status: "Unread" | "Negative" | "All" | "Analyzed"
 }
