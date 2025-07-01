@@ -1,4 +1,4 @@
-import { getAvgResponseTime, getQueryTypes } from "../../../../apis/metrics/apis";
+import { getAvgResponseTime, getFailedMessages, getMessageCount, getQueryTypes } from "../../../../apis/metrics/apis";
 import { queryTypes } from "./static";
 
 const queryTypesMap: Record<string, string> = {
@@ -140,4 +140,51 @@ export const fetchQualityMetricsCharts = async (timeFrame: string) => {
             ]
         }
     }
+}
+
+export const computeResponseAccuracy = (messageCount: number, failedMessages: number): number => {
+    if (messageCount === 0) return 0;
+    const accuracy = (messageCount - failedMessages) / messageCount;
+    return accuracy
+}
+
+export const fetchQualityMetricsData = async() => {
+    const now = new Date();
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    startOfThisMonth.setHours(0, 0, 0, 0);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    startOfLastMonth.setHours(0, 0, 0, 0);
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    endOfLastMonth.setHours(23, 59, 59, 999);
+
+    const [
+        avgResponseTimeThisMonth, avgResponseTimeLastMonth,
+        failedMessagesThisMonth, failedMessagesLastMonth,
+        messageCountThisMonth, messageCountLastMonth
+    ] = await Promise.all([
+        getAvgResponseTime(startOfThisMonth, now),
+        getAvgResponseTime(startOfLastMonth, endOfLastMonth),
+        getFailedMessages(startOfThisMonth, now),
+        getFailedMessages(startOfLastMonth, endOfLastMonth),
+        getMessageCount(startOfThisMonth, now),
+        getMessageCount(startOfLastMonth, endOfLastMonth),
+    ]);
+
+    return {
+        "response_accuracy": {
+            "this_month": computeResponseAccuracy(messageCountThisMonth.bot, failedMessagesThisMonth.length),
+            "last_month": computeResponseAccuracy(messageCountLastMonth.bot, failedMessagesLastMonth.length)
+        },
+        "avg_response_time": {
+            "this_month": avgResponseTimeThisMonth,
+            "last_month": avgResponseTimeLastMonth,
+        },
+    }
+}
+
+export const computeAvgRespTimeDiff = (thisMonth: number, lastMonth: number): string => {
+    const diff = thisMonth - lastMonth;
+    if (diff === 0) return "No change compared to last month";
+    if (lastMonth === 0) return "New data";
+    return `${(diff / 1000).toFixed(2)} s from last month`;
 }

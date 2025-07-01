@@ -16,7 +16,8 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut, Radar } from 'react-chartjs-2';
 import { emptyResponseTimeData, emptyQueryTypeData } from './utils/QualityMetricsDashboard/static';
-import { fetchQualityMetricsCharts } from './utils/QualityMetricsDashboard/utils';
+import { computeAvgRespTimeDiff, fetchQualityMetricsCharts, fetchQualityMetricsData } from './utils/QualityMetricsDashboard/utils';
+import { TrendingUp, TrendingDown, MoveRight } from 'lucide-react';
 
 // Register ChartJS components
 ChartJS.register(
@@ -37,6 +38,10 @@ const QualityMetricsDashboard: React.FC = () => {
   const [timeFrame, setTimeFrame] = useState<string>('7days');
   const [responseTimeData, setResponseTimeData] = useState<ChartData<'bar'>>(emptyResponseTimeData);
   const [queryTypeData, setQueryTypeData] = useState<ChartData<'doughnut'>>(emptyQueryTypeData);
+  const [responseTimeAccuThisMonth, setResponseTimeAccuThisMonth] = useState<number>(0);
+  const [responseTimeAccuLastMonth, setResponseTimeAccuLastMonth] = useState<number>(0);
+  const [avgResponseTimeThisMonth, setAvgResponseTimeThisMonth] = useState<number>(0);
+  const [avgResponseTimeLastMonth, setAvgResponseTimeLastMonth] = useState<number>(0);
 
 
   // fectch metrics data for charts based on timeFrame
@@ -48,8 +53,18 @@ const QualityMetricsDashboard: React.FC = () => {
         setQueryTypeData(data.queryTypeData);
       };
     }
+    const loadMetricsData = async () => {
+      const data = await fetchQualityMetricsData();
+      if (data) {
+        setResponseTimeAccuThisMonth(data.response_accuracy.this_month);
+        setResponseTimeAccuLastMonth(data.response_accuracy.last_month);
+        setAvgResponseTimeThisMonth(data.avg_response_time.this_month);
+        setAvgResponseTimeLastMonth(data.avg_response_time.last_month);
+      }
+    }
   
     loadChartData();
+    loadMetricsData();
   }, [timeFrame]);
   
   
@@ -91,34 +106,23 @@ const QualityMetricsDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h3 className="text-sm font-medium text-gray-500">Response Accuracy</h3>
-          <p className="text-2xl font-bold text-primary">92%</p>
-          <p className="text-sm text-green-600 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-            </svg>
-            3% from last month
+          <p className="text-2xl font-bold text-primary">{(responseTimeAccuThisMonth * 100).toFixed(2)}%</p>
+          <p className={`text-sm flex items-center gap-1 ` + (responseTimeAccuThisMonth > responseTimeAccuLastMonth ? 'text-green-600' : (responseTimeAccuThisMonth < responseTimeAccuLastMonth || responseTimeAccuLastMonth === 0) ? 'text-red-600' : 'text-gray-600')}>
+            {responseTimeAccuThisMonth > responseTimeAccuLastMonth && <TrendingUp size={14} strokeWidth={2} />}
+            {responseTimeAccuThisMonth === responseTimeAccuLastMonth && <MoveRight size={14} strokeWidth={2} />}
+            {responseTimeAccuThisMonth < responseTimeAccuLastMonth && <TrendingDown size={14} strokeWidth={2} />}
+            {((responseTimeAccuThisMonth - responseTimeAccuLastMonth) * 100).toFixed(2)}% from last month
           </p>
         </div>
         
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h3 className="text-sm font-medium text-gray-500">Avg. Response Time</h3>
-          <p className="text-2xl font-bold text-primary">2.2s</p>
-          <p className="text-sm text-green-600 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-            </svg>
-            0.3s improvement
-          </p>
-        </div>
-        
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-500">Customer Satisfaction</h3>
-          <p className="text-2xl font-bold text-primary">87%</p>
-          <p className="text-sm text-green-600 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-            </svg>
-            2% from last month
+          <p className="text-2xl font-bold text-primary">{(avgResponseTimeThisMonth / 1000).toFixed(2)}s</p>
+          <p className={`text-sm flex items-center gap-1 ` + (avgResponseTimeThisMonth < avgResponseTimeLastMonth ? 'text-green-600' : (avgResponseTimeThisMonth > avgResponseTimeLastMonth || avgResponseTimeLastMonth) === 0 ? 'text-red-600' : 'text-gray-600')}>
+            {avgResponseTimeThisMonth > avgResponseTimeLastMonth && <TrendingUp size={14} strokeWidth={2} />}
+            {avgResponseTimeThisMonth === avgResponseTimeLastMonth && <MoveRight size={14} strokeWidth={2} />}
+            {avgResponseTimeThisMonth < avgResponseTimeLastMonth && <TrendingDown size={14} strokeWidth={2} />}
+            {computeAvgRespTimeDiff(avgResponseTimeThisMonth, avgResponseTimeLastMonth)}
           </p>
         </div>
       </div>

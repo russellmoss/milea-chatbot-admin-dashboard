@@ -1,5 +1,5 @@
 import { instance } from "../base/beinstance";
-import { Feedback } from "./interfaces";
+import { Feedback, MessageCount } from "./interfaces";
 
 
 // The data received from the API is in unit of milliseconds
@@ -25,6 +25,16 @@ export const getUserCount = async (startDate: Date, endDate: Date): Promise<numb
 
 export const getConversationCount = async (startDate: Date, endDate: Date): Promise<number> => {
     const response = await instance.post("/metrics/conversation-count", { startTime: startDate, endTime: endDate });
+    return response.data;
+}
+
+export const getMessageCount = async (startDate: Date, endDate: Date): Promise<MessageCount> => {
+    const response = await instance.post("/metrics/message-count", { startTime: startDate, endTime: endDate });
+    return response.data;
+}
+
+export const getFailedMessages = async (startDate: Date, endDate: Date): Promise<Array<any>> => {
+    const response = await instance.post("/metrics/failed-messages", { startTime: startDate, endTime: endDate });
     return response.data;
 }
 

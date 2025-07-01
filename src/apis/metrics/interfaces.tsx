@@ -31,3 +31,9 @@ export interface Feedback {
     failure: string;
     failureReason: string | null;
 }
+
+export interface MessageCount {
+    total: number;
+    user: number;
+    bot: number;
+}
