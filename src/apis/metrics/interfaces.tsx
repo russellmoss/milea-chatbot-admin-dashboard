@@ -10,10 +10,9 @@ export interface Message {
         positiveFeedback: string;
         negativeFeedback: string;
     };
-    queryType: string | null;
+    queryType: "wine_info" | "club_membership" | "visiting_hours" | "reservation" | "events" | "user_profile" | "sms" | "referral" | "others" | null;
     responseTime: number | null;
 }
-
 export interface Feedback {
     sessionId: string;
     clientIp: string;
@@ -36,4 +35,16 @@ export interface MessageCount {
     total: number;
     user: number;
     bot: number;
+}
+
+export interface QueryTypeCounts {
+    wine_info: number;
+    club_membership: number;
+    visiting_hours: number;
+    reservation: number;
+    events: number;
+    user_profile: number;
+    sms: number;
+    referral: number;
+    others: number;
 }

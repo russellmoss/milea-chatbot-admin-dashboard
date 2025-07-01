@@ -1,5 +1,5 @@
 import { instance } from "../base/beinstance";
-import { Feedback, MessageCount } from "./interfaces";
+import { Feedback, Message, MessageCount, QueryTypeCounts } from "./interfaces";
 
 
 // The data received from the API is in unit of milliseconds
@@ -8,7 +8,7 @@ export const getAvgResponseTime = async (startDate: Date, endDate: Date): Promis
     return response.data;
 };
 
-export const getQueryTypes = async (startDate: Date, endDate: Date): Promise<Record<string, number>> => {
+export const getQueryTypes = async (startDate: Date, endDate: Date): Promise<QueryTypeCounts> => {
     const response = await instance.post("/metrics/query-type-count", { startTime: startDate, endTime: endDate });
     return response.data;
 };
@@ -33,7 +33,7 @@ export const getMessageCount = async (startDate: Date, endDate: Date): Promise<M
     return response.data;
 }
 
-export const getFailedMessages = async (startDate: Date, endDate: Date): Promise<Array<any>> => {
+export const getFailedMessages = async (startDate: Date, endDate: Date): Promise<Array<Message>> => {
     const response = await instance.post("/metrics/failed-messages", { startTime: startDate, endTime: endDate });
     return response.data;
 }
@@ -57,5 +57,10 @@ export const getConvClubSignups = async (startDate: Date, endDate: Date): Promis
 
 export const getConvFeedbacks = async (startDate: Date, endDate: Date): Promise<Feedback[]> => {
     const response = await instance.get("/metrics/conversation-feedback", { params: { startTime: startDate, endTime: endDate } });
+    return response.data;
+}
+
+export const getQuestionByAnswer = async(BotMessageId: string): Promise<Message> => {
+    const response = await instance.get("/metrics/question", { params: { answer_msg_id: BotMessageId } });
     return response.data;
 }

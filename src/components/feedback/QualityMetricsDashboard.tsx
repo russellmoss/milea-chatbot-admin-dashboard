@@ -15,7 +15,7 @@ import {
   Filler
 } from 'chart.js';
 import { Bar, Doughnut, Radar } from 'react-chartjs-2';
-import { emptyResponseTimeData, emptyQueryTypeData } from './utils/QualityMetricsDashboard/static';
+import { emptyResponseTimeData, emptyQueryTypeData, emptyQueryPerfData, ImproveTableData, emptyImproveTableData } from './utils/QualityMetricsDashboard/static';
 import { computeAvgRespTimeDiff, fetchQualityMetricsCharts, fetchQualityMetricsData } from './utils/QualityMetricsDashboard/utils';
 import { TrendingUp, TrendingDown, MoveRight } from 'lucide-react';
 
@@ -38,6 +38,8 @@ const QualityMetricsDashboard: React.FC = () => {
   const [timeFrame, setTimeFrame] = useState<string>('7days');
   const [responseTimeData, setResponseTimeData] = useState<ChartData<'bar'>>(emptyResponseTimeData);
   const [queryTypeData, setQueryTypeData] = useState<ChartData<'doughnut'>>(emptyQueryTypeData);
+  const [categoryPerformanceData, setCategoryPerformanceData] = useState<ChartData<'radar'>>(emptyQueryPerfData);
+  const [queryImproveData, setQueryImproveData] = useState<ImproveTableData[]>(emptyImproveTableData);
   const [responseTimeAccuThisMonth, setResponseTimeAccuThisMonth] = useState<number>(0);
   const [responseTimeAccuLastMonth, setResponseTimeAccuLastMonth] = useState<number>(0);
   const [avgResponseTimeThisMonth, setAvgResponseTimeThisMonth] = useState<number>(0);
@@ -51,6 +53,8 @@ const QualityMetricsDashboard: React.FC = () => {
       if (data) {
         setResponseTimeData(data.avgResponseTimeData);
         setQueryTypeData(data.queryTypeData);
+        setCategoryPerformanceData(data.queryPerformanceData);
+        setQueryImproveData(data.queryImprovementData);
       };
     }
     const loadMetricsData = async () => {
@@ -66,28 +70,6 @@ const QualityMetricsDashboard: React.FC = () => {
     loadChartData();
     loadMetricsData();
   }, [timeFrame]);
-  
-  
-  // Sample data for Response Performance by Category
-  const categoryPerformanceData: ChartData<'radar'> = {
-    labels: ['Wine Info', 'Club Membership', 'Visiting Hours', 'Reservations', 'Events', 'Other'],
-    datasets: [
-      {
-        label: 'Current',
-        data: [8.7, 9.2, 8.5, 7.8, 8.3, 7.5],
-        backgroundColor: 'rgba(90, 62, 0, 0.2)',
-        borderColor: '#5A3E00',
-        pointBackgroundColor: '#5A3E00'
-      },
-      {
-        label: 'Previous Period',
-        data: [8.2, 8.9, 8.3, 7.5, 7.9, 7.3],
-        backgroundColor: 'rgba(113, 81, 0, 0.2)',
-        borderColor: '#715100',
-        pointBackgroundColor: '#715100'
-      }
-    ]
-  };
 
   // Common chart options
   const chartOptions = {
@@ -180,15 +162,24 @@ const QualityMetricsDashboard: React.FC = () => {
           <div className="h-64">
             <Radar data={categoryPerformanceData} options={{
               ...chartOptions,
+              responsive: true,
               scales: {
                 r: {
-                  min: 5,
+                  beginAtZero: true,
                   max: 10,
-                  ticks: {
-                    stepSize: 1
+                  angleLines: {
+                    display: true
+                  },
+                  grid: {
+                    circular: true
+                  },
+                  pointLabels: {
+                    font: {
+                      size: 10
+                    }
                   }
                 }
-              }
+              },
             }} />
           </div>
         </div>
@@ -219,48 +210,29 @@ const QualityMetricsDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  Reservations
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  7.8/10
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  8.5/10
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                  -0.7
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <ul className="list-disc list-inside">
-                    <li>Improve booking flow clarity</li>
-                    <li>Add more reservation time slots</li>
-                    <li>Enhance confirmation process</li>
-                  </ul>
-                </td>
-              </tr>
-              <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  Events
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  8.3/10
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  9.0/10
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                  -0.7
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <ul className="list-disc list-inside">
-                    <li>Update event calendar</li>
-                    <li>Add more event details</li>
-                    <li>Improve ticket booking process</li>
-                  </ul>
-                </td>
-              </tr>
+              {queryImproveData.map((item, index) => (
+                <tr key={index}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {item.category}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {item.current_score.toFixed(1)}/10
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {item.target_score.toFixed(1)}/10
+                  </td>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${item.current_score < item.target_score ? 'text-red-600' : 'text-green-600'}`}>
+                    {Math.abs(item.target_score - item.current_score).toFixed(1)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <ul className="list-disc list-inside">
+                      {item.action_items.map((action, actionIndex) => (
+                        <li key={actionIndex}>{action}</li>
+                      ))}
+                    </ul>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
