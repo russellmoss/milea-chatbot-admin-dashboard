@@ -1,22 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Feedback } from './utils/ResponseCoach/interfaces';
-import { fetchFeedbacks, findFirstUserMsg, upsertDashboardDbFeedbacks } from './utils/ResponseCoach/utils';
+import swal from 'sweetalert';
+import { findFirstUserMsg, upsertDashboardDbFeedbacks, generateInitialImprovedResponse, checkIfOneImprovementExists } from './utils/ResponseCoach/utils';
+import { FeedbackModel } from '../../apis/dashboard/interfaces';
+import { updateFeedback, markFeedbackResolved } from '../../apis/dashboard/apis';
+import { impactOptions } from './utils/ResponseCoach/static';
+import { ResponseImprovements } from './utils/ResponseCoach/interfaces';
+
 
 
 const ResponseCoach: React.FC = () => {
   const [filter, setFilter] = useState<string>('unread');
-  const [selectedConversation, setSelectedConversation] = useState<Feedback | null>(null);
-  const [improvedResponse, setImprovedResponse] = useState('');
-  const [issueType, setIssueType] = useState('');
-  const [feedbackData, setFeedbackData] = useState<Feedback[]>([]);
-  const [currentFeedback, setCurrentFeedback] = useState<Feedback[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<FeedbackModel | null>(null);
+  const [feedbackData, setFeedbackData] = useState<FeedbackModel[]>([]);
+  const [currentFeedback, setCurrentFeedback] = useState<FeedbackModel[]>([]);
+  const [selectedImproved, setSelectedImproved] = useState<Record<string, ResponseImprovements>>({});
 
 
   useEffect(() => {
       const loadFeedbackData = async () => {
-        const data = await fetchFeedbacks();
-        upsertDashboardDbFeedbacks();
+        const data = await upsertDashboardDbFeedbacks();
         if (data) {
+          setSelectedImproved(generateInitialImprovedResponse(data));
           setFeedbackData(data);
           switch (filter) {
             case 'unread':
@@ -24,16 +28,16 @@ const ResponseCoach: React.FC = () => {
               setSelectedConversation(data.find(conv => conv.status === 'Unread') || null);
               break;
             case 'negative':
-              setCurrentFeedback(data.filter(conv => conv.status === 'Negative'));
-              setSelectedConversation(data.find(conv => conv.status === 'Negative') || null);
+              setCurrentFeedback(data.filter(conv => conv.status === 'Unread' && conv.negative));
+              setSelectedConversation(data.find(conv => conv.status === 'Unread' && conv.negative) || null);
               break;
             case 'all':
-              setCurrentFeedback(data.filter(conv => conv.status === 'All'));
-              setSelectedConversation(data.find(conv => conv.status === 'All') || null);
+              setCurrentFeedback(data);
+              setSelectedConversation(data[0]);
               break;
             case 'analyzed':
-              setCurrentFeedback(data.filter(conv => conv.status === 'Analyzed'));
-              setSelectedConversation(data.find(conv => conv.status === 'Analyzed') || null);
+              setCurrentFeedback(data.filter(conv => conv.status === 'In Progress'));
+              setSelectedConversation(data.find(conv => conv.status === 'In Progress') || null);
               break;
             default:
               break;
@@ -44,21 +48,84 @@ const ResponseCoach: React.FC = () => {
       loadFeedbackData();
     }, [filter]);
   
-  // // Filter conversations based on selected filter
-  // const filteredConversations = SAMPLE_CONVERSATIONS.filter(conv => {
-  //   if (filter === 'all') return true;
-  //   if (filter === 'negative') return conv.feedback.rating < 3;
-  //   if (filter === 'gaps') return conv.status === 'Knowledge Gap';
-  //   if (filter === 'improvement') return conv.status === 'Needs Improvement';
-  //   return true;
-  // });
-  
   // Handle improved response submission
-  const handleSubmitImprovement = () => {
-    alert(`Training data submitted:\nIssue Type: ${issueType}\nImproved Response: ${improvedResponse}`);
-    setImprovedResponse('');
-    setIssueType('');
+  const handleSubmitImprovement = async(sessionId: string, upsert=false) => {
+    const allAnalyzed = Object.values(selectedImproved[sessionId]?.responseImprovements || {}).every(resp => resp.issueClassified && resp.improvedResponse);
+    const response = await updateFeedback({
+      sessionId: sessionId,
+      responseImprovement: selectedImproved[sessionId].responseImprovements,
+      all_analyzed: allAnalyzed,
+      impact: selectedImproved[sessionId].impact,
+      status: 'In Progress',
+    });
+    setFeedbackData(prev => prev.map(feedback => 
+      feedback.sessionId === sessionId ? { ...feedback, ...response } : feedback
+    ));
+    await swal({
+      title: "Submitted",
+      text: `Your response improvement has been ${upsert ? 'updated' : 'submitted'} successfully. Session ID: ${sessionId}`,
+      icon: "success",
+    });
   };
+
+  // useEffect(() => {
+  //   console.debug('Selected Improved State:', selectedImproved);
+  // }, [selectedImproved]);
+
+  const handleImpactChanges = (impact: string, sessionId: string) => {
+    const prevData = selectedImproved[sessionId] || { responseImprovements: [] };
+    if (!["Low", "Medium", "High", "Very High"].includes(impact)) return;
+    setSelectedImproved(prev => ({
+      ...prev,
+      [sessionId]: {
+        impact: impact as "Low" | "Medium" | "High" | "Very High",
+        responseImprovements: prevData.responseImprovements,
+      },
+    }));
+  };
+
+  const handleIssueTypeChange = (idx: number, type: string, sessionId: string) => {
+    const prevData = selectedImproved[sessionId] || { responseImprovements: [] };
+    prevData.responseImprovements[idx] = {
+      ...prevData.responseImprovements[idx],
+      issueClassified: type,
+    };
+    setSelectedImproved(prev => ({
+      ...prev,
+      [sessionId]: {
+        ...prev[sessionId],
+        responseImprovements: prevData.responseImprovements,
+      },
+    }));
+  };
+
+  const handleImprovedResponseChange = (index: number, response: string, sessionId: string) => {
+    const prevData = selectedImproved[sessionId] || { responseImprovements: [] };
+    prevData.responseImprovements[index] = {
+      ...prevData.responseImprovements[index],
+      improvedResponse: response,
+    };
+    setSelectedImproved(prev => ({
+      ...prev,
+      [sessionId]: {
+        ...prev[sessionId],
+        responseImprovements: prevData.responseImprovements,
+      },
+    }));
+  };
+
+  const handleMarkAsResolved = async (sessionId: string) => {
+    const response = await markFeedbackResolved(sessionId);
+    setFeedbackData(prev => prev.map(feedback =>
+      feedback.sessionId === sessionId ? { ...feedback, ...response } : feedback
+    ));
+    setSelectedConversation(null);
+    await swal({
+      title: "Marked as Resolved",
+      text: `The conversation has been marked as resolved. Session ID: ${sessionId}`,
+      icon: "success",
+    });
+  }
   
   return (
     <div className="flex h-[calc(100vh-300px)] min-h-[500px] border border-gray-200 rounded-lg overflow-hidden">
@@ -114,17 +181,17 @@ const ResponseCoach: React.FC = () => {
         <div className="flex-1 overflow-y-auto">
           {currentFeedback.map((conv) => (
             <div
-              key={conv.id}
+              key={conv.sessionId}
               onClick={() => setSelectedConversation(conv)}
               className={`p-3 border-b border-gray-200 cursor-pointer hover:bg-gray-50 ${
-                selectedConversation?.id === conv.id ? 'bg-amber-50 border-l-4 border-l-primary' : ''
+                selectedConversation?.sessionId === conv.sessionId ? 'bg-amber-50 border-l-4 border-l-primary' : ''
               }`}
             >
               <div className="flex justify-between items-center mb-1">
-                <span className="font-medium text-gray-900">{conv.user.slice(0, 15) + (conv.user.length > 15 ? '...' : '')}</span>
+                <span className="font-medium text-gray-900">#User {conv.userId.slice(0, 15) + (conv.userId.length > 15 ? '...' : '')}</span>
                 <span className={`text-xs px-2 py-1 rounded-full ${
+                  conv.negative ? 'bg-red-100 text-red-800' :
                   conv.status === 'Unread' ? 'bg-green-100 text-green-800' :
-                  conv.status === 'Negative' ? 'bg-red-100 text-red-800' :
                   conv.status === 'All' ? 'bg-purple-100 text-purple-800' :
                   'bg-yellow-100 text-yellow-800'
                 }`}>
@@ -159,7 +226,7 @@ const ResponseCoach: React.FC = () => {
                   ))}
                 </div>
                 <span className="text-xs text-gray-500 ml-2">
-                  {conv.category || 'Others'}
+                  {conv.categories.join(', ') || 'Others'}
                 </span>
               </div>
             </div>
@@ -174,10 +241,10 @@ const ResponseCoach: React.FC = () => {
             {/* Conversation header */}
             <div className="p-4 bg-white border-b border-gray-200">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium text-gray-900">{selectedConversation.user}</h3>
+                <h3 className="text-lg font-medium text-gray-900">#User {selectedConversation.userId}</h3>
                 <span className={`text-sm px-2 py-1 rounded-full ${
+                  selectedConversation.negative ? 'bg-red-100 text-red-800' :
                   selectedConversation.status === 'Unread' ? 'bg-green-100 text-green-800' :
-                  selectedConversation.status === 'Negative' ? 'bg-red-100 text-red-800' :
                   selectedConversation.status === 'All' ? 'bg-purple-100 text-purple-800' :
                   'bg-yellow-100 text-yellow-800'
                 }`}>
@@ -192,7 +259,7 @@ const ResponseCoach: React.FC = () => {
                   hour: '2-digit',
                   minute: '2-digit',
                   hour12: true,
-                })} • {selectedConversation.category || 'Others'}
+                })} • {selectedConversation.categories.join(', ') || 'Others'}
               </div>
             </div>
             
@@ -262,65 +329,105 @@ const ResponseCoach: React.FC = () => {
                 <div className="text-sm font-medium text-gray-500 mb-1">Improvement Suggestions:</div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <div className="mb-3 gap-2 flex flex-col">
+
+                    {/* impact */}
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Response Selection
+                      Impact Level
                     </label>
-                    <select
-                      value={issueType}
-                      onChange={(e) => setIssueType(e.target.value)}
-                      className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary truncate"
-                    >
-                      {selectedConversation.messages.map((msg, index) => (
-                        msg.sender ==='bot' && 
-                        <option key={index} value={msg.content}>
-                          {msg.content.length > 100 ? msg.content.slice(0, 100) + '...' : msg.content}
-                        </option>
+                    <div className="flex gap-2 mb-2">
+                      {impactOptions.map((option) => (
+                        <button
+                          key={option.label}
+                          onClick={() => handleImpactChanges(option.label, selectedConversation.sessionId)}
+                          className={`px-3 py-1 rounded-md text-sm font-medium ${
+                            selectedImproved[selectedConversation.sessionId].impact === option.label
+                              ? `${option.color}`
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
                       ))}
-                    </select>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Issue Classification
-                    </label>
-                    <select
-                      value={issueType}
-                      onChange={(e) => setIssueType(e.target.value)}
-                      className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-                    >
-                      <option value="">Select an issue type...</option>
-                      <option value="incorrect_information">Incorrect Information</option>
-                      <option value="missing_information">Missing Information</option>
-                      <option value="needs_clarification">Needs Clarification</option>
-                      <option value="tone_issues">Tone Issues</option>
-                      <option value="formatting_issues">Formatting Issues</option>
-                      <option value="knowledge_gap">Knowledge Gap</option>
-                      <option value="other">Other Issue</option>
-                    </select>
-                  </div>
-                  
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Improved Response
-                    </label>
-                    <textarea
-                      value={improvedResponse || selectedConversation.messages[1].content}
-                      onChange={(e) => setImprovedResponse(e.target.value)}
-                      rows={5}
-                      className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-                      placeholder="Suggest an improved response..."
-                    />
+                    </div>
+                    
+                    {selectedImproved[selectedConversation.sessionId].responseImprovements.map((resp, index) => (
+                      <div key={index} className='flex flex-col gap-2 mb-4'>
+                        {/* bot response selection */}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Response #{index+1}
+                        </label>
+                        <p className="text-sm text-gray-500 mb-2">
+                          {resp.response}
+                        </p>
+
+                        {/* bot response's issue classification */}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Issue Classification #{index+1}
+                        </label>
+                        <select
+                          value={resp.issueClassified || 'Please select an issue type'}
+                          onChange={(e) => handleIssueTypeChange(index, e.target.value, selectedConversation.sessionId)}
+                          className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+                        >
+                          <option value="">Select an issue type...</option>
+                          <option value="incorrect_information">Incorrect Information</option>
+                          <option value="missing_information">Missing Information</option>
+                          <option value="needs_clarification">Needs Clarification</option>
+                          <option value="tone_issues">Tone Issues</option>
+                          <option value="formatting_issues">Formatting Issues</option>
+                          <option value="knowledge_gap">Knowledge Gap</option>
+                          <option value="other">Other Issue</option>
+                        </select>
+
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Improved Response #{index+1}
+                          </label>
+                          <textarea
+                            value={selectedImproved[selectedConversation.sessionId]?.responseImprovements[index]!.improvedResponse || ''}
+                            onChange={(e) => handleImprovedResponseChange(index, e.target.value, selectedConversation.sessionId)}
+                            rows={5}
+                            className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+                            placeholder="Suggest an improved response..."
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   
                   <div className="flex justify-end">
                     <button
-                      onClick={handleSubmitImprovement}
-                      disabled={!issueType || !improvedResponse}
-                      className={`px-4 py-2 rounded-md ${
-                        !issueType || !improvedResponse
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-darkBrown text-white hover:bg-darkBrownHover'
-                      }`}
+                      onClick={() => {handleMarkAsResolved(selectedConversation.sessionId)}}
+                      className="px-4 py-2 mr-2 rounded-md bg-green-200 text-gray-700 hover:bg-green-300"
                     >
-                      Submit Improvement
+                      Mark as Resolved
                     </button>
+                    {selectedConversation.status !== 'In Progress' && (
+                      <button
+                        onClick={() => handleSubmitImprovement(selectedConversation.sessionId)}
+                        disabled={!checkIfOneImprovementExists(selectedImproved[selectedConversation.sessionId].responseImprovements)}
+                        className={`px-4 py-2 rounded-md ${
+                          !checkIfOneImprovementExists(selectedImproved[selectedConversation.sessionId].responseImprovements)
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-darkBrown text-white hover:bg-darkBrownHover'
+                        }`}
+                      >
+                        Submit Improvement
+                      </button>
+                    )}
+                    {selectedConversation.status === 'In Progress' && (
+                      <button
+                        onClick={() => handleSubmitImprovement(selectedConversation.sessionId)}
+                        disabled={!checkIfOneImprovementExists(selectedImproved[selectedConversation.sessionId].responseImprovements)}
+                        className={`px-4 py-2 rounded-md ${
+                          !checkIfOneImprovementExists(selectedImproved[selectedConversation.sessionId].responseImprovements)
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-darkBrown text-white hover:bg-darkBrownHover'
+                        }`}
+                      >
+                        Make Changes
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
