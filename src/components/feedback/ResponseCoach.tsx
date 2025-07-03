@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Feedback } from './utils/ResponseCoach/interfaces';
-import { fetchFeedbacks, findFirstUserMsg } from './utils/ResponseCoach/utils';
+import { fetchFeedbacks, findFirstUserMsg, upsertDashboardDbFeedbacks } from './utils/ResponseCoach/utils';
 
 
 const ResponseCoach: React.FC = () => {
@@ -15,6 +15,7 @@ const ResponseCoach: React.FC = () => {
   useEffect(() => {
       const loadFeedbackData = async () => {
         const data = await fetchFeedbacks();
+        upsertDashboardDbFeedbacks();
         if (data) {
           setFeedbackData(data);
           switch (filter) {
