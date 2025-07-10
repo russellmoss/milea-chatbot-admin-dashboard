@@ -54,7 +54,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
     e.preventDefault();
     console.log('ConversationList: Context menu opened', {
       conversationId: conversation.id,
-      customerName: conversation.customerName,
+      customerName: conversation.firstname + ' ' + conversation.lastname,
       position: { x: e.clientX, y: e.clientY }
     });
     setContextMenu({
@@ -67,7 +67,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
     console.log('ConversationList: Adding to contacts', {
       conversationId: conversation.id,
       phoneNumber: conversation.phoneNumber,
-      customerName: conversation.customerName
+      customerName: conversation.firstname + ' ' + conversation.lastname
     });
     // TODO: Implement add to contacts functionality
   };
@@ -79,7 +79,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
   const handleConversationClick = (conversation: Conversation, event: React.MouseEvent) => {
     console.log('ConversationList: Conversation clicked', {
       conversationId: conversation.id,
-      customerName: conversation.customerName,
+      customerName: conversation.firstname + ' ' + conversation.lastname,
       isSelected: selectedConversations.has(conversation.id),
       isShiftKey: event.shiftKey
     });
@@ -145,7 +145,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
                   tabIndex={0}
                   role="button"
                   aria-selected={isSelected}
-                  aria-label={`Conversation with ${conversation.customerName || conversation.phoneNumber}`}
+                  aria-label={`Conversation with ${conversation.firstname + ' ' + conversation.lastname || conversation.phoneNumber}`}
                 >
                   {/* Unread indicator */}
                   {isUnread && (
@@ -158,10 +158,10 @@ const ConversationList: React.FC<ConversationListProps> = ({
                         text-sm truncate
                         ${isUnread ? 'font-semibold text-gray-900' : 'font-normal text-gray-700'}
                       `}>
-                        {conversation.customerName || conversation.phoneNumber}
+                        {conversation.firstname + ' ' + conversation.lastname}
                       </h3>
                       <span className="text-xs text-gray-500 ml-2">
-                        {formatTimestamp(conversation.lastMessageAt)}
+                        {formatTimestamp(lastMessage?.timestamp)}
                       </span>
                     </div>
                     <p className={`

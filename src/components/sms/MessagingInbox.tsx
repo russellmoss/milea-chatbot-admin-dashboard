@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { format, isToday, isYesterday, isWithinInterval, parseISO } from 'date-fns';
+import { format, isWithinInterval, parseISO } from 'date-fns';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import MessageDisplay from './MessageDisplay';
 import MessageComposer from './MessageComposer';
-import TemplateSelector from './TemplateSelector';
 import FolderSidebar from './FolderSidebar';
 import ConversationList from './ConversationList';
 import ComposeModal from './ComposeModal';
@@ -15,7 +14,6 @@ import { useSocket } from '../../contexts/SocketContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMessage } from '../../contexts/MessageContext';
 import ConversationHeader from './ConversationHeader';
-import MessageActions from './MessageActions';
 import { useTransition } from 'react';
 
 const FOLDERS: Folder[] = [
@@ -54,15 +52,6 @@ const FOLDERS: Folder[] = [
   }
 ];
 
-interface ConversationHeaderProps {
-  conversation: Conversation;
-  onArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
-  onDelete: (conversationId: string) => Promise<void>;
-  onExport: () => void;
-  onViewContact: () => void;
-  onBlock: () => void;
-  onAddToList: () => void;
-}
 
 interface FilterState {
   searchQuery: string;
@@ -203,7 +192,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
       console.log('MessagingInbox: No conversations, fetching messages');
       fetchMessages();
     }
-  }, [conversations.length, selectedConversation?.id, templates.length, fetchMessages]);
+  }, [conversations.length, selectedConversation?.id, templates.length, fetchMessages, selectedConversation]);
 
   // Handle resize move
   const handleResizeMove = useCallback((e: MouseEvent) => {
@@ -299,7 +288,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
 
       // Apply search filter
       const matchesSearch = filters.searchQuery === '' || 
-        conversation.customerName?.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
+        (conversation.firstname + ' ' + conversation.lastname).toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
         conversation.phoneNumber.includes(filters.searchQuery) ||
         conversation.messages.some(msg => 
           msg.content.toLowerCase().includes(filters.searchQuery.toLowerCase())
@@ -369,7 +358,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
         toast.error('Failed to mark conversation as read');
       }
     }
-  }, [markConversationAsRead]);
+  }, [markConversationAsRead, setSelectedConversation]);
 
   // Handle sending a new message
   const handleSendMessage = async (content: string): Promise<void> => {
@@ -378,7 +367,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
       selectedConversation: selectedConversation ? {
         id: selectedConversation.id,
         phoneNumber: selectedConversation.phoneNumber,
-        customerName: selectedConversation.customerName
+        customerName: selectedConversation.firstname + ' ' + selectedConversation.lastname
       } : null,
       isConnected
     });
@@ -441,7 +430,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Failed to delete conversation');
     }
-  }, [deleteConversation, selectedConversation?.id]);
+  }, [deleteConversation, selectedConversation?.id, setSelectedConversation]);
 
   // Handle applying a message template with memoization
   const handleTemplateSelect = useCallback((templateId: string) => {
@@ -569,7 +558,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
         setShowKeyboardShortcuts(prev => !prev);
         break;
     }
-  }, [filteredConversations, focusedConversationIndex, selectedConversation, isComposeModalOpen]);
+  }, [focusedConversationIndex, filteredConversations, selectedConversation, isComposeModalOpen, handleConversationSelect, setSelectedConversation]);
 
   // Add keyboard event listener
   useEffect(() => {
@@ -865,7 +854,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                     <div className="flex-1 overflow-y-auto min-h-0">
                       <MemoizedMessageDisplay
                         messages={selectedConversation.messages}
-                        customerName={selectedConversation.customerName}
+                        customerName={selectedConversation.firstname + ' ' + selectedConversation.lastname}
                         phoneNumber={selectedConversation.phoneNumber}
                         conversation={selectedConversation}
                         onMarkAsRead={handleMarkAsRead}
@@ -950,7 +939,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                         />
                         <MemoizedMessageDisplay
                           messages={selectedConversation.messages}
-                          customerName={selectedConversation.customerName}
+                          customerName={selectedConversation.firstname + ' ' + selectedConversation.lastname}
                           phoneNumber={selectedConversation.phoneNumber}
                           conversation={selectedConversation}
                           onMarkAsRead={handleMarkAsRead}

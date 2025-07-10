@@ -12,29 +12,6 @@ const simulateRandomError = async () => {
 };
 
 // Mock data
-const mockConversations: Conversation[] = [
-  {
-    id: 'conv_1',
-    customerName: 'John Doe',
-    phoneNumber: '+1234567890',
-    messages: [
-      {
-        id: 'msg_1',
-        direction: 'inbound',
-        content: 'Hello, how can I help you?',
-        timestamp: new Date().toISOString(),
-        status: 'received',
-        read: true,
-        conversationId: 'conv_1'
-      }
-    ],
-    unreadCount: 0,
-    lastMessageAt: new Date().toISOString(),
-    timestamp: new Date().toISOString(),
-    archived: false,
-    deleted: false
-  }
-];
 
 const mockContacts: Contact[] = [
   {
@@ -70,7 +47,7 @@ export const mockSmsService = {
   async getConversations(): Promise<Conversation[]> {
     await delay(800);
     await simulateRandomError();
-    return mockConversations;
+    return [];
   },
 
   async sendMessage(content: string, phoneNumber: string, conversationId?: string): Promise<Message> {

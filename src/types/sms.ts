@@ -3,8 +3,14 @@
 // Conversation represents a thread of messages with a single contact
 export interface Conversation {
     id: string;
-    customerName: string | null;
+    sessionId: string;
+    userId: string;
+    commerce7Id: string;
+    firstname: string;
+    lastname: string;
+    email: string;
     phoneNumber: string;
+    birthdate?: string;
     messages: Message[];
     unreadCount: number;
     lastMessageAt: string;
@@ -12,7 +18,6 @@ export interface Conversation {
     archived: boolean;
     deleted: boolean;
     archivedAt?: string;
-    userId?: string;
 }
   
 // Message represents a single text message in a conversation

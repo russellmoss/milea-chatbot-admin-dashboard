@@ -163,7 +163,7 @@ const FolderSidebar: React.FC<FolderSidebarProps> = ({
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-gray-900">
-                          {conversation.customerName || conversation.phoneNumber}
+                          {conversation.firstname + ' ' + conversation.lastname || conversation.phoneNumber}
                         </p>
                         <p className="text-sm text-gray-500">
                           {conversation.messages[conversation.messages.length - 1]?.content}

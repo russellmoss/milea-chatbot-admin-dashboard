@@ -1,8 +1,9 @@
 // src/contexts/SMSContext.tsx
 import React, { createContext, useState, useContext, useCallback, useEffect, useRef } from 'react';
 import { Conversation, Message, Contact, MessageTemplate } from '../types/sms';
-import { mockConversations, mockContacts, mockTemplates } from '../mocks/smsData';
+import { mockContacts, mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
+import { getAllSms } from '../apis/sms/apis';
 
 interface SMSContextType {
   conversations: Conversation[];
@@ -51,7 +52,16 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Initialize with mock data
   useEffect(() => {
-    setConversations(mockConversations);
+    getAllSms()
+      .then(data => {
+        setConversations(data);
+      })
+      .catch(err => {
+        console.error('Error fetching conversations:', err);
+        setError('Failed to fetch conversations');
+      });
+
+    
     setContacts(mockContacts);
     setTemplates(mockTemplates);
   }, []);
@@ -67,7 +77,7 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Refresh with mock data
-      setConversations(mockConversations);
+      // setConversations(mockConversations);
       toast.success('Messages refreshed');
     } catch (err) {
       console.error('Error fetching messages:', err);
@@ -122,7 +132,12 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Create new conversation
         const newConversation: Conversation = {
           id: `conv_${Date.now()}`,
-          customerName: null,
+          sessionId: '',
+          userId: '',
+          commerce7Id: '',
+          firstname: '', 
+          lastname: '',
+          email: '',
           phoneNumber,
           messages: [newMessage],
           unreadCount: 0,

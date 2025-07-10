@@ -94,7 +94,7 @@ const SMSTest: React.FC = () => {
             <h3 className="text-sm font-medium text-gray-700">Selected Conversation</h3>
             <p className="text-sm mt-1 text-gray-600">
               {selectedConversation 
-                ? `${selectedConversation.customerName || selectedConversation.phoneNumber}`
+                ? `${selectedConversation.firstname + ' ' + selectedConversation.lastname || selectedConversation.phoneNumber}`
                 : 'None selected'
               }
             </p>
@@ -147,7 +147,7 @@ const SMSTest: React.FC = () => {
                 >
                   <div className="flex justify-between">
                     <span className="font-medium text-gray-900">
-                      {conversation.customerName || conversation.phoneNumber}
+                      {conversation.firstname + ' ' + conversation.lastname || conversation.phoneNumber}
                     </span>
                     <span className="text-xs text-gray-500">
                       {new Date(conversation.lastMessageAt).toLocaleTimeString()}

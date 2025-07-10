@@ -199,8 +199,8 @@ const SMS: React.FC = () => {
           <ContactDetail
             contact={{
               id: selectedConversation.id,
-              firstName: selectedConversation.customerName?.split(' ')[0] || '',
-              lastName: selectedConversation.customerName?.split(' ').slice(1).join(' ') || '',
+              firstName: selectedConversation.firstname,
+              lastName: selectedConversation.lastname,
               phoneNumber: selectedConversation.phoneNumber,
               email: '',
               optIn: true,

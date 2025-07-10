@@ -79,147 +79,147 @@ const mockOutboundMessages = [
 ];
 
 // Mock conversations
-export const mockConversations: Conversation[] = [
-  {
-    id: 'conv_001',
-    customerName: 'Sarah Johnson',
-    phoneNumber: '+15551234567',
-    messages: [
-      {
-        id: 'msg_001_1',
-        direction: 'inbound',
-        content: "Hi! I'd like to make a reservation for a wine tasting this Saturday at 2pm. Do you have availability?",
-        phoneNumber: '+15551234567',
-        timestamp: generateTimestamp(1, 5, 30),
-        status: 'received',
-        read: true,
-        conversationId: 'conv_001'
-      },
-      {
-        id: 'msg_001_2',
-        direction: 'outbound',
-        content: "Hello Sarah! Yes, we have availability for a wine tasting this Saturday at 2pm. Would you like to book it? We offer tastings of 5 wines for $25 per person.",
-        phoneNumber: '+15551234567',
-        timestamp: generateTimestamp(1, 5, 15),
-        status: 'delivered',
-        read: true,
-        conversationId: 'conv_001'
-      },
-      {
-        id: 'msg_001_3',
-        direction: 'inbound',
-        content: "Yes, that sounds perfect! I'll be bringing my husband. Can you confirm the reservation?",
-        phoneNumber: '+15551234567',
-        timestamp: generateTimestamp(1, 4, 45),
-        status: 'received',
-        read: true,
-        conversationId: 'conv_001'
-      },
-      {
-        id: 'msg_001_4',
-        direction: 'outbound',
-        content: "Great! I've confirmed your reservation for 2 people this Saturday at 2pm. The tasting will last approximately 1 hour. We look forward to seeing you then!",
-        phoneNumber: '+15551234567',
-        timestamp: generateTimestamp(1, 4, 30),
-        status: 'delivered',
-        read: true,
-        conversationId: 'conv_001'
-      },
-      {
-        id: 'msg_001_5',
-        direction: 'inbound',
-        content: "Thank you! Quick question - is there food available or should we eat before we come?",
-        phoneNumber: '+15551234567',
-        timestamp: generateTimestamp(0, 3, 15),
-        status: 'received',
-        read: false,
-        conversationId: 'conv_001'
-      }
-    ],
-    unreadCount: 1,
-    lastMessageAt: generateTimestamp(0, 3, 15),
-    timestamp: generateTimestamp(1, 5, 30),
-    archived: false,
-    deleted: false
-  },
-  {
-    id: 'conv_002',
-    customerName: 'Michael Chen',
-    phoneNumber: '+15552345678',
-    messages: [
-      {
-        id: 'msg_002_1',
-        direction: 'inbound',
-        content: "I received my wine club shipment today but one of the bottles was broken. What should I do?",
-        phoneNumber: '+15552345678',
-        timestamp: generateTimestamp(0, 1, 45),
-        status: 'received',
-        read: false,
-        conversationId: 'conv_002'
-      }
-    ],
-    unreadCount: 1,
-    lastMessageAt: generateTimestamp(0, 1, 45),
-    timestamp: generateTimestamp(0, 1, 45),
-    archived: false,
-    deleted: false
-  },
-  {
-    id: 'conv_003',
-    customerName: 'Emma Rodriguez',
-    phoneNumber: '+15553456789',
-    messages: generateConversationMessages('conv_003', 6, 3),
-    unreadCount: 0,
-    lastMessageAt: generateTimestamp(3, 0, 0),
-    timestamp: generateTimestamp(3, 6, 0),
-    archived: false,
-    deleted: false
-  },
-  {
-    id: 'conv_004',
-    customerName: 'David Thompson',
-    phoneNumber: '+15554567890',
-    messages: generateConversationMessages('conv_004', 4, 0),
-    unreadCount: 1,
-    lastMessageAt: generateTimestamp(0, 0, 30),
-    timestamp: generateTimestamp(0, 2, 0),
-    archived: false,
-    deleted: false
-  },
-  {
-    id: 'conv_005',
-    customerName: 'Lisa Anderson',
-    phoneNumber: '+15555678901',
-    messages: generateConversationMessages('conv_005', 8, 4),
-    unreadCount: 0,
-    lastMessageAt: generateTimestamp(4, 0, 0),
-    timestamp: generateTimestamp(4, 8, 0),
-    archived: true,
-    deleted: false
-  },
-  {
-    id: 'conv_006',
-    customerName: 'James Wilson',
-    phoneNumber: '+15556789012',
-    messages: generateConversationMessages('conv_006', 3, 2),
-    unreadCount: 1,
-    lastMessageAt: generateTimestamp(2, 0, 0),
-    timestamp: generateTimestamp(2, 3, 0),
-    archived: false,
-    deleted: false
-  },
-  {
-    id: 'conv_007',
-    customerName: 'Maria Garcia',
-    phoneNumber: '+15557890123',
-    messages: generateConversationMessages('conv_007', 5, 5),
-    unreadCount: 0,
-    lastMessageAt: generateTimestamp(5, 0, 0),
-    timestamp: generateTimestamp(5, 5, 0),
-    archived: false,
-    deleted: false
-  }
-];
+// export const mockConversations: Conversation[] = [
+//   {
+//     id: 'conv_001',
+//     customerName: 'Sarah Johnson',
+//     phoneNumber: '+15551234567',
+//     messages: [
+//       {
+//         id: 'msg_001_1',
+//         direction: 'inbound',
+//         content: "Hi! I'd like to make a reservation for a wine tasting this Saturday at 2pm. Do you have availability?",
+//         phoneNumber: '+15551234567',
+//         timestamp: generateTimestamp(1, 5, 30),
+//         status: 'received',
+//         read: true,
+//         conversationId: 'conv_001'
+//       },
+//       {
+//         id: 'msg_001_2',
+//         direction: 'outbound',
+//         content: "Hello Sarah! Yes, we have availability for a wine tasting this Saturday at 2pm. Would you like to book it? We offer tastings of 5 wines for $25 per person.",
+//         phoneNumber: '+15551234567',
+//         timestamp: generateTimestamp(1, 5, 15),
+//         status: 'delivered',
+//         read: true,
+//         conversationId: 'conv_001'
+//       },
+//       {
+//         id: 'msg_001_3',
+//         direction: 'inbound',
+//         content: "Yes, that sounds perfect! I'll be bringing my husband. Can you confirm the reservation?",
+//         phoneNumber: '+15551234567',
+//         timestamp: generateTimestamp(1, 4, 45),
+//         status: 'received',
+//         read: true,
+//         conversationId: 'conv_001'
+//       },
+//       {
+//         id: 'msg_001_4',
+//         direction: 'outbound',
+//         content: "Great! I've confirmed your reservation for 2 people this Saturday at 2pm. The tasting will last approximately 1 hour. We look forward to seeing you then!",
+//         phoneNumber: '+15551234567',
+//         timestamp: generateTimestamp(1, 4, 30),
+//         status: 'delivered',
+//         read: true,
+//         conversationId: 'conv_001'
+//       },
+//       {
+//         id: 'msg_001_5',
+//         direction: 'inbound',
+//         content: "Thank you! Quick question - is there food available or should we eat before we come?",
+//         phoneNumber: '+15551234567',
+//         timestamp: generateTimestamp(0, 3, 15),
+//         status: 'received',
+//         read: false,
+//         conversationId: 'conv_001'
+//       }
+//     ],
+//     unreadCount: 1,
+//     lastMessageAt: generateTimestamp(0, 3, 15),
+//     timestamp: generateTimestamp(1, 5, 30),
+//     archived: false,
+//     deleted: false
+//   },
+//   {
+//     id: 'conv_002',
+//     customerName: 'Michael Chen',
+//     phoneNumber: '+15552345678',
+//     messages: [
+//       {
+//         id: 'msg_002_1',
+//         direction: 'inbound',
+//         content: "I received my wine club shipment today but one of the bottles was broken. What should I do?",
+//         phoneNumber: '+15552345678',
+//         timestamp: generateTimestamp(0, 1, 45),
+//         status: 'received',
+//         read: false,
+//         conversationId: 'conv_002'
+//       }
+//     ],
+//     unreadCount: 1,
+//     lastMessageAt: generateTimestamp(0, 1, 45),
+//     timestamp: generateTimestamp(0, 1, 45),
+//     archived: false,
+//     deleted: false
+//   },
+//   {
+//     id: 'conv_003',
+//     customerName: 'Emma Rodriguez',
+//     phoneNumber: '+15553456789',
+//     messages: generateConversationMessages('conv_003', 6, 3),
+//     unreadCount: 0,
+//     lastMessageAt: generateTimestamp(3, 0, 0),
+//     timestamp: generateTimestamp(3, 6, 0),
+//     archived: false,
+//     deleted: false
+//   },
+//   {
+//     id: 'conv_004',
+//     customerName: 'David Thompson',
+//     phoneNumber: '+15554567890',
+//     messages: generateConversationMessages('conv_004', 4, 0),
+//     unreadCount: 1,
+//     lastMessageAt: generateTimestamp(0, 0, 30),
+//     timestamp: generateTimestamp(0, 2, 0),
+//     archived: false,
+//     deleted: false
+//   },
+//   {
+//     id: 'conv_005',
+//     customerName: 'Lisa Anderson',
+//     phoneNumber: '+15555678901',
+//     messages: generateConversationMessages('conv_005', 8, 4),
+//     unreadCount: 0,
+//     lastMessageAt: generateTimestamp(4, 0, 0),
+//     timestamp: generateTimestamp(4, 8, 0),
+//     archived: true,
+//     deleted: false
+//   },
+//   {
+//     id: 'conv_006',
+//     customerName: 'James Wilson',
+//     phoneNumber: '+15556789012',
+//     messages: generateConversationMessages('conv_006', 3, 2),
+//     unreadCount: 1,
+//     lastMessageAt: generateTimestamp(2, 0, 0),
+//     timestamp: generateTimestamp(2, 3, 0),
+//     archived: false,
+//     deleted: false
+//   },
+//   {
+//     id: 'conv_007',
+//     customerName: 'Maria Garcia',
+//     phoneNumber: '+15557890123',
+//     messages: generateConversationMessages('conv_007', 5, 5),
+//     unreadCount: 0,
+//     lastMessageAt: generateTimestamp(5, 0, 0),
+//     timestamp: generateTimestamp(5, 5, 0),
+//     archived: false,
+//     deleted: false
+//   }
+// ];
 
 // Mock contacts
 export const mockContacts: Contact[] = [

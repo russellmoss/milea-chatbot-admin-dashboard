@@ -53,16 +53,16 @@ const ConversationHeader: React.FC<ConversationHeaderProps> = ({
     <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
       <div className="flex items-center">
         <div className="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center mr-3">
-          {conversation.customerName 
-            ? `${conversation.customerName.charAt(0)}`
+          {conversation.firstname 
+            ? `${conversation.firstname.charAt(0)}`
             : '#'}
         </div>
         <div>
           <h2 className="text-lg font-medium text-gray-900">
-            {conversation.customerName || conversation.phoneNumber}
+            {conversation.firstname + ' ' + conversation.lastname || conversation.phoneNumber}
           </h2>
           <p className="text-sm text-gray-500">
-            Last active: {formatLastActive(conversation.lastMessageAt)}
+            Last active: {formatLastActive(conversation.messages[conversation.messages.length - 1]?.timestamp)}
           </p>
         </div>
       </div>

@@ -46,104 +46,104 @@ export const MOCK_CONTACTS: Contact[] = [
   }
 ];
 
-export const MOCK_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'conv1',
-    phoneNumber: '+15551234567',
-    customerName: 'John Smith',
-    messages: [
-      {
-        id: 'msg1',
-        direction: 'inbound',
-        content: "Hello! I'm interested in booking a tasting for this Saturday",
-        timestamp: '2023-05-15T14:30:00',
-        read: false,
-        status: 'received'
-      },
-      {
-        id: 'msg2',
-        direction: 'outbound',
-        content: "Hi John! We'd be happy to help you book a tasting. What time were you thinking?",
-        timestamp: '2023-05-15T14:35:00',
-        read: true,
-        status: 'delivered'
-      },
-      {
-        id: 'msg3',
-        direction: 'inbound',
-        content: "How about 2 PM?",
-        timestamp: '2023-05-15T14:40:00',
-        read: true,
-        status: 'received'
-      }
-    ],
-    archived: false,
-    deleted: false,
-    unreadCount: 1,
-    lastMessageAt: '2023-05-15T14:40:00',
-    timestamp: '2023-05-15T14:30:00'
-  },
-  {
-    id: 'conv2',
-    phoneNumber: '+15559876543',
-    customerName: 'Sarah Johnson',
-    messages: [
-      {
-        id: 'msg4',
-        direction: 'inbound',
-        content: "Thank you! I'll bring my receipt when I come to pick up my wine club shipment.",
-        timestamp: '2023-05-14T11:20:00',
-        read: true,
-        status: 'received'
-      }
-    ],
-    archived: false,
-    deleted: false,
-    unreadCount: 0,
-    lastMessageAt: '2023-05-14T11:20:00',
-    timestamp: '2023-05-14T11:15:00'
-  },
-  {
-    id: 'conv3',
-    phoneNumber: '+15552223333',
-    customerName: 'Michael Brown',
-    messages: [
-      {
-        id: 'msg5',
-        direction: 'inbound',
-        content: 'Great event last weekend!',
-        timestamp: '2023-05-10T16:45:00',
-        read: true,
-        status: 'received'
-      }
-    ],
-    archived: true,
-    deleted: false,
-    unreadCount: 0,
-    lastMessageAt: '2023-05-10T16:45:00',
-    timestamp: '2023-05-10T16:45:00'
-  },
-  {
-    id: 'conv4',
-    phoneNumber: '+15554445555',
-    customerName: 'Emily Davis',
-    messages: [
-      {
-        id: 'msg6',
-        direction: 'inbound',
-        content: 'Spam message',
-        timestamp: '2023-05-01T09:15:00',
-        read: true,
-        status: 'received'
-      }
-    ],
-    archived: false,
-    deleted: true,
-    unreadCount: 0,
-    lastMessageAt: '2023-05-01T09:15:00',
-    timestamp: '2023-05-01T09:15:00'
-  }
-];
+// export const MOCK_CONVERSATIONS: Conversation[] = [
+//   {
+//     id: 'conv1',
+//     phoneNumber: '+15551234567',
+//     customerName: 'John Smith',
+//     messages: [
+//       {
+//         id: 'msg1',
+//         direction: 'inbound',
+//         content: "Hello! I'm interested in booking a tasting for this Saturday",
+//         timestamp: '2023-05-15T14:30:00',
+//         read: false,
+//         status: 'received'
+//       },
+//       {
+//         id: 'msg2',
+//         direction: 'outbound',
+//         content: "Hi John! We'd be happy to help you book a tasting. What time were you thinking?",
+//         timestamp: '2023-05-15T14:35:00',
+//         read: true,
+//         status: 'delivered'
+//       },
+//       {
+//         id: 'msg3',
+//         direction: 'inbound',
+//         content: "How about 2 PM?",
+//         timestamp: '2023-05-15T14:40:00',
+//         read: true,
+//         status: 'received'
+//       }
+//     ],
+//     archived: false,
+//     deleted: false,
+//     unreadCount: 1,
+//     lastMessageAt: '2023-05-15T14:40:00',
+//     timestamp: '2023-05-15T14:30:00'
+//   },
+//   {
+//     id: 'conv2',
+//     phoneNumber: '+15559876543',
+//     customerName: 'Sarah Johnson',
+//     messages: [
+//       {
+//         id: 'msg4',
+//         direction: 'inbound',
+//         content: "Thank you! I'll bring my receipt when I come to pick up my wine club shipment.",
+//         timestamp: '2023-05-14T11:20:00',
+//         read: true,
+//         status: 'received'
+//       }
+//     ],
+//     archived: false,
+//     deleted: false,
+//     unreadCount: 0,
+//     lastMessageAt: '2023-05-14T11:20:00',
+//     timestamp: '2023-05-14T11:15:00'
+//   },
+//   {
+//     id: 'conv3',
+//     phoneNumber: '+15552223333',
+//     customerName: 'Michael Brown',
+//     messages: [
+//       {
+//         id: 'msg5',
+//         direction: 'inbound',
+//         content: 'Great event last weekend!',
+//         timestamp: '2023-05-10T16:45:00',
+//         read: true,
+//         status: 'received'
+//       }
+//     ],
+//     archived: true,
+//     deleted: false,
+//     unreadCount: 0,
+//     lastMessageAt: '2023-05-10T16:45:00',
+//     timestamp: '2023-05-10T16:45:00'
+//   },
+//   {
+//     id: 'conv4',
+//     phoneNumber: '+15554445555',
+//     customerName: 'Emily Davis',
+//     messages: [
+//       {
+//         id: 'msg6',
+//         direction: 'inbound',
+//         content: 'Spam message',
+//         timestamp: '2023-05-01T09:15:00',
+//         read: true,
+//         status: 'received'
+//       }
+//     ],
+//     archived: false,
+//     deleted: true,
+//     unreadCount: 0,
+//     lastMessageAt: '2023-05-01T09:15:00',
+//     timestamp: '2023-05-01T09:15:00'
+//   }
+// ];
 
 export const MOCK_TEMPLATES: MessageTemplate[] = [
   {
