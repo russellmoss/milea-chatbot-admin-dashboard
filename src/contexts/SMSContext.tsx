@@ -52,18 +52,26 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Initialize with mock data
   useEffect(() => {
-    getAllSms()
-      .then(data => {
-        setConversations(data);
-      })
-      .catch(err => {
-        console.error('Error fetching conversations:', err);
-        setError('Failed to fetch conversations');
-      });
+    const interval = setInterval(() => {
+      getAllSms()
+        .then(data => {
+          setConversations(data);
+          if (selectedConversation) {
+            const possibleNewSelected = data.find(data => data.id === selectedConversation.id);
+            if (possibleNewSelected && possibleNewSelected.messages.length > selectedConversation.messages.length) {
+              setSelectedConversation(possibleNewSelected);
+            }
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching conversations:', err);
+          setError('Failed to fetch conversations');
+        });
+      setContacts(mockContacts);
+      setTemplates(mockTemplates);
+    }, 3000); // Fetch every 3 seconds
 
-    
-    setContacts(mockContacts);
-    setTemplates(mockTemplates);
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch messages
