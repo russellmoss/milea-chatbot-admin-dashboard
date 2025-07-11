@@ -36,11 +36,11 @@ export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
 }) => {
   const { draftMessages, setDraftMessage, clearDraftMessage } = useMessage();
   const { isConnected } = useSocket();
-  const [message, setMessage] = useState(initialMessage);
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  const [message, setMessage] = useState<string>(initialMessage);
+  const [showTemplates, setShowTemplates] = useState<boolean>(false);
+  const [isSending, setIsSending] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const MAX_MESSAGE_LENGTH = 160;
 
@@ -56,19 +56,6 @@ export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
       width
     });
   }, [recipientPhone, conversationId, templates.length, isConnected, draftMessages, isExpanded, width]);
-
-  // Load draft message if exists
-  useEffect(() => {
-    if (conversationId && draftMessages[conversationId]) {
-      console.log('MessageComposer: Loading draft message', {
-        conversationId,
-        draftLength: draftMessages[conversationId].length
-      });
-      setMessage(draftMessages[conversationId]);
-    } else {
-      setMessage('');
-    }
-  }, [conversationId, draftMessages]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -87,27 +74,17 @@ export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
         clearDraftMessage(conversation.id);
       }
     };
-  }, []); // Empty dependency array means this only runs on unmount
+  }, [clearDraftMessage, conversation.id, message, setDraftMessage]); // Empty dependency array means this only runs on unmount
 
   // Save draft message when message changes
   useEffect(() => {
+    if (isSending) return;
     if (message.trim()) {
       setDraftMessage(conversation.id, message);
     } else {
       clearDraftMessage(conversation.id);
     }
-  }, [message, conversation.id, setDraftMessage, clearDraftMessage]);
-
-  // Handle message change
-  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newMessage = e.target.value;
-    console.log('MessageComposer: Message changed', {
-      newLength: newMessage.length,
-      conversationId,
-      hasDraft: !!draftMessages[conversationId || '']
-    });
-    setMessage(newMessage);
-  };
+  }, [message, conversation.id, setDraftMessage, clearDraftMessage, isSending]);
 
   // Handle template selection
   const handleTemplateSelect = (templateId: string) => {
@@ -119,36 +96,27 @@ export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
   };
 
   // Handle send
-  const handleSend = useCallback(async () => {
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!message.trim() || isSending) return;
 
     setIsSending(true);
-    try {
-      await onSend(message);
-      setMessage('');
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-    } finally {
-      setIsSending(false);
-    }
-  }, [message, isSending, onSend]);
-
-  // Handle cancel
-  const handleCancel = useCallback(() => {
+    await onSend(message);
     setMessage('');
-    onCancel();
-  }, [onCancel]);
+    clearDraftMessage(conversation.id);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+    setIsSending(false);
+  };
 
   // Handle key press
-  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      handleSend(e);
     }
-  }, [handleSend]);
+  };
 
   // Handle attachment button click
   const handleAttachmentClick = () => {
@@ -182,7 +150,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
         maxWidth: isExpanded ? '800px' : 'auto'
       }}
     >
-      <form onSubmit={handleSend} className="flex flex-col space-y-2">
+      <form onSubmit={async (e) => await handleSend(e)} className="flex flex-col space-y-2">
         {/* Formatting toolbar */}
         <div className="flex items-center space-x-2 pb-2">
           <button
@@ -243,7 +211,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = React.memo(({
             <textarea
               ref={textareaRef}
               value={message}
-              onChange={handleMessageChange}
+              onChange={(e) => setMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type your message..."
               className={`w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-none ${

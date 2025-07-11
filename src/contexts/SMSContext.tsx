@@ -1,9 +1,9 @@
 // src/contexts/SMSContext.tsx
-import React, { createContext, useState, useContext, useCallback, useEffect, useRef } from 'react';
-import { Conversation, Message, Contact, MessageTemplate } from '../types/sms';
+import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
+import { Conversation, Contact, MessageTemplate } from '../types/sms';
 import { mockContacts, mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
-import { getAllSms } from '../apis/sms/apis';
+import { getAllSms, sendSms, upsertSms } from '../apis/sms/apis';
 
 interface SMSContextType {
   conversations: Conversation[];
@@ -67,17 +67,13 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Fetch messages
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      // In a real app, this would be an API call
-      // For now, we'll just use our mock data with a small delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Refresh with mock data
-      // setConversations(mockConversations);
+      const allSms = await getAllSms();
+      setConversations(allSms);
       toast.success('Messages refreshed');
     } catch (err) {
       console.error('Error fetching messages:', err);
@@ -86,99 +82,30 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
   // Send a message
-  const sendMessage = useCallback(async (content: string, phoneNumber: string, conversationId?: string) => {
+  const sendMessage = async (content: string, phoneNumber: string, conversationId?: string) => {
     if (!content.trim()) {
       throw new Error('Message content cannot be empty');
     }
 
     try {
       // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Create a new message
-      const newMessage: Message = {
-        id: `msg_${Date.now()}`,
-        direction: 'outbound',
-        content,
-        phoneNumber,
-        timestamp: new Date().toISOString(),
-        status: 'sent',
-        read: true,
-        conversationId: conversationId || ''
-      };
-      
-      // Find or create conversation
-      let convo = conversations.find(c => c.id === conversationId || c.phoneNumber === phoneNumber);
-      
-      if (convo) {
-        // Update existing conversation
-        setConversations(prevConversations => 
-          prevConversations.map(c => {
-            if (c.id === convo?.id) {
-              return {
-                ...c,
-                messages: [...c.messages, newMessage],
-                lastMessageAt: newMessage.timestamp,
-                timestamp: newMessage.timestamp
-              };
-            }
-            return c;
-          })
-        );
-      } else {
-        // Create new conversation
-        const newConversation: Conversation = {
-          id: `conv_${Date.now()}`,
-          sessionId: '',
-          userId: '',
-          commerce7Id: '',
-          firstname: '', 
-          lastname: '',
-          email: '',
-          phoneNumber,
-          messages: [newMessage],
-          unreadCount: 0,
-          lastMessageAt: newMessage.timestamp,
-          timestamp: newMessage.timestamp,
-          archived: false,
-          deleted: false
-        };
-        
-        setConversations(prev => [newConversation, ...prev]);
-        
-        // Also select the new conversation
-        setSelectedConversation(newConversation);
-      }
-      
-      // Simulate message being delivered after a delay
-      setTimeout(() => {
-        setConversations(prevConversations => 
-          prevConversations.map(c => {
-            if (c.id === (convo?.id || `conv_${Date.now()}`)) {
-              return {
-                ...c,
-                messages: c.messages.map(m => {
-                  if (m.id === newMessage.id) {
-                    return { ...m, status: 'delivered' };
-                  }
-                  return m;
-                })
-              };
-            }
-            return c;
-          })
-        );
-      }, 1000);
-      
-      return;
+      await sendSms({ to: phoneNumber, message: content });
+      const newConversation = await upsertSms({
+        id: conversationId!,
+        phone: phoneNumber,
+        message: content,
+        senderRole: 'admin'
+      });
+      setConversations(prev => [newConversation, ...prev]);
+      setSelectedConversation(newConversation);
     } catch (error) {
       console.error('Error sending message:', error);
       throw new Error('Failed to send message');
     }
-  }, [conversations]);
+  };
 
   // Mark conversation as read
   const markConversationAsRead = useCallback(async (conversationId: string) => {
@@ -478,6 +405,8 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (error) {
       console.error('Error adding contact to list:', error);
       throw new Error('Failed to add contact to list');
+    } finally {
+      await new Promise(resolve => setTimeout(resolve, 200000000)); // Simulate delay
     }
   }, []);
 
