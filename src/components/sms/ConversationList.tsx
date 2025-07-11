@@ -147,13 +147,14 @@ const ConversationList: React.FC<ConversationListProps> = ({
                   aria-selected={isSelected}
                   aria-label={`Conversation with ${conversation.firstname + ' ' + conversation.lastname || conversation.phoneNumber}`}
                 >
-                  {/* Unread indicator */}
-                  {isUnread && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-primary rounded-full" />
-                  )}
 
                   <div className="flex-1 min-w-0 ml-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between relative">
+
+                      {/* Unread indicator */}
+                      {isUnread && (
+                        <div className="absolute -left-4 top-0.5 w-2 h-2 bg-red-500 rounded-full" />
+                      )}
                       <h3 className={`
                         text-sm truncate
                         ${isUnread ? 'font-semibold text-gray-900' : 'font-normal text-gray-700'}
