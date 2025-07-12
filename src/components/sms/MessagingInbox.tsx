@@ -321,8 +321,24 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
       });
     }
 
+    // Update selected conversations to remove conversations that no longer inside the filtered list
+    setSelectedConversations(prev => {
+      const newSelection = new Set<string>();
+      filtered.forEach(conv => {
+        if (prev.has(conv.id)) {
+          newSelection.add(conv.id);
+        }
+      });
+      return newSelection;
+    });
+    setSelectedConversation(prev => {
+      if (!prev) return null;
+      if (filtered.some(conv => conv.id === prev.id)) return prev;
+      return null;
+    });
+
     return filtered;
-  }, [conversations, selectedFolder, filters.searchQuery, filters.filterType, filters.dateRange]);
+  }, [conversations, setSelectedConversation, filters.searchQuery, filters.filterType, filters.dateRange, selectedFolder]);
 
   // Handle conversation selection with transition
   const handleConversationSelect = useCallback(async (conversation: Conversation, event: React.MouseEvent) => {
