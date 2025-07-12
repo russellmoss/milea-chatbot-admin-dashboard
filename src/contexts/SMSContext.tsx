@@ -3,7 +3,7 @@ import React, { createContext, useState, useContext, useCallback, useEffect } fr
 import { Conversation, Contact, MessageTemplate } from '../types/sms';
 import { mockContacts, mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
-import { getAllSms, sendSms, upsertSms, updateSmsReadStatus } from '../apis/sms/apis';
+import { getAllSms, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus } from '../apis/sms/apis';
 
 interface SMSContextType {
   conversations: Conversation[];
@@ -206,9 +206,8 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Archive conversation
   const archiveConversation = useCallback(async (conversationId: string) => {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
+      await updateSmsArchiveStatus(conversationId, true);
+
       setConversations(prevConversations => 
         prevConversations.map(c => {
           if (c.id === conversationId) {
@@ -238,9 +237,8 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Unarchive conversation
   const unarchiveConversation = useCallback(async (conversationId: string) => {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
+      await updateSmsArchiveStatus(conversationId, false);
+
       setConversations(prevConversations => 
         prevConversations.map(c => {
           if (c.id === conversationId) {

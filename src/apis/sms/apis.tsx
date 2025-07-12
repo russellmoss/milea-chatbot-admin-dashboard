@@ -22,3 +22,8 @@ export const updateSmsReadStatus = async (smsId: string, read: boolean): Promise
   const response = await instance.put(`/sms/read/id=${smsId}/read=${read}`);
   return response.data;
 };
+
+export const updateSmsArchiveStatus = async (smsId: string, archived: boolean): Promise<void> => {
+  const response = await instance.put(`/sms/archive/id=${smsId}/archive=${archived}`);
+  return response.data;
+}
