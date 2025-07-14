@@ -27,3 +27,8 @@ export const updateSmsArchiveStatus = async (smsId: string, archived: boolean): 
   const response = await instance.put(`/sms/archive/id=${smsId}/archive=${archived}`);
   return response.data;
 }
+
+export const updateSmsDeleteStatus = async (smsId: string, deleted: boolean): Promise<void> => {
+  const response = await instance.put(`/sms/delete/id=${smsId}/delete=${deleted}`);
+  return response.data;
+};

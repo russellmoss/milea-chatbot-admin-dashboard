@@ -3,7 +3,7 @@ import React, { createContext, useState, useContext, useCallback, useEffect } fr
 import { Conversation, Contact, MessageTemplate } from '../types/sms';
 import { mockContacts, mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
-import { getAllSms, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus } from '../apis/sms/apis';
+import { getAllSms, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, updateSmsDeleteStatus } from '../apis/sms/apis';
 
 interface SMSContextType {
   conversations: Conversation[];
@@ -20,7 +20,7 @@ interface SMSContextType {
   handleArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
   archiveConversation: (conversationId: string) => Promise<void>;
   unarchiveConversation: (conversationId: string) => Promise<void>;
-  deleteConversation: (conversationId: string) => Promise<void>;
+  deleteConversation: (conversationId: string, deleted: boolean) => Promise<void>;
   isLoading: boolean;
   error: string | null;
   fetchMessages: () => Promise<void>;
@@ -274,11 +274,10 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [archiveConversation, unarchiveConversation]);
 
   // Delete conversation
-  const deleteConversation = useCallback(async (conversationId: string) => {
+  const deleteConversation = useCallback(async (conversationId: string, deleted: boolean) => {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
+      await updateSmsDeleteStatus(conversationId, deleted);
+
       setConversations(prevConversations => 
         prevConversations.map(c => {
           if (c.id === conversationId) {

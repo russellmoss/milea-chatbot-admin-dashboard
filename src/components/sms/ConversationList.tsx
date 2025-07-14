@@ -95,12 +95,12 @@ const ConversationList: React.FC<ConversationListProps> = ({
     await onArchiveToggle(conversationId, archived);
   };
 
-  const handleDeleteConversation = async (conversationId: string) => {
-    console.log('ConversationList: Deleting conversation', {
+  const handleDeleteConversation = async (conversationId: string, deleted: boolean) => {
+    console.log(`ConversationList: ${deleted ? 'Deleting' : 'Restoring'} conversation`, {
       conversationId,
       isSelected: selectedConversations.has(conversationId)
     });
-    await deleteConversation(conversationId);
+    await deleteConversation(conversationId, deleted);
   };
 
   const handleToggleRead = async (conversationId: string) => {
@@ -250,7 +250,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
               )
             },
             {
-              label: 'Delete conversation',
+              label: contextMenu.conversation.deleted ? 'Restore conversation' : 'Delete conversation',
               icon: (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
@@ -261,7 +261,10 @@ const ConversationList: React.FC<ConversationListProps> = ({
                   />
                 </svg>
               ),
-              onClick: () => handleDeleteConversation(contextMenu.conversation.id),
+              onClick: () => handleDeleteConversation(
+                contextMenu.conversation.id,
+                !contextMenu.conversation.deleted
+              ),
               danger: true
             },
             {

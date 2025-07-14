@@ -64,7 +64,7 @@ interface MessagingInboxProps {
   selectedConversation: Conversation | null;
   onConversationSelect: (conv: Conversation) => void;
   onArchiveToggle: (conversationId: string, archived: boolean) => Promise<void>;
-  onDelete: (conversationId: string) => Promise<void>;
+  onDelete: (conversationId: string, deleted: boolean) => Promise<void>;
   onMessageRead: (messageId: string) => Promise<void>;
   onConversationRead: (conversationId: string) => Promise<void>;
   isLoading: boolean;
@@ -431,12 +431,12 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
   }, [markConversationAsRead]);
 
   // Handle conversation deletion with cleanup
-  const handleDeleteConversation = useCallback(async (conversationId: string) => {
+  const handleDeleteConversation = useCallback(async (conversationId: string, deleted: boolean) => {
     if (!mountedRef.current) return;
     
     try {
-      await deleteConversation(conversationId);
-      
+      await deleteConversation(conversationId, deleted);
+
       // Clear selection if deleting selected conversation
       if (selectedConversation?.id === conversationId) {
         setSelectedConversation(null);
@@ -471,7 +471,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
       } else if (targetFolder === 'archive' && !conversation.archived) {
         await handleArchiveToggle(conversationId, true);
       } else if (targetFolder === 'deleted') {
-        await deleteConversation(conversationId);
+        await deleteConversation(conversationId, true);
       }
     } catch (error) {
       console.error('Error handling drop:', error);
@@ -861,7 +861,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                     <ConversationHeader
                       conversation={selectedConversation}
                       onArchiveToggle={handleArchiveToggle}
-                      onDelete={() => handleDeleteConversation(selectedConversation.id)}
+                      onDelete={() => handleDeleteConversation(selectedConversation.id, false)}
                       onExport={handleExportConversation}
                       onViewContact={handleViewContact}
                       onBlock={handleBlockContact}
@@ -947,7 +947,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                         <ConversationHeader
                           conversation={selectedConversation}
                           onArchiveToggle={handleArchiveToggle}
-                          onDelete={() => handleDeleteConversation(selectedConversation.id)}
+                          onDelete={() => handleDeleteConversation(selectedConversation.id, true)}
                           onExport={handleExportConversation}
                           onViewContact={handleViewContact}
                           onBlock={handleBlockContact}

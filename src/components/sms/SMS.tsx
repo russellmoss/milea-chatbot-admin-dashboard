@@ -78,7 +78,7 @@ const SMS: React.FC = () => {
   // Handle conversation deletion
   const handleDeleteConversation = async (conversationId: string) => {
     try {
-      await deleteConversation(conversationId);
+      await deleteConversation(conversationId, true);
       toast.success('Conversation deleted');
     } catch (error) {
       toast.error('Failed to delete conversation');
