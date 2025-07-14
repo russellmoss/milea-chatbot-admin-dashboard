@@ -642,9 +642,9 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="flex h-full bg-white">
+      <div className="flex h-full bg-white mt-6">
         {/* Folder Sidebar - Collapsible */}
-        <div className={`${isSidebarExpanded ? 'w-64' : 'w-16'} transition-all duration-300 border-r flex-shrink-0 overflow-hidden bg-white relative`}>
+        <div className={`transition-all duration-300 border-r flex-shrink-0 overflow-hidden bg-white relative`}>
           <FolderSidebar
             folders={FOLDERS}
             conversations={conversations}

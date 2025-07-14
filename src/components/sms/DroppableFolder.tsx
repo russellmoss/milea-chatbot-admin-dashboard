@@ -1,9 +1,10 @@
 import React from 'react';
 import { useDrop } from 'react-dnd';
-import { Folder } from '../../types/sms';
+import { Folder, Conversation } from '../../types/sms';
 
 interface DroppableFolderProps {
   folder: Folder;
+  conversations: Conversation[];
   isSelected: boolean;
   onSelect: (folderId: string) => void;
   onDrop: (conversationId: string, targetFolder: string) => void;
@@ -12,6 +13,7 @@ interface DroppableFolderProps {
 
 export const DroppableFolder: React.FC<DroppableFolderProps> = ({
   folder,
+  conversations,
   isSelected,
   onSelect,
   onDrop,
@@ -44,7 +46,7 @@ export const DroppableFolder: React.FC<DroppableFolderProps> = ({
         <div className="flex items-center justify-between">
           <span className="truncate">{folder.label}</span>
           <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-            {folder.getBadgeCount([])}
+            {folder.getBadgeCount(conversations)}
           </span>
         </div>
       </div>
