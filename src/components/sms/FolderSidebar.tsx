@@ -32,43 +32,7 @@ const FolderSidebar: React.FC<FolderSidebarProps> = ({
   onDrop,
   isExpanded
 }) => {
-  const collapseTimeoutRef = useRef<NodeJS.Timeout>();
-  const isArchiveView = selectedFolder === 'archive';
-  const archivedConversations = conversations.filter(conv => conv.archived && !conv.deleted);
-  const archivedCount = archivedConversations.length;
-
-  const handleUnarchive = async (conversation: Conversation) => {
-    toast((t) => (
-      <div className="flex flex-col items-center">
-        <p className="mb-2">Move conversation back to inbox?</p>
-        <div className="flex gap-2">
-          <button
-            onClick={async () => {
-              try {
-                await unarchiveConversation(conversation.id);
-                onArchiveToggle(conversation.id, false);
-                toast.dismiss(t.id);
-              } catch (error) {
-                toast.dismiss(t.id);
-              }
-            }}
-            className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-          >
-            Yes, unarchive
-          </button>
-          <button
-            onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    ), {
-      duration: 5000,
-      position: 'top-center',
-    });
-  };
+  
 
   return (
     <div className="h-full flex">
