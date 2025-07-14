@@ -773,16 +773,6 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
                   >
                     Unread
                   </button>
-                  <button
-                    onClick={() => handleFilterChange({ filterType: 'archived' })}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      filters.filterType === 'archived'
-                        ? 'bg-primary text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Archived
-                  </button>
                 </div>
 
                 {/* Date range selector */}
