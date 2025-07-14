@@ -652,7 +652,7 @@ const MessagingInbox: React.FC<MessagingInboxProps> = ({
             onFolderSelect={setSelectedFolder}
             onArchiveToggle={handleArchiveToggle}
             onDrop={handleDrop}
-            isExpanded={isSidebarExpanded}
+            isExpanded={!isSidebarExpanded}
           />
         </div>
 
