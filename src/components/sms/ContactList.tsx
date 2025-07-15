@@ -4,8 +4,8 @@ import { getAllClubMembers } from '../../apis/commerce7/apis';
 
 interface ContactListProps {
   contacts: Contact[];
-  selectedContacts: Contact[];
-  onContactSelect: (list: Contact[]) => void;
+  selectedContact: Contact | null;
+  onContactSelect: (contact: Contact) => void;
   onStatusChange: (contact: Contact, status: string) => void;
   isLoading?: boolean;
   error?: string | null;
@@ -13,7 +13,7 @@ interface ContactListProps {
 
 const ContactList: React.FC<ContactListProps> = ({
   contacts,
-  selectedContacts,
+  selectedContact,
   onContactSelect,
   onStatusChange,
   isLoading = false,
@@ -105,7 +105,7 @@ const ContactList: React.FC<ContactListProps> = ({
   return (
     <div className="flex flex-col h-full">
       {/* Header with actions */}
-      <div className="p-4 border-b border-gray-200 bg-white">
+      <div className="p-4 border-b border-gray-200 bg-white rounded-t-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-medium text-gray-900">Contact Management</h2>
         </div>
@@ -130,7 +130,7 @@ const ContactList: React.FC<ContactListProps> = ({
       </div>
       
       {/* Contacts list */}
-      <div className="flex-1 overflow-y-auto bg-white">
+      <div className="flex-1 bg-white overflow-y-auto h-full">
         {isLoading ? (
           <div className="flex justify-center items-center h-full">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
@@ -218,9 +218,9 @@ const ContactList: React.FC<ContactListProps> = ({
               {filteredContacts.map(contact => (
                 <tr 
                   key={contact.id || contact.phoneNumber}
-                  onClick={() => onContactSelect([contact])}
+                  onClick={() => onContactSelect(contact)}
                   className={`${
-                    selectedContacts.includes(contact) ? 'bg-primary-50' : 'hover:bg-gray-50'
+                    selectedContact?.id === contact.id ? 'bg-primary-50' : 'hover:bg-gray-50'
                   } cursor-pointer`}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">

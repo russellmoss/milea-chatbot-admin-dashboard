@@ -1,7 +1,7 @@
 // src/contexts/SMSContext.tsx
 import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
 import { Conversation, Contact, MessageTemplate } from '../types/sms';
-import { mockContacts, mockTemplates } from '../mocks/smsData';
+import { mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
 import { getAllSms, getAllContacts, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, updateSmsDeleteStatus } from '../apis/sms/apis';
 
@@ -12,8 +12,8 @@ interface SMSContextType {
   setSelectedConversation: React.Dispatch<React.SetStateAction<Conversation | null>>;
   contacts: Contact[];
   templates: MessageTemplate[];
-  selectedContacts: Contact[];
-  setSelectedContacts: React.Dispatch<React.SetStateAction<Contact[]>>;
+  selectedContact: Contact | null;
+  setSelectedContact: React.Dispatch<React.SetStateAction<Contact | null>>;
   sendMessage: (content: string, phoneNumber: string, conversationId?: string) => Promise<void>;
   markConversationAsRead: (conversationId: string) => Promise<void>;
   markMessageAsRead: (messageId: string) => Promise<void>;
@@ -41,7 +41,7 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-  const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lists, setLists] = useState<{ id: string; name: string }[]>([
@@ -454,8 +454,8 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedConversation,
         contacts,
         templates,
-        selectedContacts,
-        setSelectedContacts,
+        selectedContact,
+        setSelectedContact,
         sendMessage,
         markConversationAsRead,
         markMessageAsRead,
