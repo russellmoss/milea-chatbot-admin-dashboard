@@ -1,6 +1,6 @@
 import { instance } from "../base/beinstance";
-import { Conversation } from "../../types/sms";
-import { SmsSendRequest, SmsUpsertRequest } from "./interfaces";
+import { Conversation, Contact } from "../../types/sms";
+import { SmsSendRequest, SmsUpsertRequest, CreateContactRequest } from "./interfaces";
 
 
 export const getAllSms = async (): Promise<Conversation[]> => {
@@ -32,3 +32,18 @@ export const updateSmsDeleteStatus = async (smsId: string, deleted: boolean): Pr
   const response = await instance.put(`/sms/delete/id=${smsId}/delete=${deleted}`);
   return response.data;
 };
+
+export const createSmsContact = async (body: CreateContactRequest): Promise<Contact> => {
+  const response = await instance.post("/sms/contact/create", body);
+  return response.data;
+}
+
+export const getContactByUserId = async (userId: string): Promise<Contact> => {
+  const response = await instance.get(`/sms/contact/userid=${userId}`);
+  return response.data;
+}
+
+export const getAllContacts = async (): Promise<Contact[]> => {
+  const response = await instance.get("/sms/contact/all");
+  return response.data;
+}

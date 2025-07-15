@@ -3,7 +3,7 @@ import React, { createContext, useState, useContext, useCallback, useEffect } fr
 import { Conversation, Contact, MessageTemplate } from '../types/sms';
 import { mockContacts, mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
-import { getAllSms, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, updateSmsDeleteStatus } from '../apis/sms/apis';
+import { getAllSms, getAllContacts, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, updateSmsDeleteStatus } from '../apis/sms/apis';
 
 interface SMSContextType {
   conversations: Conversation[];
@@ -67,12 +67,17 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.error('Error fetching conversations:', err);
           setError('Failed to fetch conversations');
         });
-      setContacts(mockContacts);
+      getAllContacts()
+        .then(data => setContacts(data))
+        .catch(err => {
+          console.error('Error fetching contacts:', err);
+          setError('Failed to fetch contacts');
+        });
       setTemplates(mockTemplates);
     }, 3000); // Fetch every 3 seconds
 
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedConversation]);
 
   // Fetch messages
   const fetchMessages = async () => {
