@@ -3,6 +3,7 @@ import { Conversation } from '../../types/sms';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useSMS } from '../../contexts/SMSContext';
 import ContextMenu from '../common/ContextMenu';
+import { createSmsContact } from '../../apis/sms/apis';
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -69,7 +70,31 @@ const ConversationList: React.FC<ConversationListProps> = ({
       phoneNumber: conversation.phoneNumber,
       customerName: conversation.firstname + ' ' + conversation.lastname
     });
-    // TODO: Implement add to contacts functionality
+    
+    if (isContactExists(conversation.phoneNumber)) {
+      console.warn('ConversationList: Contact already exists', conversation.phoneNumber);
+      return;
+    }
+    const contactRequest = {
+      phoneNumber: conversation.phoneNumber,
+      firstName: conversation.firstname,
+      lastName: conversation.lastname,
+      email: conversation.email || '',
+      optIn: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      userId: conversation.userId,
+      lists: [],
+      tags: [],
+      birthdate: conversation.birthdate
+    };
+    createSmsContact(contactRequest)
+      .then(contact => {
+        console.log('ConversationList: Contact created', contact);
+      })
+      .catch(error => {
+        console.error('ConversationList: Error creating contact', error);
+      });
   };
 
   const isContactExists = (phoneNumber: string) => {

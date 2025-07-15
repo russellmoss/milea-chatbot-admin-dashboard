@@ -9,3 +9,18 @@ export interface SmsUpsertRequest {
     message: string;
     senderRole: string;
 }
+
+export interface CreateContactRequest {
+    firstName: string;
+    lastName: string;
+    phoneNumber: string;
+    email?: string;
+    optIn: boolean;
+    createdAt: string;
+    updatedAt: string;
+    userId: string;
+    lists?: string[];
+    tags?: string[];
+    birthdate?: string;
+    notes?: string;
+}
