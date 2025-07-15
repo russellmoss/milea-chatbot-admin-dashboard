@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Contact } from '../../types/sms';
+import { getAllClubMembers } from '../../apis/commerce7/apis';
 
 interface ContactListProps {
   contacts: Contact[];
@@ -26,6 +27,11 @@ const ContactList: React.FC<ContactListProps> = ({
   // Update filtered contacts when props change
   useEffect(() => {
     filterAndSortContacts();
+
+    async function fetchContacts() {
+      await getAllClubMembers();
+    }
+    fetchContacts();
   }, [contacts, searchQuery, sortField, sortDirection]);
 
   // Filter and sort contacts based on search query, sort field, and sort direction
