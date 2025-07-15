@@ -10,11 +10,11 @@ import MessagingInbox from '../components/sms/MessagingInbox';
 import CampaignManagement from '../components/sms/CampaignManagement';
 import TemplateLibrary from '../components/sms/TemplateLibrary';
 import { toast } from 'react-hot-toast';
+import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 const SMS: React.FC = () => {
   const {
     contacts,
-    selectedContact,
     createContact,
     updateContact,
     deleteContact,
@@ -33,8 +33,8 @@ const SMS: React.FC = () => {
     templates,
     selectedConversation,
     setSelectedConversation,
-    selectedContacts,
-    setSelectedContacts,
+    selectedContact,
+    setSelectedContact,
     sendMessage,
     markConversationAsRead,
     markMessageAsRead,
@@ -50,6 +50,7 @@ const SMS: React.FC = () => {
   const [showContactForm, setShowContactForm] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | undefined>(undefined);
   const [showBulkMessaging, setShowBulkMessaging] = useState(false);
+  const [isContactExpanded, setIsContactExpanded] = useState<boolean>(false);
 
   // Handle conversation selection
   const handleConversationSelect = (conv: Conversation) => {
@@ -57,8 +58,8 @@ const SMS: React.FC = () => {
   };
 
   // Handle contact list selection
-  const handleContactListSelect = (list: Contact[]) => {
-    setSelectedContacts(list);
+  const handleContactListSelect = (contact: Contact) => {
+    setSelectedContact(contact);
   };
 
   // Handle contact status change
@@ -254,19 +255,25 @@ const SMS: React.FC = () => {
         )}
 
         {activeTab === 'contacts' && (
-          <div className="p-6">
-            <div className="grid grid-cols-12 gap-6">
-              <div className="col-span-12 md:col-span-5 lg:col-span-4">
+          <div className="mt-6">
+            <div className="flex w-full min-h-screen flex-row gap-2">
+              <div className={isContactExpanded ? "w-full relative" : "w-1/3 relative"}>
+                <button
+                  className='absolute top-4 right-4 text-gray-500 hover:text-gray-700'
+                  onClick={() => setIsContactExpanded(!isContactExpanded)}
+                >
+                  {isContactExpanded ? <ChevronsLeft /> : <ChevronsRight />}
+                </button>
                 <ContactListComponent
                   contacts={contacts}
-                  selectedContacts={selectedContacts}
+                  selectedContact={selectedContact}
                   onContactSelect={handleContactListSelect}
                   onStatusChange={handleContactStatusChange}
                   isLoading={contactsLoading}
                   error={contactsError}
                 />
               </div>
-              <div className="col-span-12 md:col-span-7 lg:col-span-8">
+              <div className={isContactExpanded ? "w-2/3" : "w-full"}>
                 {selectedContact ? (
                   <ContactDetail
                     contact={selectedContact}
