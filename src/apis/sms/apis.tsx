@@ -33,6 +33,11 @@ export const updateSmsDeleteStatus = async (smsId: string, deleted: boolean): Pr
   return response.data;
 };
 
+export const getSmsByUserId = async (userId: string): Promise<Conversation> => {
+  const response = await instance.get(`/sms/userid=${userId}`);
+  return response.data;
+};
+
 export const createSmsContact = async (body: CreateContactRequest): Promise<Contact> => {
   const response = await instance.post("/sms/contact/create", body);
   return response.data;

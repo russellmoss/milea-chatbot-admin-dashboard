@@ -7,7 +7,6 @@ import { getAllSms, getAllContacts, sendSms, upsertSms, updateSmsReadStatus, upd
   updateSmsDeleteStatus, updateContact as updateContactApiCall, deleteContact as deleteContactApiCall,
   getAllTemplates as getAllTemplatesApiCall
 } from '../apis/sms/apis';
-import { get } from 'http';
 
 
 interface SMSContextType {
