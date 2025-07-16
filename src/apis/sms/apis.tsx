@@ -47,3 +47,8 @@ export const getAllContacts = async (): Promise<Contact[]> => {
   const response = await instance.get("/sms/contact/all");
   return response.data;
 }
+
+export const updateContact = async (contactId: string, body: Partial<Contact>): Promise<Contact> => {
+  const response = await instance.put(`/sms/contact/update/id=${contactId}`, body);
+  return response.data;
+}

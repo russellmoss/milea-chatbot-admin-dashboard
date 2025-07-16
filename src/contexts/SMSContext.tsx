@@ -3,7 +3,8 @@ import React, { createContext, useState, useContext, useCallback, useEffect } fr
 import { Conversation, Contact, MessageTemplate } from '../types/sms';
 import { mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
-import { getAllSms, getAllContacts, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, updateSmsDeleteStatus } from '../apis/sms/apis';
+import { getAllSms, getAllContacts, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, updateSmsDeleteStatus, updateContact as updateContactApiCall } from '../apis/sms/apis';
+
 
 interface SMSContextType {
   conversations: Conversation[];
@@ -333,10 +334,7 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Update contact
   const updateContact = useCallback(async (id: string, contactData: Partial<Contact>) => {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      let updatedContact: Contact | null = null;
+      let updatedContact = await updateContactApiCall(id, contactData);
       
       setContacts(prev => 
         prev.map(c => {
@@ -351,7 +349,8 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return c;
         })
       );
-      
+      setSelectedContact(updatedContact);
+
       if (!updatedContact) {
         throw new Error('Contact not found');
       }
