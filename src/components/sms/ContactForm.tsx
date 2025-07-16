@@ -258,7 +258,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
               type="date"
               name="birthdate"
               id="birthdate"
-              value={formData.birthdate}
+              value={formData.birthdate ? new Date(formData.birthdate).toISOString().split('T')[0] : ''}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
             />

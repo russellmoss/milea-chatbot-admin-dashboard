@@ -107,7 +107,7 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
         {contact.tags && contact.tags.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
             {contact.tags.map((tag) => (
-              <span key={tag} className="px-2 py-1 bg-primary-light rounded-full text-xs">
+              <span key={tag} className="px-2 py-1 bg-primary-light rounded-full text-xs border border-green-500 text-green-300">
                 {tag}
               </span>
             ))}
@@ -152,7 +152,7 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
       </div>
 
       {/* Tab Content */}
-      <div className="p-6 h-5/6 overflow-y-auto">
+      <div className="p-6 h-full overflow-y-auto">
         {isLoading ? (
           <div className="flex justify-center items-center h-60">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>

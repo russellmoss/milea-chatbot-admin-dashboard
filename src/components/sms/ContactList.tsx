@@ -28,10 +28,10 @@ const ContactList: React.FC<ContactListProps> = ({
   useEffect(() => {
     filterAndSortContacts();
 
-    async function fetchContacts() {
-      await getAllClubMembers();
-    }
-    fetchContacts();
+    // async function fetchContacts() {
+    //   await getAllClubMembers();
+    // }
+    // fetchContacts();
   }, [contacts, searchQuery, sortField, sortDirection]);
 
   // Filter and sort contacts based on search query, sort field, and sort direction
