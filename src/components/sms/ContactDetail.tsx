@@ -26,7 +26,7 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
   isLoading = false
 }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'messages' | 'events'>('details');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
 
   // Format phone number for display
   const formatPhoneNumber = (phoneNumber: string) => {

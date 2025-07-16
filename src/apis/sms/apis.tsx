@@ -52,3 +52,8 @@ export const updateContact = async (contactId: string, body: Partial<Contact>): 
   const response = await instance.put(`/sms/contact/update/id=${contactId}`, body);
   return response.data;
 }
+
+export const deleteContact = async (contactId: string): Promise<void> => {
+  const response = await instance.delete(`/sms/contact/delete/id=${contactId}`);
+  return response.data;
+};
