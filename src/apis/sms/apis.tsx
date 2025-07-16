@@ -68,3 +68,13 @@ export const getAllTemplates = async (): Promise<MessageTemplate[]> => {
   return response.data;
 }
 
+export const updateTemplate = async (templateId: string, body: Partial<MessageTemplate>): Promise<MessageTemplate> => {
+  const response = await instance.put(`/sms/template/update/id=${templateId}`, body);
+  return response.data;
+};
+
+export const deleteTemplate = async (templateId: string): Promise<void> => {
+  const response = await instance.delete(`/sms/template/delete/id=${templateId}`);
+  return response.data;
+};
+

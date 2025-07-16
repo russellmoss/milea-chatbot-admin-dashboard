@@ -17,6 +17,7 @@ interface SMSContextType {
   setSelectedConversation: React.Dispatch<React.SetStateAction<Conversation | null>>;
   contacts: Contact[];
   templates: MessageTemplate[];
+  setTemplates: React.Dispatch<React.SetStateAction<MessageTemplate[]>>;
   selectedContact: Contact | null;
   setSelectedContact: React.Dispatch<React.SetStateAction<Contact | null>>;
   sendMessage: (content: string, phoneNumber: string, conversationId?: string) => Promise<void>;
@@ -461,6 +462,7 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedConversation,
         contacts,
         templates,
+        setTemplates,
         selectedContact,
         setSelectedContact,
         sendMessage,

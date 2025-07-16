@@ -31,6 +31,7 @@ const SMS: React.FC = () => {
   const {
     conversations,
     templates,
+    setTemplates,
     selectedConversation,
     setSelectedConversation,
     selectedContact,
@@ -391,6 +392,7 @@ const SMS: React.FC = () => {
           <div className="p-6">
             <TemplateLibrary
               templates={templates}
+              setTemplates={setTemplates}
               onSendMessage={handleSendMessageToContact}
             />
           </div>
