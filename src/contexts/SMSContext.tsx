@@ -1,11 +1,10 @@
 // src/contexts/SMSContext.tsx
 import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
 import { Conversation, Contact, MessageTemplate } from '../types/sms';
-import { mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
 import { getAllSms, getAllContacts, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, 
   updateSmsDeleteStatus, updateContact as updateContactApiCall, deleteContact as deleteContactApiCall,
-  getAllTemplates as getAllTemplatesApiCall
+  getAllTemplates as getAllTemplatesApiCall, createSmsContact
 } from '../apis/sms/apis';
 
 
@@ -321,18 +320,14 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Create contact
   const createContact = useCallback(async (contactData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const newContact: Contact = {
-        ...contactData,
-        id: `contact_${Date.now()}`,
+      const { userId, ...restContactData } = contactData;
+      const newContact = await createSmsContact({
+        ...restContactData,
+        userId: contactData.userId || 'unknown',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      };
-      
+      });
       setContacts(prev => [...prev, newContact]);
-      
       return newContact;
     } catch (error) {
       console.error('Error creating contact:', error);
