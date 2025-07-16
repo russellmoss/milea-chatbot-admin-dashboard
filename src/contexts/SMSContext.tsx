@@ -3,7 +3,8 @@ import React, { createContext, useState, useContext, useCallback, useEffect } fr
 import { Conversation, Contact, MessageTemplate } from '../types/sms';
 import { mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
-import { getAllSms, getAllContacts, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, updateSmsDeleteStatus, updateContact as updateContactApiCall } from '../apis/sms/apis';
+import { getAllSms, getAllContacts, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, 
+  updateSmsDeleteStatus, updateContact as updateContactApiCall, deleteContact as deleteContactApiCall } from '../apis/sms/apis';
 
 
 interface SMSContextType {
@@ -365,10 +366,9 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Delete contact
   const deleteContact = useCallback(async (id: string) => {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
+      await deleteContactApiCall(id);
       setContacts(prev => prev.filter(c => c.id !== id));
+      setSelectedContact(null);
     } catch (error) {
       console.error('Error deleting contact:', error);
       throw new Error('Failed to delete contact');
