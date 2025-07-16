@@ -74,9 +74,9 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div className="bg-white rounded-lg shadow-sm overflow-y-auto h-full">
       {/* Contact Header */}
-      <div className="bg-primary text-white p-4 sm:p-6">
+      <div className="bg-primary text-white p-4 sm:p-6 overflow-y-auto rounded-t-lg">
         <div className="flex justify-between">
           <div>
             <h2 className="text-2xl font-bold">{`${contact.firstName} ${contact.lastName}`}</h2>
@@ -152,7 +152,7 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
       </div>
 
       {/* Tab Content */}
-      <div className="p-6">
+      <div className="p-6 h-5/6 overflow-y-auto">
         {isLoading ? (
           <div className="flex justify-center items-center h-60">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
@@ -289,10 +289,10 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
 
             {/* Messages Tab */}
             {activeTab === 'messages' && (
-              <div>
+              <div className='w-full h-full'>
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Message History</h3>
                 {messageHistory.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-md">
+                  <div className="text-center py-12 bg-gray-50 rounded-md w-full flex items-center flex-col">
                     <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
@@ -350,7 +350,7 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
             {activeTab === 'events' && (
               <div>
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Contact Events</h3>
-                <div className="text-center py-12 bg-gray-50 rounded-md">
+                <div className="text-center py-12 bg-gray-50 rounded-md w-full flex items-center flex-col">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
@@ -358,7 +358,7 @@ const ContactDetail: React.FC<ContactDetailProps> = ({
                   <p className="mt-1 text-sm text-gray-500">This contact has no events yet.</p>
                   <div className="mt-6">
                     <p className="text-sm text-gray-500">
-                      Events will be shown here when this contact interacts with messages,
+                      Events will be shown here when this contact interacts with messages, <br/>
                       joins or leaves contact lists, or updates their information.
                     </p>
                   </div>
