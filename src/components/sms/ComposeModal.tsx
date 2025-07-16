@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Contact, MessageTemplate } from '../../types/sms';
 import { useSMS } from '../../contexts/SMSContext';
 import ContactSelector from './ContactSelector';
+import { getSmsByUserId } from '../../apis/sms/apis';
 
 interface ComposeModalProps {
   isOpen: boolean;
@@ -85,7 +86,13 @@ const ComposeModal: React.FC<ComposeModalProps> = ({ isOpen, onClose }) => {
       }
 
       // Send message
-      await sendMessage(message, phoneNumber);
+      const userId = selectedContact!.userId!;
+      const conversation = await getSmsByUserId(userId);
+      if (!conversation) {
+        setError('This contact does not have an existing conversation');
+        return;
+      }
+      await sendMessage(message, phoneNumber, conversation.id);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
