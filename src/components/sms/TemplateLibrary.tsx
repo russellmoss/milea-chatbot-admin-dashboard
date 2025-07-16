@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MessageTemplate } from '../../types/sms';
 import { toast } from 'react-hot-toast';
-import { createTemplate } from '../../apis/sms/apis';
+import { createTemplate, updateTemplate, deleteTemplate } from '../../apis/sms/apis';
 
 // Template Editor Modal
 interface TemplateEditorProps {
@@ -149,11 +149,13 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
 interface TemplateLibraryProps {
   templates: MessageTemplate[];
+  setTemplates: (templates: MessageTemplate[]) => void;
   onSendMessage: (message: string, phoneNumber: string) => Promise<void>;
 }
 
 const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   templates,
+  setTemplates,
   onSendMessage
 }) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -190,14 +192,9 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
     if (!templateToDelete) return;
     
     try {
-      // In a real app, this would be an API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Remove the template from the list
+      await deleteTemplate(templateToDelete.id);
       const updatedTemplates = templates.filter(t => t.id !== templateToDelete.id);
-      // Note: In a real app, we would call an API to delete the template
-      // and then update the parent component's state
-      
+      setTemplates(updatedTemplates);
       toast.success('Template deleted successfully');
       setShowDeleteConfirm(false);
       setTemplateToDelete(null);
@@ -217,19 +214,12 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   const handleSaveTemplate = async (templateData: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       if (editingTemplate) {
-        // Update existing template
-        const updatedTemplate: MessageTemplate = {
-          ...editingTemplate,
-          ...templateData,
-          updatedAt: new Date().toISOString()
-        };
-        
-        // Note: In a real app, we would call an API to update the template
-        // and then update the parent component's state
-        
+        await updateTemplate(editingTemplate.id, templateData);
+        setTemplates(templates.map(t => (t.id === editingTemplate.id ? { ...t, ...templateData } : t)));
         toast.success('Template updated successfully');
       } else {
         const newTemplate = await createTemplate(templateData);
+        setTemplates([...templates, newTemplate]);
         toast.success('Template created successfully');
       }
       
@@ -243,8 +233,8 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
 
   // Handle template usage
   const handleUseTemplate = (template: MessageTemplate) => {
-    // In a real app, this would open a modal to select recipients
-    toast.success('Template selected. Please select recipients to send the message.');
+    navigator.clipboard.writeText(template.content);
+    toast.success('The template content has been copied to clipboard. Please exchange the variables with real data and select recipients to send the message.');
   };
 
   return (
