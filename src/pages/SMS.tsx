@@ -110,10 +110,15 @@ const SMS: React.FC = () => {
     }
   };
 
-  // Handle contact selection
-  const handleContactSelect = (contact: Contact) => {
-    selectContact(contact);
-  };
+  // Change selectedConv when selectedContact changes
+  useEffect(() => {
+    if (selectedContact) {
+      const existingConversation = conversations.find(conv => conv.userId === selectedContact.userId);
+      if (existingConversation) {
+        setSelectedConversation(existingConversation);
+      }
+    }
+  }, [conversations, selectedContact, setSelectedConversation]);
 
   // Handle contact creation
   const handleCreateContact = async (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -277,6 +282,7 @@ const SMS: React.FC = () => {
                 {selectedContact ? (
                   <ContactDetail
                     contact={selectedContact}
+                    messageHistory={selectedConversation?.messages || []}
                     onEdit={() => {
                       setEditingContact(selectedContact);
                       setShowContactForm(true);
