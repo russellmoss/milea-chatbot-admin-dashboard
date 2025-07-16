@@ -4,7 +4,10 @@ import { Conversation, Contact, MessageTemplate } from '../types/sms';
 import { mockTemplates } from '../mocks/smsData';
 import { toast } from 'react-hot-toast';
 import { getAllSms, getAllContacts, sendSms, upsertSms, updateSmsReadStatus, updateSmsArchiveStatus, 
-  updateSmsDeleteStatus, updateContact as updateContactApiCall, deleteContact as deleteContactApiCall } from '../apis/sms/apis';
+  updateSmsDeleteStatus, updateContact as updateContactApiCall, deleteContact as deleteContactApiCall,
+  getAllTemplates as getAllTemplatesApiCall
+} from '../apis/sms/apis';
+import { get } from 'http';
 
 
 interface SMSContextType {
@@ -75,7 +78,12 @@ export const SMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.error('Error fetching contacts:', err);
           setError('Failed to fetch contacts');
         });
-      setTemplates(mockTemplates);
+      getAllTemplatesApiCall()
+        .then(data => setTemplates(data))
+        .catch(err => {
+          console.error('Error fetching templates:', err);
+          setError('Failed to fetch templates');
+        });
     }, 3000); // Fetch every 3 seconds
 
     return () => clearInterval(interval);

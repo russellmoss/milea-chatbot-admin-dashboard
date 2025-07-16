@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MessageTemplate } from '../../types/sms';
 import { toast } from 'react-hot-toast';
+import { createTemplate } from '../../apis/sms/apis';
 
 // Template Editor Modal
 interface TemplateEditorProps {
@@ -215,9 +216,6 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   // Handle template creation/update
   const handleSaveTemplate = async (templateData: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      // In a real app, this would be an API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
       if (editingTemplate) {
         // Update existing template
         const updatedTemplate: MessageTemplate = {
@@ -231,17 +229,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
         
         toast.success('Template updated successfully');
       } else {
-        // Create new template
-        const newTemplate: MessageTemplate = {
-          ...templateData,
-          id: `template_${Date.now()}`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        
-        // Note: In a real app, we would call an API to create the template
-        // and then update the parent component's state
-        
+        const newTemplate = await createTemplate(templateData);
         toast.success('Template created successfully');
       }
       

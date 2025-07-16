@@ -1,6 +1,6 @@
 import { instance } from "../base/beinstance";
-import { Conversation, Contact } from "../../types/sms";
-import { SmsSendRequest, SmsUpsertRequest, CreateContactRequest } from "./interfaces";
+import { Conversation, Contact, MessageTemplate } from "../../types/sms";
+import { SmsSendRequest, SmsUpsertRequest, CreateContactRequest, CreateTemplateRequest } from "./interfaces";
 
 
 export const getAllSms = async (): Promise<Conversation[]> => {
@@ -57,3 +57,14 @@ export const deleteContact = async (contactId: string): Promise<void> => {
   const response = await instance.delete(`/sms/contact/delete/id=${contactId}`);
   return response.data;
 };
+
+export const createTemplate = async (body: CreateTemplateRequest): Promise<MessageTemplate> => {
+  const response = await instance.post("/sms/template/create", body);
+  return response.data;
+};
+
+export const getAllTemplates = async (): Promise<MessageTemplate[]> => {
+  const response = await instance.get("/sms/template/all");
+  return response.data;
+}
+

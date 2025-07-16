@@ -24,3 +24,10 @@ export interface CreateContactRequest {
     birthdate?: string;
     notes?: string;
 }
+
+export interface CreateTemplateRequest {
+    name: string;
+    content: string;
+    variables: string[];
+    category: string;
+}
