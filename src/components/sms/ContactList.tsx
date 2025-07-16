@@ -103,7 +103,7 @@ const ContactList: React.FC<ContactListProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full">
       {/* Header with actions */}
       <div className="p-4 border-b border-gray-200 bg-white rounded-t-lg">
         <div className="flex justify-between items-center mb-4">
@@ -130,7 +130,7 @@ const ContactList: React.FC<ContactListProps> = ({
       </div>
       
       {/* Contacts list */}
-      <div className="flex-1 bg-white overflow-y-auto h-full">
+      <div className="flex-1 bg-white overflow-y-auto h-full w-full">
         {isLoading ? (
           <div className="flex justify-center items-center h-full">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
@@ -146,12 +146,12 @@ const ContactList: React.FC<ContactListProps> = ({
             </button>
           </div>
         ) : filteredContacts.length === 0 ? (
-          <div className="flex flex-col justify-center items-center h-full p-4">
-            <svg className="h-12 w-12 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex flex-col justify-center items-center h-full p-4 gap-2">
+            <svg className="h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No contacts found</h3>
-            <p className="text-gray-500 text-sm mb-4 text-center max-w-md">
+            <h3 className="text-lg font-medium text-gray-900">No contacts found</h3>
+            <p className="text-gray-500 text-sm text-center max-w-md">
               {searchQuery 
                 ? `No contacts match "${searchQuery}"`
                 : 'Get started by adding your first contact'}

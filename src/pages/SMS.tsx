@@ -256,10 +256,10 @@ const SMS: React.FC = () => {
 
         {activeTab === 'contacts' && (
           <div className="mt-6">
-            <div className="flex w-full min-h-screen flex-row gap-2">
-              <div className={isContactExpanded ? "w-full relative" : "w-1/3 relative"}>
+            <div className="flex w-full h-screen gap-2">
+              <div className={`relative transition-all duration-300 ease-in-out ${isContactExpanded ? "flex-[5]" : "flex-[1]"} min-w-[250px]`}>
                 <button
-                  className='absolute top-4 right-4 text-gray-500 hover:text-gray-700'
+                  className='absolute top-4 right-4 text-gray-500 hover:text-gray-700 z-10'
                   onClick={() => setIsContactExpanded(!isContactExpanded)}
                 >
                   {isContactExpanded ? <ChevronsLeft /> : <ChevronsRight />}
@@ -273,7 +273,7 @@ const SMS: React.FC = () => {
                   error={contactsError}
                 />
               </div>
-              <div className={isContactExpanded ? "w-2/3" : "w-full"}>
+              <div className={`transition-all duration-300 ease-in-out ${isContactExpanded ? "flex-[1]" : "flex-[5]"} min-w-0 h-full`}>
                 {selectedContact ? (
                   <ContactDetail
                     contact={selectedContact}
