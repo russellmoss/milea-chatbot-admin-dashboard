@@ -66,6 +66,11 @@ const SMS: React.FC = () => {
   // Handle contact status change
   const handleContactStatusChange = (contact: Contact, status: string): void => {
     // Update contact status logic here
+    if (status === 'optedIn') {
+      toggleOptIn(contact.id, true);
+    } else if (status === 'optedOut') {
+      toggleOptIn(contact.id, false);
+    }
     toast.success(`Contact ${contact.firstName} ${contact.lastName} status updated to ${status}`);
   };
 
