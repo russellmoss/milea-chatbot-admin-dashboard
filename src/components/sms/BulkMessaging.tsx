@@ -7,6 +7,7 @@ import RecipientSelector from './RecipientSelector';
 import TemplateSelector from './TemplateSelector';
 import { createCampaign } from '../../apis/sms/apis';
 import { set } from 'date-fns';
+import toast from 'react-hot-toast';
 
 // Constants for pagination and performance monitoring
 const ITEMS_PER_PAGE = 50;
@@ -91,8 +92,6 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
     if (!(body || campaign).recipients.length) {
       newErrors.push({ field: 'recipients', message: 'At least one recipient is required' });
     }
-    console.debug('Campaign validation:', body || campaign);
-    console.debug('Campaign validation errors:', newErrors);
 
     setErrors(newErrors);
     return newErrors.length === 0;
@@ -124,16 +123,15 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
 
   // Enhanced error recovery
   const handleSubmit = useCallback(async () => {
-    console.debug('Starting campaign submission 1:', campaign);
     const body = {
       name: campaign.name,
-      recipients: contacts.map(contact => ({
+      recipients: selectedContacts.map(contact => ({
         contactId: contact.id,
         listId: contact.lists?.[0] || '',
         phoneNumber: contact.phoneNumber
       })),
       message: message,
-      status: 'completed',
+      status: 'completed' as 'completed',
       stats: {
           total: 0,
           sent: 0,
@@ -142,18 +140,18 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
           responses: 0
       }
     };
+    console.debug('Submitting campaign, contacts are:', selectedContacts);
+    console.debug('Submitting campaign:', body);
     if (!validateCampaign(body)) return;
 
     setIsSubmitting(true);
     setErrors([]);
-    console.debug('Starting campaign submission 2:', campaign);
 
     try {
       performanceRef.current.startTime = performance.now();
-
-      console.debug('Starting campaign submission3 :', campaign);
-      const newCampaign = await createCampaign(campaign);
+      const newCampaign = await createCampaign(body);
       setCampaigns(prev => [newCampaign, ...prev]);
+      toast.success('New campaign is created successfully');
 
       // Clear timeout on unmount
       if (campaignTimeoutRef.current) {
@@ -390,7 +388,7 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
           disabled={isSubmitting}
           className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary-dark disabled:opacity-50"
         >
-          {isSubmitting ? 'Sending...' : 'Send Messages1'}
+          {isSubmitting ? 'Sending...' : 'Send Messages'}
         </button>
       </div>
 

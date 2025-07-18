@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { BulkMessageCampaign } from '../../types/sms';
+import { BulkMessageCampaign, CampaignRecipient } from '../../types/sms';
 
 interface CampaignDetailProps {
   campaign: BulkMessageCampaign;
@@ -19,27 +19,13 @@ const CampaignDetail: React.FC<CampaignDetailProps> = ({
   };
 
   // Get recipient count by type
-  const getRecipientDetails = (): { count: number, detail: string } => {
-    const contactCount = 0;
-    const phoneCount = 0;
-    const listCount = 0;
-    
-    const total = contactCount + phoneCount;
-    
-    let detail = '';
-    // if (contactCount > 0) {
-    //   detail += `${contactCount} contact${contactCount !== 1 ? 's' : ''}`;
-    // }
-    // if (phoneCount > 0) {
-    //   detail += detail ? ', ' : '';
-    //   detail += `${phoneCount} phone number${phoneCount !== 1 ? 's' : ''}`;
-    // }
-    // if (listCount > 0) {
-    //   detail += detail ? ', ' : '';
-    //   detail += `${listCount} list${listCount !== 1 ? 's' : ''}`;
-    // }
-    
-    return { count: total, detail };
+  const getRecipientDetails = (recipients: CampaignRecipient[]): { count: number, detail: string } => {
+    const total = recipients.length;
+    const phoneNumbers = recipients.map(r => r.phoneNumber).join(', ');
+    return {
+      count: total,
+      detail: `Total: ${total}, Numbers: ${phoneNumbers}`
+    };
   };
 
   // Get status badge classes
@@ -60,7 +46,7 @@ const CampaignDetail: React.FC<CampaignDetailProps> = ({
     }
   };
 
-  const recipientDetails = getRecipientDetails();
+  const recipientDetails = getRecipientDetails(campaign.recipients);
 
   return (
     <div className="bg-white rounded-lg shadow-md max-h-full overflow-auto">
