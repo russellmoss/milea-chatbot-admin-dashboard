@@ -4,11 +4,11 @@ import { Contact } from '../../types/sms';
 
 interface BulkMessageComposerProps {
   selectedContacts: Contact[];
-  setSelectedContacts: React.Dispatch<React.SetStateAction<Contact[]>>;
+  setSelectedContacts: (contacts: Contact[]) => void;
   availableRecipients: Contact[];
   initialText?: string;
   message: string;
-  setMessage: React.Dispatch<React.SetStateAction<string>>;
+  setMessage: (message: string) => void;
 }
 
 const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
@@ -34,6 +34,10 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [message]);
+
+  useEffect(() => {
+    console.debug('selectedContacts changed:', selectedContacts);
+  }, [selectedContacts]);
 
   // Format text (bold, italic, etc.)
   const formatText = (type: 'bold' | 'italic' | 'link') => {
@@ -77,17 +81,11 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
 
   // Toggle recipient selection
   const toggleRecipientSelection = (contact: Contact) => {
-    setSelectedContacts(prev => {
-      if (prev.some(r => r.id === contact.id)) {
-        return prev.filter(r => r.id !== contact.id);
-      } else {
-        const newRecipient = availableRecipients.find(r => r.id === contact.id);
-        if (newRecipient) {
-          return [...prev, newRecipient];
-        }
-        return prev;
-      }
-    });
+    if (selectedContacts.some(c => c.id === contact.id)) {
+      setSelectedContacts(selectedContacts.filter(c => c.id !== contact.id));
+    } else {
+      setSelectedContacts([...selectedContacts, contact]);
+    }
   };
 
   // Select all recipients
@@ -185,23 +183,23 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
               </div>
               
               <div className="space-y-2">
-                {availableRecipients.map(recipient => (
+                {availableRecipients.map(contact => (
                   <div 
-                    key={recipient.id}
+                    key={contact.id}
                     className="flex items-center"
                   >
                     <input
                       type="checkbox"
-                      id={`recipient-${recipient}`}
-                      checked={selectedContacts.includes(recipient)}
-                      onChange={() => toggleRecipientSelection(recipient)}
+                      id={contact.id}
+                      checked={selectedContacts.some(c => c.id === contact.id)}
+                      onChange={() => toggleRecipientSelection(contact)}
                       className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mr-2"
                     />
                     <label 
-                      htmlFor={`recipient-${recipient}`}
+                      htmlFor={`recipient-${contact.id}`}
                       className="text-sm text-gray-700"
                     >
-                      {recipient.phoneNumber}
+                      {contact.phoneNumber}
                     </label>
                   </div>
                 ))}
