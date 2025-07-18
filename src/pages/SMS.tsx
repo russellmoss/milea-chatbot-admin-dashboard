@@ -434,6 +434,8 @@ const SMS: React.FC = () => {
               onClose={() => setShowBulkMessaging(false)}
               contacts={contacts}
               onSendBulkMessage={handleSendBulkMessage}
+              allCampaigns={[]}
+              updateCampaigns={() => {}}
             />
           </div>
         </div>

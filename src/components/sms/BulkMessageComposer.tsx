@@ -430,7 +430,7 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
             {message.length} characters
           </span>
           
-          <button
+          {/* <button
             type="submit"
             onClick={() => {}}
             disabled={!message.trim() || selectedContacts.length === 0 || isSending}
@@ -445,7 +445,7 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
               : scheduleSettings.type === 'scheduled'
                 ? 'Schedule Message'
                 : 'Set Up Recurring Messages'}
-          </button>
+          </button> */}
         </div>
       </div>
     </div>
