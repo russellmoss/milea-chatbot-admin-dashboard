@@ -4,6 +4,7 @@ import CampaignHistory from './CampaignHistory';
 import CampaignDetail from './CampaignDetail';
 import BulkMessaging from './BulkMessaging';
 import { toast } from 'react-hot-toast';
+import { getAllCampaigns } from '../../apis/sms/apis';
 
 interface CampaignManagementProps {
   contacts: Contact[];
@@ -28,65 +29,8 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
     const fetchCampaigns = async () => {
       try {
         setIsLoading(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Mock campaign data
-        const mockCampaigns: BulkMessageCampaign[] = [
-          {
-            id: 'camp1',
-            name: 'Spring Wine Release',
-            message: 'Our Spring Wine Release is now available for Club Members! Reply SPRING to pre-order your allocation before general release.',
-            recipients: [],
-            status: 'completed',
-            stats: {
-              total: 150,
-              sent: 150,
-              delivered: 143,
-              failed: 7,
-              responses: 68
-            },
-            createdAt: '2023-04-10T15:30:00Z',
-            updatedAt: '2023-04-10T15:35:00Z'
-          },
-          {
-            id: 'camp2',
-            name: 'Summer Concert Series',
-            message: 'Join us for our Summer Concert Series, starting June 15th! Club Members get priority seating. Reply CONCERT for details and to reserve your spot.',
-            recipients: [],
-            status: 'scheduled',
-            scheduledTime: '2023-05-25T09:00:00Z',
-            createdAt: '2023-05-05T14:20:00Z',
-            updatedAt: '2023-05-05T14:25:00Z'
-          },
-          {
-            id: 'camp3',
-            name: 'Memorial Day Weekend Tasting',
-            message: 'Extended hours for Memorial Day Weekend! Join us for special tastings and live music. Club members receive complimentary cheese boards. No reservation needed.',
-            recipients: [],
-            status: 'draft',
-            createdAt: '2023-05-15T11:00:00Z',
-            updatedAt: '2023-05-15T11:05:00Z'
-          },
-          {
-            id: 'camp4',
-            name: 'April Allocation Reminder',
-            message: 'Your April wine club allocation is ready! Please pick up by April 30th or contact us to arrange shipping. Reply SHIP to have your allocation shipped to your address on file.',
-            recipients: [],
-            status: 'sending',
-            stats: {
-              total: 85,
-              sent: 52,
-              delivered: 49,
-              failed: 3,
-              responses: 12
-            },
-            createdAt: '2023-04-20T08:45:00Z',
-            updatedAt: '2023-04-20T08:50:00Z'
-          }
-        ];
-        
-        setCampaigns(mockCampaigns);
+        const allCampaigns = await getAllCampaigns();
+        setCampaigns(allCampaigns);
         setIsLoading(false);
       } catch (err) {
         console.error('Error fetching campaigns:', err);
