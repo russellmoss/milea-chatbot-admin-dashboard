@@ -84,29 +84,6 @@ export interface ContactImportResult {
     errors?: { row: number; error: string }[];
 }
   
-// BulkMessageCampaign represents a campaign to send messages to multiple contacts
-export interface BulkMessageCampaign {
-    id: string;
-    name: string;
-    message: string;
-    recipients: {
-        contactIds?: string[];
-        listIds?: string[];
-        phoneNumbers?: string[];
-    };
-    scheduledTime?: string;
-    status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'failed';
-    stats?: {
-        total: number;
-        sent: number;
-        delivered: number;
-        failed: number;
-        responses: number;
-    };
-    createdAt: string;
-    updatedAt: string;
-}
-  
 // ContactEvent represents an event related to a contact
 export interface ContactEvent {
     id: string;
@@ -117,16 +94,18 @@ export interface ContactEvent {
     metadata?: Record<string, any>;
 }
 
+export interface CampaignRecipient {
+    contactId: string;
+    listId: string;
+    phoneNumber: string;
+}
+
 // Bulk Message Campaign represents a mass messaging effort
 export interface BulkMessageCampaign {
     id: string;
     name: string;
     message: string;
-    recipients: {
-        contactIds?: string[];
-        listIds?: string[];
-        phoneNumbers?: string[];
-    };
+    recipients: CampaignRecipient[];
     scheduledTime?: string;
     status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'failed';
     stats?: {

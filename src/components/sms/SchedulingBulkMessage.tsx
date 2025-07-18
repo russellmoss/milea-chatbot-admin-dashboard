@@ -56,6 +56,7 @@ const SchedulingBulkMessage: React.FC<SchedulingBulkMessageProps> = ({
           <h3 className="text-lg font-medium text-gray-900 mb-4">Select Recipients</h3>
           <RecipientSelector
             contacts={contacts}
+            selectedContacts={selectedContacts}
             onRecipientsSelected={setSelectedContacts}
             lists={[]}
           />
@@ -65,11 +66,11 @@ const SchedulingBulkMessage: React.FC<SchedulingBulkMessageProps> = ({
         <div>
           <h3 className="text-lg font-medium text-gray-900 mb-4">Compose Message</h3>
           <BulkMessageComposer
-            onSendBulkMessage={async (text) => {
-              setMessage(text);
-              return Promise.resolve();
-            }}
-            availableRecipients={selectedContacts.map(c => c.phoneNumber)}
+            availableRecipients={selectedContacts}
+            selectedContacts={selectedContacts}
+            setSelectedContacts={setSelectedContacts}
+            message={message}
+            setMessage={setMessage}
           />
         </div>
 

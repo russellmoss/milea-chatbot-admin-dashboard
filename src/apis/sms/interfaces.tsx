@@ -31,3 +31,18 @@ export interface CreateTemplateRequest {
     variables: string[];
     category: string;
 }
+
+export interface CreateCampaignRequest {
+    name: string;
+    recipients?: { contactId: string; listId: string; phoneNumber: string; }[];
+    message: string;
+    scheduledTime?: string;
+    status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'failed';
+    stats?: {
+        total: number;
+        sent: number;
+        delivered: number;
+        failed: number;
+        responses: number;
+    }
+}

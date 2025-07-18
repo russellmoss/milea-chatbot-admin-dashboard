@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Contact } from '../../types/sms';
+import { on } from 'events';
 
 interface RecipientSelectorProps {
   contacts: Contact[];
+  selectedContacts: Contact[];
   lists: string[];  // Array of list IDs or names
   onRecipientsSelected: (recipients: Contact[]) => void;
   initialSelectedContacts?: Contact[];
 }
 
 const RecipientSelector: React.FC<RecipientSelectorProps> = ({ 
-  contacts, 
+  contacts,
+  selectedContacts,
   lists, 
   onRecipientsSelected,
   initialSelectedContacts = []
@@ -19,7 +22,6 @@ const RecipientSelector: React.FC<RecipientSelectorProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [optInFilter, setOptInFilter] = useState<boolean | null>(true); // Default to opted-in contacts
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedContacts, setSelectedContacts] = useState<Contact[]>(initialSelectedContacts);
 
   // Get all available tags from contacts
   const availableTags = useMemo(() => {
@@ -75,24 +77,22 @@ const RecipientSelector: React.FC<RecipientSelectorProps> = ({
 
   // Select all contacts in the filtered list
   const handleSelectAll = () => {
-    setSelectedContacts(filteredContacts);
+    onRecipientsSelected(filteredContacts);
   };
 
   // Clear all selections
   const handleClearAll = () => {
-    setSelectedContacts([]);
+    onRecipientsSelected([]);
   };
 
   // Toggle a specific contact selection
   const toggleContactSelection = (contact: Contact) => {
-    setSelectedContacts(prevSelected => {
-      const isSelected = prevSelected.some(c => c.id === contact.id);
-      if (isSelected) {
-        return prevSelected.filter(c => c.id !== contact.id);
-      } else {
-        return [...prevSelected, contact];
-      }
-    });
+    const isSelected = selectedContacts.some(c => c.id === contact.id);
+    if (isSelected) {
+      onRecipientsSelected(selectedContacts.filter(c => c.id !== contact.id));
+    } else {
+      onRecipientsSelected([...selectedContacts, contact]);
+    }
   };
 
   // Toggle a tag filter

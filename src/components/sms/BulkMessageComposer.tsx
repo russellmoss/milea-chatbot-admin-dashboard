@@ -3,21 +3,24 @@ import SchedulingControls, { ScheduleSettings, TimeZoneType } from './Scheduling
 import { Contact } from '../../types/sms';
 
 interface BulkMessageComposerProps {
-  onSendBulkMessage: (message: string, recipients: string[], scheduleSettings?: ScheduleSettings) => Promise<void>;
-  availableRecipients: string[];
+  selectedContacts: Contact[];
+  setSelectedContacts: React.Dispatch<React.SetStateAction<Contact[]>>;
+  availableRecipients: Contact[];
   initialText?: string;
+  message: string;
+  setMessage: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
-  onSendBulkMessage,
+  selectedContacts,
+  setSelectedContacts,
   availableRecipients,
-  initialText = ''
+  message = '',
+  setMessage
 }) => {
-  const [message, setMessage] = useState(initialText);
-  const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
-  const [isSending, setIsSending] = useState(false);
-  const [showRecipientsModal, setShowRecipientsModal] = useState(false);
-  const [showSchedulingModal, setShowSchedulingModal] = useState(false);
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [showRecipientsModal, setShowRecipientsModal] = useState<boolean>(false);
+  const [showSchedulingModal, setShowSchedulingModal] = useState<boolean>(false);
   const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettings>({
     type: 'immediate',
     timeZone: 'America/New_York' as TimeZoneType
@@ -31,29 +34,6 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [message]);
-
-  // Handle sending bulk message
-  const handleSendBulkMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!message.trim() || selectedRecipients.length === 0 || isSending) return;
-    
-    try {
-      setIsSending(true);
-      await onSendBulkMessage(message, selectedRecipients, scheduleSettings);
-      setMessage('');
-      setSelectedRecipients([]);
-      setScheduleSettings({
-        type: 'immediate',
-        timeZone: 'America/New_York' as TimeZoneType
-      });
-    } catch (error) {
-      console.error('Error sending bulk message:', error);
-      alert('Failed to send bulk message. Please try again.');
-    } finally {
-      setIsSending(false);
-    }
-  };
 
   // Format text (bold, italic, etc.)
   const formatText = (type: 'bold' | 'italic' | 'link') => {
@@ -96,22 +76,28 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
   };
 
   // Toggle recipient selection
-  const toggleRecipientSelection = (recipient: string) => {
-    setSelectedRecipients(prev => 
-      prev.includes(recipient)
-        ? prev.filter(r => r !== recipient)
-        : [...prev, recipient]
-    );
+  const toggleRecipientSelection = (contact: Contact) => {
+    setSelectedContacts(prev => {
+      if (prev.some(r => r.id === contact.id)) {
+        return prev.filter(r => r.id !== contact.id);
+      } else {
+        const newRecipient = availableRecipients.find(r => r.id === contact.id);
+        if (newRecipient) {
+          return [...prev, newRecipient];
+        }
+        return prev;
+      }
+    });
   };
 
   // Select all recipients
   const selectAllRecipients = () => {
-    setSelectedRecipients(availableRecipients);
+    setSelectedContacts(availableRecipients);
   };
 
   // Clear all recipients
   const clearAllRecipients = () => {
-    setSelectedRecipients([]);
+    setSelectedContacts([]);
   };
 
   // Handler for schedule settings change
@@ -201,13 +187,13 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
               <div className="space-y-2">
                 {availableRecipients.map(recipient => (
                   <div 
-                    key={recipient}
+                    key={recipient.id}
                     className="flex items-center"
                   >
                     <input
                       type="checkbox"
                       id={`recipient-${recipient}`}
-                      checked={selectedRecipients.includes(recipient)}
+                      checked={selectedContacts.includes(recipient)}
                       onChange={() => toggleRecipientSelection(recipient)}
                       className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mr-2"
                     />
@@ -215,7 +201,7 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
                       htmlFor={`recipient-${recipient}`}
                       className="text-sm text-gray-700"
                     >
-                      {recipient}
+                      {recipient.phoneNumber}
                     </label>
                   </div>
                 ))}
@@ -273,7 +259,7 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
       <div className="p-4 border-b border-gray-200 flex items-center">
         <span className="mr-2 text-sm text-gray-600">To:</span>
         <div className="flex flex-wrap items-center gap-2 flex-1">
-          {selectedRecipients.length === 0 ? (
+          {selectedContacts.length === 0 ? (
             <button
               onClick={() => setShowRecipientsModal(true)}
               className="text-sm text-gray-500 hover:text-primary"
@@ -282,12 +268,12 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
             </button>
           ) : (
             <>
-              {selectedRecipients.map(recipient => (
+              {selectedContacts.map(recipient => (
                 <span 
-                  key={recipient}
+                  key={recipient.id}
                   className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-primary-100 text-primary-800"
                 >
-                  {recipient}
+                  {recipient.phoneNumber}
                   <button
                     onClick={() => toggleRecipientSelection(recipient)}
                     className="ml-1 text-primary-400 hover:text-primary-600"
@@ -313,7 +299,7 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
         </div>
         <div className="ml-2">
           <span className="text-sm text-gray-500">
-            {selectedRecipients.length} recipient{selectedRecipients.length !== 1 ? 's' : ''} selected
+            {selectedContacts.length} recipient{selectedContacts.length !== 1 ? 's' : ''} selected
           </span>
         </div>
       </div>
@@ -448,16 +434,16 @@ const BulkMessageComposer: React.FC<BulkMessageComposerProps> = ({
           
           <button
             type="submit"
-            onClick={handleSendBulkMessage}
-            disabled={!message.trim() || selectedRecipients.length === 0 || isSending}
+            onClick={() => {}}
+            disabled={!message.trim() || selectedContacts.length === 0 || isSending}
             className={`px-4 py-2 rounded-md ${
-              !message.trim() || selectedRecipients.length === 0 || isSending
+              !message.trim() || selectedContacts.length === 0 || isSending
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-primary text-white hover:bg-primary-dark'
             }`}
           >
             {isSending ? 'Sending...' : scheduleSettings.type === 'immediate' 
-              ? `Send to ${selectedRecipients.length} Recipients` 
+              ? `Send to ${selectedContacts.length} Recipients` 
               : scheduleSettings.type === 'scheduled'
                 ? 'Schedule Message'
                 : 'Set Up Recurring Messages'}

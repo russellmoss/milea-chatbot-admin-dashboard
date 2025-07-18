@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BulkMessageCampaign, Contact, MessageTemplate } from '../../types/sms';
+import { BulkMessageCampaign, CampaignRecipient, Contact, MessageTemplate } from '../../types/sms';
 import CampaignHistory from './CampaignHistory';
 import CampaignDetail from './CampaignDetail';
 import BulkMessaging from './BulkMessaging';
@@ -37,10 +37,7 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
             id: 'camp1',
             name: 'Spring Wine Release',
             message: 'Our Spring Wine Release is now available for Club Members! Reply SPRING to pre-order your allocation before general release.',
-            recipients: {
-              contactIds: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
-              listIds: ['wine-club']
-            },
+            recipients: [],
             status: 'completed',
             stats: {
               total: 150,
@@ -56,10 +53,7 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
             id: 'camp2',
             name: 'Summer Concert Series',
             message: 'Join us for our Summer Concert Series, starting June 15th! Club Members get priority seating. Reply CONCERT for details and to reserve your spot.',
-            recipients: {
-              contactIds: ['1', '2', '3', '4', '5'],
-              listIds: ['wine-club', 'newsletter']
-            },
+            recipients: [],
             status: 'scheduled',
             scheduledTime: '2023-05-25T09:00:00Z',
             createdAt: '2023-05-05T14:20:00Z',
@@ -69,10 +63,7 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
             id: 'camp3',
             name: 'Memorial Day Weekend Tasting',
             message: 'Extended hours for Memorial Day Weekend! Join us for special tastings and live music. Club members receive complimentary cheese boards. No reservation needed.',
-            recipients: {
-              contactIds: [],
-              listIds: ['wine-club', 'newsletter', 'local-customers']
-            },
+            recipients: [],
             status: 'draft',
             createdAt: '2023-05-15T11:00:00Z',
             updatedAt: '2023-05-15T11:05:00Z'
@@ -81,10 +72,7 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
             id: 'camp4',
             name: 'April Allocation Reminder',
             message: 'Your April wine club allocation is ready! Please pick up by April 30th or contact us to arrange shipping. Reply SHIP to have your allocation shipped to your address on file.',
-            recipients: {
-              contactIds: [],
-              phoneNumbers: ['+15551234567', '+15559876543', '+15557890123']
-            },
+            recipients: [],
             status: 'sending',
             stats: {
               total: 85,
@@ -144,7 +132,7 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
   };
 
   // Handle sending a bulk message
-  const handleSendBulkMessage = async (message: string, recipients: string[], scheduleSettings?: any) => {
+  const handleSendBulkMessage = async (message: string, recipients: CampaignRecipient[], scheduleSettings?: any) => {
     try {
       // In a real app, this would be an API call
       await new Promise(resolve => setTimeout(resolve, 1500));
@@ -154,9 +142,7 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
         id: `camp_${Date.now()}`,
         name: `Campaign ${new Date().toLocaleDateString()}`,
         message,
-        recipients: {
-          phoneNumbers: recipients
-        },
+        recipients: [],
         status: scheduleSettings?.type === 'immediate' ? 'sending' : 'scheduled',
         scheduledTime: scheduleSettings?.scheduledDate && scheduleSettings?.scheduledTime
           ? `${scheduleSettings.scheduledDate}T${scheduleSettings.scheduledTime}`
@@ -169,8 +155,8 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
       setCampaigns(prev => [newCampaign, ...prev]);
       
       // Send messages to each recipient
-      for (const phoneNumber of recipients) {
-        await onSendMessage(message, phoneNumber);
+      for (const recipient of recipients) {
+        await onSendMessage(message, recipient.phoneNumber);
       }
       
       return true;

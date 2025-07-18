@@ -20,24 +20,24 @@ const CampaignDetail: React.FC<CampaignDetailProps> = ({
 
   // Get recipient count by type
   const getRecipientDetails = (): { count: number, detail: string } => {
-    const contactCount = campaign.recipients.contactIds?.length || 0;
-    const phoneCount = campaign.recipients.phoneNumbers?.length || 0;
-    const listCount = campaign.recipients.listIds?.length || 0;
+    const contactCount = 0;
+    const phoneCount = 0;
+    const listCount = 0;
     
     const total = contactCount + phoneCount;
     
     let detail = '';
-    if (contactCount > 0) {
-      detail += `${contactCount} contact${contactCount !== 1 ? 's' : ''}`;
-    }
-    if (phoneCount > 0) {
-      detail += detail ? ', ' : '';
-      detail += `${phoneCount} phone number${phoneCount !== 1 ? 's' : ''}`;
-    }
-    if (listCount > 0) {
-      detail += detail ? ', ' : '';
-      detail += `${listCount} list${listCount !== 1 ? 's' : ''}`;
-    }
+    // if (contactCount > 0) {
+    //   detail += `${contactCount} contact${contactCount !== 1 ? 's' : ''}`;
+    // }
+    // if (phoneCount > 0) {
+    //   detail += detail ? ', ' : '';
+    //   detail += `${phoneCount} phone number${phoneCount !== 1 ? 's' : ''}`;
+    // }
+    // if (listCount > 0) {
+    //   detail += detail ? ', ' : '';
+    //   detail += `${listCount} list${listCount !== 1 ? 's' : ''}`;
+    // }
     
     return { count: total, detail };
   };
