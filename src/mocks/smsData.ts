@@ -394,46 +394,46 @@ export const mockContactLists: ContactList[] = [
 ];
 
 // Mock campaigns
-export const mockCampaigns: BulkMessageCampaign[] = [
-  {
-    id: 'campaign_1',
-    name: 'Summer Wine Release',
-    message: 'Our new summer wines are now available! As a valued customer, you have early access to our 2023 Rosé and Sauvignon Blanc. Reply ORDER to reserve yours before the public release.',
-    recipients: {
-      listIds: ['wine-club', 'vip']
-    },
-    status: 'completed',
-    stats: {
-      total: 25,
-      sent: 25,
-      delivered: 24,
-      failed: 1,
-      responses: 12
-    },
-    createdAt: generateTimestamp(45, 0, 0),
-    updatedAt: generateTimestamp(44, 0, 0)
-  },
-  {
-    id: 'campaign_2',
-    name: 'Harvest Festival Invitation',
-    message: 'Join us for our annual Harvest Festival on October 15-16! Wine club members get free entry and a complimentary glass. RSVP by replying YES to this message.',
-    recipients: {
-      listIds: ['wine-club', 'newsletter']
-    },
-    status: 'scheduled',
-    scheduledTime: generateTimestamp(-30, 0, 0), // 30 days in the future
-    createdAt: generateTimestamp(10, 0, 0),
-    updatedAt: generateTimestamp(10, 0, 0)
-  },
-  {
-    id: 'campaign_3',
-    name: 'Special Holiday Offer',
-    message: 'Happy Holidays from our winery family to yours! Enjoy 20% off all orders until December 31st with code HOLIDAY23. Perfect for gifting or stocking up!',
-    recipients: {
-      listIds: ['wine-club', 'newsletter', 'vip']
-    },
-    status: 'draft',
-    createdAt: generateTimestamp(5, 0, 0),
-    updatedAt: generateTimestamp(5, 0, 0)
-  }
-];
+// export const mockCampaigns: BulkMessageCampaign[] = [
+//   {
+//     id: 'campaign_1',
+//     name: 'Summer Wine Release',
+//     message: 'Our new summer wines are now available! As a valued customer, you have early access to our 2023 Rosé and Sauvignon Blanc. Reply ORDER to reserve yours before the public release.',
+//     recipients: {
+//       listIds: ['wine-club', 'vip']
+//     },
+//     status: 'completed',
+//     stats: {
+//       total: 25,
+//       sent: 25,
+//       delivered: 24,
+//       failed: 1,
+//       responses: 12
+//     },
+//     createdAt: generateTimestamp(45, 0, 0),
+//     updatedAt: generateTimestamp(44, 0, 0)
+//   },
+//   {
+//     id: 'campaign_2',
+//     name: 'Harvest Festival Invitation',
+//     message: 'Join us for our annual Harvest Festival on October 15-16! Wine club members get free entry and a complimentary glass. RSVP by replying YES to this message.',
+//     recipients: {
+//       listIds: ['wine-club', 'newsletter']
+//     },
+//     status: 'scheduled',
+//     scheduledTime: generateTimestamp(-30, 0, 0), // 30 days in the future
+//     createdAt: generateTimestamp(10, 0, 0),
+//     updatedAt: generateTimestamp(10, 0, 0)
+//   },
+//   {
+//     id: 'campaign_3',
+//     name: 'Special Holiday Offer',
+//     message: 'Happy Holidays from our winery family to yours! Enjoy 20% off all orders until December 31st with code HOLIDAY23. Perfect for gifting or stocking up!',
+//     recipients: {
+//       listIds: ['wine-club', 'newsletter', 'vip']
+//     },
+//     status: 'draft',
+//     createdAt: generateTimestamp(5, 0, 0),
+//     updatedAt: generateTimestamp(5, 0, 0)
+//   }
+// ];

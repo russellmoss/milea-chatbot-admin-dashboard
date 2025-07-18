@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSMSOperations } from '../hooks/useSMSOperations';
 import { useSMS } from '../contexts/SMSContext';
-import { Contact, Conversation, MessageTemplate, ContactList } from '../types/sms';
+import { Contact, Conversation, MessageTemplate, ContactList, CampaignRecipient } from '../types/sms';
 import ContactListComponent from '../components/sms/ContactList';
 import ContactDetail from '../components/sms/ContactDetail';
 import ContactForm from '../components/sms/ContactForm';
@@ -185,7 +185,7 @@ const SMS: React.FC = () => {
   };
 
   // Handle bulk message sending
-  const handleSendBulkMessage = async (message: string, recipients: string[]): Promise<boolean> => {
+  const handleSendBulkMessage = async (message: string, recipients: CampaignRecipient[]): Promise<boolean> => {
     try {
       // In a real app, we would call an API here
       // Simulate success

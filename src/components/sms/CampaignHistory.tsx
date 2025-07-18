@@ -38,8 +38,8 @@ const CampaignHistory: React.FC<CampaignHistoryProps> = ({
     } else if (sortField === 'name') {
       comparison = a.name.localeCompare(b.name);
     } else if (sortField === 'recipients') {
-      const aCount = a.recipients.contactIds?.length || a.recipients.listIds?.length || a.recipients.phoneNumbers?.length || 0;
-      const bCount = b.recipients.contactIds?.length || b.recipients.listIds?.length || b.recipients.phoneNumbers?.length || 0;
+      const aCount = a.recipients.length || 0;
+      const bCount = b.recipients.length || 0;
       comparison = aCount - bCount;
     } else if (sortField === 'status') {
       comparison = a.status.localeCompare(b.status);
@@ -61,10 +61,7 @@ const CampaignHistory: React.FC<CampaignHistoryProps> = ({
 
   // Get total recipient count
   const getRecipientCount = (campaign: BulkMessageCampaign): number => {
-    return (
-      (campaign.recipients.contactIds?.length || 0) +
-      (campaign.recipients.phoneNumbers?.length || 0)
-    );
+    return campaign.recipients.length || 0;
   };
 
   // Format date relative to now
