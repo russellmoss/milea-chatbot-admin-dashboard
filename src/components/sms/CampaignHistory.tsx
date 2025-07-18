@@ -88,7 +88,7 @@ const CampaignHistory: React.FC<CampaignHistoryProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm">
+    <div className="bg-white rounded-lg shadow-sm h-screen">
       {/* Header with search and filters */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

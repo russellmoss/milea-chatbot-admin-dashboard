@@ -24,17 +24,17 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
   const [selectedCampaign, setSelectedCampaign] = useState<BulkMessageCampaign | null>(null);
   const [showNewCampaignModal, setShowNewCampaignModal] = useState(false);
 
-  // Fetch campaigns (mock data for now)
+  // Fetch campaigns every 3s
   useEffect(() => {
     const fetchCampaigns = async () => {
       try {
         setIsLoading(true);
         const allCampaigns = await getAllCampaigns();
         setCampaigns(allCampaigns);
-        setIsLoading(false);
       } catch (err) {
         console.error('Error fetching campaigns:', err);
         setError('Failed to fetch campaigns');
+      } finally {
         setIsLoading(false);
       }
     };
@@ -152,6 +152,8 @@ const CampaignManagement: React.FC<CampaignManagementProps> = ({
               contacts={contacts}
               onClose={() => setShowNewCampaignModal(false)}
               onSendBulkMessage={handleSendBulkMessage}
+              allCampaigns={campaigns}
+              updateCampaigns={setCampaigns}
             />
           </div>
         </div>

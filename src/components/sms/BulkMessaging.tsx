@@ -6,7 +6,6 @@ import BulkMessageComposer from './BulkMessageComposer';
 import RecipientSelector from './RecipientSelector';
 import TemplateSelector from './TemplateSelector';
 import { createCampaign } from '../../apis/sms/apis';
-import { set } from 'date-fns';
 import toast from 'react-hot-toast';
 
 // Constants for pagination and performance monitoring
@@ -19,10 +18,12 @@ interface BulkMessagingProps {
   onClose: () => void;
   contacts: Contact[];
   onSendBulkMessage: (message: string, recipients: CampaignRecipient[], scheduleSettings?: ScheduleSettings) => Promise<boolean>;
+  allCampaigns: BulkMessageCampaign[];
+  updateCampaigns: (campaigns: BulkMessageCampaign[]) => void;
 }
 
-const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSendBulkMessage }) => {
-  const { 
+const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSendBulkMessage, allCampaigns, updateCampaigns }) => {
+  const {
     lists,
     createList,
     addContactToList,
@@ -35,7 +36,7 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
   const [message, setMessage] = useState('');
   const [availableContacts, setAvailableContacts] = useState<Contact[]>(contacts);
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
-  const [campaigns, setCampaigns] = useState<BulkMessageCampaign[]>([]);
+  const [campaigns, setCampaigns] = useState<BulkMessageCampaign[]>(allCampaigns);
   const [errors, setErrors] = useState<{ field: string; message: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const campaignTimeoutRef = useRef<NodeJS.Timeout>();
@@ -48,7 +49,6 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
-  const [currentPage, setCurrentPage] = useState(1);
   const [metrics, setMetrics] = useState({
     filterTime: 0,
     renderTime: 0,
@@ -131,7 +131,7 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
         phoneNumber: contact.phoneNumber
       })),
       message: message,
-      status: 'completed' as 'completed',
+      status: 'sending' as 'sending',
       stats: {
           total: 0,
           sent: 0,
@@ -140,8 +140,6 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
           responses: 0
       }
     };
-    console.debug('Submitting campaign, contacts are:', selectedContacts);
-    console.debug('Submitting campaign:', body);
     if (!validateCampaign(body)) return;
 
     setIsSubmitting(true);
@@ -151,6 +149,7 @@ const BulkMessaging: React.FC<BulkMessagingProps> = ({ onClose, contacts, onSend
       performanceRef.current.startTime = performance.now();
       const newCampaign = await createCampaign(body);
       setCampaigns(prev => [newCampaign, ...prev]);
+      updateCampaigns([newCampaign, ...campaigns]);
       toast.success('New campaign is created successfully');
 
       // Clear timeout on unmount
