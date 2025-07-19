@@ -1,6 +1,8 @@
 import { Settings } from 'lucide-react';
 import React, { useState } from 'react';
 import { getAllUrls } from '../../apis/scraper/apis';
+import validator from 'validator';
+import { getUrlsBasedOnBaseUrl, updateWebSync, createWebSync } from '../../apis/websync/apis';
 import { set } from 'date-fns';
 
 // Define types
@@ -66,9 +68,17 @@ const SyncControls: React.FC = () => {
 
   const handleRefreshUrls = async() => {
     setAvailableUrlsLoading(true);
-    const urls = await getAllUrls(webBaseUrl);
-    setAvailableUrls(urls);
-    setSelectedUrls(urls);
+    const subUrls = await getAllUrls(webBaseUrl);
+    const objsStoredinDb = await getUrlsBasedOnBaseUrl(webBaseUrl);
+    if (objsStoredinDb.length > 0) {
+      // update available urls with the ones stored in db
+      await updateWebSync(objsStoredinDb[0].id, { urls: subUrls });
+    } else {
+      // create new web sync with the urls
+      await createWebSync({ baseurl: webBaseUrl, urls: subUrls });
+    }
+    setAvailableUrls(subUrls);
+    setSelectedUrls(subUrls);
     setAvailableUrlsLoading(false);
   }
   
@@ -265,6 +275,37 @@ const SyncControls: React.FC = () => {
     setSelectedUrls((prev) =>
       prev.includes(url) ? prev.filter((item) => item !== url) : [...prev, url]
     );
+  };
+
+  const handleWebUrlChange = async(e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const possibleBaseUrl = e.target.value;
+    if (validator.isURL(possibleBaseUrl)) {
+      const possibleRecords = await getUrlsBasedOnBaseUrl(possibleBaseUrl);
+      if (possibleRecords.length > 0) {
+        const possibleUrls = Array.from(new Set(possibleRecords.map(record => record.urls).flat()));
+        setAvailableUrls(possibleUrls);
+        setSelectedUrls(possibleUrls);
+      }
+    }
+    setWebBaseUrl(possibleBaseUrl);
+  };
+
+  const handleSaveSettings = async(baseUrl: string, selectedUrls: string[]) => {
+    const urlRecords = await getUrlsBasedOnBaseUrl(baseUrl);
+    const subdomainUrls = urlRecords[0].urls;
+    let subdomainUrlsChecked = urlRecords[0].urlsChecked;
+    const selectedUrlsSet = new Set(selectedUrls);
+    for (let i = 0; i < subdomainUrls.length; i++) {
+      const url = subdomainUrls[i];
+      if (selectedUrlsSet.has(url)) {
+        subdomainUrlsChecked[i] = true;
+      } else {
+        subdomainUrlsChecked[i] = false;
+      }
+    }
+    await updateWebSync(urlRecords[0].id, { urlsChecked: subdomainUrlsChecked });
+    setSettingOpen("");
   };
 
   // Handle history item click
@@ -648,7 +689,7 @@ const SyncControls: React.FC = () => {
                 <input
                   type="text"
                   value={webBaseUrl}
-                  onChange={(e) => setWebBaseUrl(e.target.value)}
+                  onChange={handleWebUrlChange}
                   placeholder="https://example.com"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -681,7 +722,14 @@ const SyncControls: React.FC = () => {
                             onChange={() => handleToggleUrl(url)}
                             className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                           />
-                          <span className="text-sm text-gray-800 break-words truncate">{url}</span>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-gray-800 break-words truncate"
+                          >
+                            {url}
+                          </a>
                         </li>
                       ))}
                     </ul>
@@ -702,6 +750,7 @@ const SyncControls: React.FC = () => {
               </button>
               <button
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                onClick={() => {handleSaveSettings(webBaseUrl, selectedUrls)}}
               >
                 Save Settings
               </button>
