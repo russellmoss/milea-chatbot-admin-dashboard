@@ -1,96 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import FileBrowser from './FileBrowser';
+import swal from 'sweetalert';
+import { createDomain, getAllDomains } from '../../apis/domain/apis';
+import { Domain } from '../../apis/domain/interfaces';
 
-// Define types
-interface KnowledgeDomain {
-  id: string;
-  name: string;
-  description: string;
-  fileCount: number;
-  lastUpdated: string;
-  icon: string;
-}
 
 const DomainExplorer: React.FC = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDomain, setSelectedDomain] = useState<KnowledgeDomain | null>(null);
-  
-  // Sample knowledge domains data
-  const knowledgeDomains: KnowledgeDomain[] = [
-    {
-      id: 'wines',
-      name: 'Wines',
-      description: 'Information about our wine products, varieties, and tasting notes',
-      fileCount: 28,
-      lastUpdated: '2023-05-12T10:30:00',
-      icon: '🍷'
-    },
-    {
-      id: 'events',
-      name: 'Events',
-      description: 'Information about vineyard events, tastings, and special occasions',
-      fileCount: 12,
-      lastUpdated: '2023-05-08T14:45:00',
-      icon: '🎉'
-    },
-    {
-      id: 'visiting',
-      name: 'Visiting',
-      description: 'Information about visiting hours, reservations, and accommodations',
-      fileCount: 10,
-      lastUpdated: '2023-05-15T09:20:00',
-      icon: '🏡'
-    },
-    {
-      id: 'club',
-      name: 'Wine Club',
-      description: 'Information about wine club tiers, benefits, and membership',
-      fileCount: 8,
-      lastUpdated: '2023-05-10T16:15:00',
-      icon: '🥂'
-    },
-    {
-      id: 'shipping',
-      name: 'Shipping & Delivery',
-      description: 'Information about shipping policies, costs, and delivery times',
-      fileCount: 6,
-      lastUpdated: '2023-05-05T11:30:00',
-      icon: '📦'
-    },
-    {
-      id: 'faq',
-      name: 'FAQs',
-      description: 'Frequently asked questions and their answers',
-      fileCount: 15,
-      lastUpdated: '2023-05-11T13:45:00',
-      icon: '❓'
-    },
-    {
-      id: 'miles',
-      name: 'Milea Miles',
-      description: 'Information about our loyalty program and referrals',
-      fileCount: 5,
-      lastUpdated: '2023-05-09T10:10:00',
-      icon: '⭐'
-    },
-    {
-      id: 'about',
-      name: 'About Us',
-      description: 'Information about our history, team, and vineyard',
-      fileCount: 7,
-      lastUpdated: '2023-05-01T15:30:00',
-      icon: '🌱'
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedDomain, setSelectedDomain] = useState<Domain | null>(null);
+  const [allDomains, setAllDomains] = useState<Domain[]>([]);
+  const [newDomainWindowOpen, setNewDomainWindowOpen] = useState<boolean>(false);
+  const [newDomainName, setNewDomainName] = useState<string>('');
+  const [newDomainDescription, setNewDomainDescription] = useState<string>('');
+  const [newDomainIcon, setNewDomainIcon] = useState<string>('🍷');
+  const [error, setError] = useState<string | null>(null);
+
+
+  // handle errors
+  useEffect(() => {
+    if (error) {
+      swal({title: "Error", text: error, icon: "error"});
+      setError(null);
     }
-  ];
+  }, [error]);
+
+
+  // Fetch all domains on mount
+  useEffect(() => {
+    const fetchDomains = async () => {
+      const domains = await getAllDomains();
+      setAllDomains(domains);
+    };
+    fetchDomains();
+  }, []);
   
   // Filter domains based on search query
-  const filteredDomains = knowledgeDomains.filter(domain => 
+  const filteredDomains = allDomains.filter(domain =>
     domain.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     domain.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
   // Handle domain selection
-  const handleSelectDomain = (domain: KnowledgeDomain) => {
+  const handleSelectDomain = (domain: Domain) => {
     setSelectedDomain(domain);
   };
   
@@ -98,7 +49,20 @@ const DomainExplorer: React.FC = () => {
   const handleBackToDomains = () => {
     setSelectedDomain(null);
   };
-  
+
+  const handleNewDomainCreation = async() => {
+    const newDomain = await createDomain({
+      name: newDomainName,
+      description: newDomainDescription,
+      icon: newDomainIcon,
+    });
+    setAllDomains([...allDomains, newDomain]);
+    setNewDomainWindowOpen(false);
+    setNewDomainName('');
+    setNewDomainDescription('');
+    setNewDomainIcon('🍷');
+  }
+
   return (
     <div className="space-y-6">
       {/* Global search */}
@@ -117,12 +81,70 @@ const DomainExplorer: React.FC = () => {
             </svg>
           </div>
         </div>
-        
-        <button className="px-4 py-2 bg-darkBrown text-white rounded hover:bg-darkBrownHover">
+
+        <button className="px-4 py-2 bg-darkBrown text-white rounded hover:bg-darkBrownHover" onClick={() => setNewDomainWindowOpen(true)}>
           New Domain
         </button>
       </div>
-      
+
+      {/* New Domain Creation Modal */}
+      {newDomainWindowOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-500 bg-opacity-75">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Create New Domain</h3>
+            {/* Form for creating new domain */}
+            <form onSubmit={handleNewDomainCreation}>
+
+              {/* domain name */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Domain Name</label>
+                <input 
+                  type="text" 
+                  className="w-full border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary py-1 px-2" 
+                  required
+                  value={newDomainName}
+                  onChange={(e) => setNewDomainName(e.target.value)}
+                />
+              </div>
+
+              {/* domain description */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea 
+                  className="w-full border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary py-1 px-2" 
+                  rows={3} 
+                  required
+                  value={newDomainDescription}
+                  onChange={(e) => setNewDomainDescription(e.target.value)}
+                ></textarea>
+              </div>
+
+              {/* domain icon selections */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Icon</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {['🍷', '🎉', '🏡', '🥂', '📦', '❓', '⭐', '🌱'].map(icon => (
+                    <button
+                      key={icon}
+                      type="button"
+                      className={`text-3xl hover:bg-gray-100 rounded p-2 ${newDomainIcon === icon ? 'bg-gray-200' : ''}`}
+                      onClick={() => { setNewDomainIcon(icon) }}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button type="button" onClick={() => setNewDomainWindowOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-darkBrown text-white rounded hover:bg-darkBrownHover">Create Domain</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Domain List or Selected Domain Details */}
       {selectedDomain ? (
         <div>
           <div className="mb-4">
@@ -144,8 +166,8 @@ const DomainExplorer: React.FC = () => {
                 <h3 className="text-xl font-medium text-gray-900">{selectedDomain.name}</h3>
                 <p className="text-gray-500">{selectedDomain.description}</p>
                 <div className="flex space-x-4 mt-2 text-sm text-gray-500">
-                  <span>{selectedDomain.fileCount} files</span>
-                  <span>Last updated: {new Date(selectedDomain.lastUpdated).toLocaleDateString()}</span>
+                  <span>{selectedDomain.filenames.length} files</span>
+                  <span>Last updated: {new Date(selectedDomain.updatedAt).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
@@ -170,8 +192,8 @@ const DomainExplorer: React.FC = () => {
                 </div>
                 <p className="text-gray-500 text-sm mb-3">{domain.description}</p>
                 <div className="flex justify-between text-sm text-gray-500">
-                  <span>{domain.fileCount} files</span>
-                  <span>Updated {new Date(domain.lastUpdated).toLocaleDateString()}</span>
+                  <span>{domain.filenames.length} files</span>
+                  <span>Updated {new Date(domain.updatedAt).toLocaleDateString()}</span>
                 </div>
               </div>
             ))}
@@ -179,7 +201,11 @@ const DomainExplorer: React.FC = () => {
           
           {filteredDomains.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              No domains found matching "{searchQuery}"
+              {searchQuery ? (
+                <span>No domains found matching <span className="font-medium">"{searchQuery}"</span></span>
+              ) : (
+                <span>No domains available. Create a new domain to get started.</span>
+              )}
             </div>
           )}
         </div>
