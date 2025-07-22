@@ -159,7 +159,7 @@ const ContactList: React.FC<ContactListProps> = ({
       </div>
       
       {/* Contacts list */}
-      <div className="flex-1 bg-white overflow-y-auto h-full w-full">
+      <div className="h-full w-full bg-white flex flex-col overflow-y-auto">
         {isLoading ? (
           <div className="flex justify-center items-center h-full">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
@@ -187,8 +187,8 @@ const ContactList: React.FC<ContactListProps> = ({
             </p>
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-200 table-fixed">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('name')}>
                   <div className="flex items-center">
@@ -243,7 +243,7 @@ const ContactList: React.FC<ContactListProps> = ({
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200">
               {filteredContacts.map(contact => (
                 <tr 
                   key={contact.id || contact.phoneNumber}
@@ -317,7 +317,7 @@ const ContactList: React.FC<ContactListProps> = ({
           </table>
         )}
       </div>
-    </div>
+      </div>
   );
 };
 

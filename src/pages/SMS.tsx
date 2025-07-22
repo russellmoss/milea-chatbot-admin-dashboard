@@ -267,7 +267,7 @@ const SMS: React.FC = () => {
 
         {activeTab === 'contacts' && (
           <div className="mt-6">
-            <div className="flex w-full h-screen gap-2">
+            <div className="flex w-full h-[calc(73vh)] gap-2">
               <div className={`relative transition-all duration-300 ease-in-out ${isContactExpanded ? "flex-[5]" : "flex-[1]"} min-w-[250px]`}>
                 <button
                   className='absolute top-4 right-4 text-gray-500 hover:text-gray-700 z-10'
