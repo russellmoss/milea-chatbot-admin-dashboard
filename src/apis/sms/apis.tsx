@@ -48,6 +48,11 @@ export const getContactByUserId = async (userId: string): Promise<Contact> => {
   return response.data;
 }
 
+export const getContactByNamesAndPhone = async (firstName: string, lastName: string, phoneNumber: string): Promise<Contact | null> => {
+  const response = await instance.get(`/sms/contact/firstname=${firstName}&lastname=${lastName}&phone=${phoneNumber}`);
+  return response.data;
+}
+
 export const getAllContacts = async (): Promise<Contact[]> => {
   const response = await instance.get("/sms/contact/all");
   return response.data;

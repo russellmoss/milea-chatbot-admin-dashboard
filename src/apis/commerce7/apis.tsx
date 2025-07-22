@@ -1,5 +1,6 @@
 import axios from "axios";
 
+
 const C7_API_URL = process.env.REACT_APP_C7_BASE_URL || "https://api.commerce7.com/v1";
 const C7_APP_ID = process.env.REACT_APP_C7_APP_ID;
 const C7_SECRET_KEY = process.env.REACT_APP_C7_SECRET_KEY;
@@ -39,7 +40,7 @@ const getAllCustomers = async (page: number): Promise<any> => {
 
 
 export const getAllClubMembers = async (): Promise<any[]> => {
-  let allCustomers: any[] = [];
+  let allCustomersFromApi: any[] = [];
   let page = 1;
 
   while (true) {
@@ -52,7 +53,7 @@ export const getAllClubMembers = async (): Promise<any[]> => {
       break;
     }
 
-    allCustomers = allCustomers.concat(customers);
+    allCustomersFromApi = allCustomersFromApi.concat(customers);
 
     if (customers.length < 50) {
       break; // No more pages
@@ -64,7 +65,6 @@ export const getAllClubMembers = async (): Promise<any[]> => {
     await delay(200);
   }
 
-  return allCustomers;
+  return allCustomersFromApi;
 };
-
 

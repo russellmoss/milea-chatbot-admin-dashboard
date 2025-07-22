@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { FolderSync } from 'lucide-react';
 import { Contact } from '../../types/sms';
 import { getAllClubMembers } from '../../apis/commerce7/apis';
+import { syncC7Contacts } from '../../apis/commerce7/service';
 
 interface ContactListProps {
   contacts: Contact[];
@@ -23,19 +25,11 @@ const ContactList: React.FC<ContactListProps> = ({
   const [sortField, setSortField] = useState<'name' | 'phone' | 'date'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>(contacts);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // Update filtered contacts when props change
-  useEffect(() => {
-    filterAndSortContacts();
-
-    // async function fetchContacts() {
-    //   await getAllClubMembers();
-    // }
-    // fetchContacts();
-  }, [contacts, searchQuery, sortField, sortDirection]);
 
   // Filter and sort contacts based on search query, sort field, and sort direction
-  const filterAndSortContacts = () => {
+  const filterAndSortContacts = React.useCallback((contacts: Contact[]) => {
     // First filter by search query
     let result = contacts.filter(contact => {
       const fullName = `${contact.firstName} ${contact.lastName}`.toLowerCase();
@@ -71,6 +65,20 @@ const ContactList: React.FC<ContactListProps> = ({
     });
 
     setFilteredContacts(result);
+  }, [searchQuery, sortField, sortDirection]);
+
+  // Update filtered contacts when props change
+  useEffect(() => {
+    filterAndSortContacts(contacts);
+  }, [filterAndSortContacts, contacts]);
+
+  const handleC7Sync = async () => {
+    // Fetch and sync contacts from C7
+    setIsSyncing(true);
+    const allClubMembersFromC7 = await getAllClubMembers();
+    const syncedContacts = await syncC7Contacts(allClubMembersFromC7);
+    filterAndSortContacts(syncedContacts);
+    setIsSyncing(false);
   };
 
   // Handle sort column click
@@ -106,8 +114,29 @@ const ContactList: React.FC<ContactListProps> = ({
     <div className="flex flex-col h-full w-full">
       {/* Header with actions */}
       <div className="p-4 border-b border-gray-200 bg-white rounded-t-lg">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-start gap-2 items-center mb-4">
           <h2 className="text-lg font-medium text-gray-900">Contact Management</h2>
+          <div className="relative group inline-block">
+            {isSyncing ? (
+              <button
+                className="px-3 py-1 bg-primary text-white rounded cursor-not-allowed"
+                disabled
+              >
+                Processing…
+              </button>
+            ) : (
+              <button
+                className="px-3 py-1 bg-primary text-white rounded hover:bg-darkBrown"
+                onClick={async () => handleC7Sync()}
+              >
+                <FolderSync className="w-4 h-4 mr-1 inline-block" />
+                Sync
+              </button>
+            )}
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-700 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-10">
+              Syncs all contacts from Commerce7
+            </div>
+          </div>
         </div>
         
         {/* Search and list selection */}
