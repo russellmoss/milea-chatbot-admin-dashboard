@@ -1,5 +1,5 @@
 import isEqual from "lodash.isequal";
-import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getAllDomains, updateDomain } from "../domain/apis";
 import { Domain } from "../domain/interfaces";
 
@@ -131,3 +131,38 @@ export async function updateDomainFilenames(domains: Domain[], mapData: Record<s
     return updatedDomains;
 }
 
+export const pullS3MarkdownContent = async (s3_key: string): Promise<string> => {
+    const bucketName = process.env.REACT_APP_AWS_S3_BUCKET!;
+    const command = new GetObjectCommand({
+        Bucket: bucketName,
+        Key: s3_key
+    });
+
+    try {
+        const response = await s3.send(command);
+        if (!response.Body) {
+        throw new Error("No content found for the specified S3 key.");
+        }
+        
+        const bodyContents = await streamToString(response.Body);
+        return bodyContents;
+    } catch (error) {
+        console.error("Error fetching S3 content:", error);
+        throw error;
+    }
+}
+
+// Helper function to convert stream to string
+function streamToString(stream: any): Promise<string> {
+    if (typeof window !== "undefined") {
+        // Browser: response.Body is a ReadableStream
+        return new Response(stream).text();
+    }
+    // Node.js: response.Body is a Readable
+    return new Promise((resolve, reject) => {
+        const chunks: any[] = [];
+        stream.on("data", (chunk: any) => chunks.push(chunk));
+        stream.on("error", reject);
+        stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+    });
+}

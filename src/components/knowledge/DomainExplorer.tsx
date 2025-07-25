@@ -173,13 +173,14 @@ const DomainExplorer: React.FC = () => {
                 <p className="text-gray-500">{selectedDomain.description}</p>
                 <div className="flex space-x-4 mt-2 text-sm text-gray-500">
                   <span>{selectedDomain.filenames.length} files</span>
-                  <span>Last updated: {new Date(selectedDomain.updatedAt).toLocaleDateString()}</span>
+                  {/* here using the createdAt since it means when the data is synced and created into s3 */}
+                  <span>Last updated: {new Date(selectedDomain.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
           </div>
           
-          <FileBrowser domainId={selectedDomain.id} />
+          <FileBrowser domainData={selectedDomain} />
         </div>
       ) : (
         <div>
@@ -199,7 +200,8 @@ const DomainExplorer: React.FC = () => {
                 <p className="text-gray-500 text-sm mb-3">{domain.description}</p>
                 <div className="flex justify-between text-sm text-gray-500">
                   <span>{domain.filenames.length} files</span>
-                  <span>Updated {new Date(domain.updatedAt).toLocaleDateString()}</span>
+                  {/* here using the createdAt since it means when the data is synced and created into s3 */}
+                  <span>Created {new Date(domain.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
             ))}

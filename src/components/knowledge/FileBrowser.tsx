@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Domain } from '../../apis/domain/interfaces';
+import { pullS3MarkdownContent } from '../../apis/s3/services';
 
 // Define types
 interface KnowledgeFile {
@@ -13,79 +15,43 @@ interface KnowledgeFile {
 }
 
 interface FileBrowserProps {
-  domainId: string;
+  domainData: Domain
 }
 
-const FileBrowser: React.FC<FileBrowserProps> = ({ domainId }) => {
+const FileBrowser: React.FC<FileBrowserProps> = ({ domainData }) => {
+  const [files, setFiles] = useState<KnowledgeFile[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [sortField, setSortField] = useState<'name' | 'lastModified' | 'size'>('lastModified');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedFile, setSelectedFile] = useState<KnowledgeFile | null>(null);
-  const [search, setSearch] = useState('');
-  
-  // Sample files data
-  const files: KnowledgeFile[] = [
-    {
-      id: '1',
-      name: 'Red Wines Overview.md',
-      content: '# Red Wines\n\nThis document provides an overview of our red wine selection.\n\n## Cabernet Franc\n\nOur signature wine. Bold, full-bodied with notes of black cherry and bell pepper.\n\n## Pinot Noir\n\nElegant and medium-bodied with notes of raspberry and earth.\n\n## Merlot\n\nSoft, approachable with plum and chocolate notes.',
-      path: `/${domainId}/red-wines-overview.md`,
-      lastModified: '2023-05-12T10:30:00',
-      size: 1254,
-      author: 'Sarah Johnson',
-      type: 'markdown'
-    },
-    {
-      id: '2',
-      name: 'White Wines Overview.md',
-      content: '# White Wines\n\nThis document provides an overview of our white wine selection.\n\n## Chardonnay\n\nRich and full-bodied with notes of apple and vanilla.\n\n## Riesling\n\nAromatic with bright acidity and notes of peach and lime.\n\n## Grüner Veltliner\n\nCrisp and peppery with notes of green apple and white pepper.',
-      path: `/${domainId}/white-wines-overview.md`,
-      lastModified: '2023-05-11T15:45:00',
-      size: 1102,
-      author: 'Sarah Johnson',
-      type: 'markdown'
-    },
-    {
-      id: '3',
-      name: '2022 Vintages.md',
-      content: '# 2022 Vintages\n\nThis document covers our 2022 vintage wines.\n\n## Growing Season\n\nThe 2022 growing season was characterized by moderate temperatures and ideal rainfall, leading to balanced ripening and excellent fruit quality.\n\n## Wines\n\n- **Cabernet Franc 2022**: Exceptional concentration with dark fruit flavors and well-integrated tannins.\n- **Chardonnay 2022**: Bright acidity with perfect balance of fruit and oak influence.\n- **Riesling 2022**: Vibrant aromatics and pristine fruit expression.',
-      path: `/${domainId}/2022-vintages.md`,
-      lastModified: '2023-05-08T09:20:00',
-      size: 876,
-      author: 'James Wilson',
-      type: 'markdown'
-    },
-    {
-      id: '4',
-      name: 'Tasting Notes.md',
-      content: '# Tasting Notes\n\nDetailed tasting notes for our current releases.\n\n## Cabernet Franc 2021\n\n**Appearance**: Deep ruby with purple edges\n**Nose**: Black cherry, blackberry, bell pepper, and subtle herbs\n**Palate**: Full-bodied with firm tannins, flavors of dark fruits, graphite, and spice\n**Finish**: Long and persistent with notes of cedar and vanilla\n\n## Chardonnay 2022\n\n**Appearance**: Pale gold\n**Nose**: Apple, pear, vanilla, and a hint of butter\n**Palate**: Medium to full-bodied with balanced acidity, flavors of baked apple, citrus, and oak\n**Finish**: Creamy with lingering notes of caramel and spice',
-      path: `/${domainId}/tasting-notes.md`,
-      lastModified: '2023-05-10T11:15:00',
-      size: 1528,
-      author: 'Emily Rodriguez',
-      type: 'markdown'
-    },
-    {
-      id: '5',
-      name: 'Wine and Food Pairings.md',
-      content: '# Wine and Food Pairings\n\nSuggested food pairings for our wines.\n\n## Cabernet Franc\n\n- Grilled ribeye steak\n- Lamb chops with rosemary\n- Aged cheddar\n- Mushroom dishes\n\n## Chardonnay\n\n- Roasted chicken\n- Cream-based pasta dishes\n- Lobster and crab\n- Semi-soft cheeses\n\n## Riesling\n\n- Spicy Asian cuisine\n- Pork dishes\n- Fresh fruit desserts\n- Blue cheese',
-      path: `/${domainId}/wine-food-pairings.md`,
-      lastModified: '2023-05-09T14:30:00',
-      size: 932,
-      author: 'Michael Parkers',
-      type: 'markdown'
-    },
-    {
-      id: '6',
-      name: 'Winemaking Process.md',
-      content: '# Winemaking Process\n\nAn overview of our winemaking philosophy and techniques.\n\n## Harvest\n\nAll grapes are hand-harvested and carefully sorted to ensure only the highest quality fruit is used.\n\n## Fermentation\n\nRed wines undergo traditional fermentation in stainless steel tanks with regular punchdowns. White wines are gently pressed and fermented at cooler temperatures to preserve aromatics.\n\n## Aging\n\nRed wines are aged in French oak barrels for 12-18 months. White wines see a mix of stainless steel and neutral oak aging to achieve balanced complexity.',
-      path: `/${domainId}/winemaking-process.md`,
-      lastModified: '2023-05-07T16:45:00',
-      size: 1358,
-      author: 'James Wilson',
-      type: 'markdown'
-    }
-  ];
+  const [search, setSearch] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+
+  useEffect(() => {
+    const fetchAndSetFiles = async () => {
+      setIsLoading(true);
+      const loadedFiles: KnowledgeFile[] = [];
+      for (let index = 0; index < domainData.filenames.length; index++) {
+        const file = domainData.filenames[index];
+        const content = await pullS3MarkdownContent(file.content); // the domain file content is the s3 key
+        const knowledgeFile: KnowledgeFile = {
+          id: index.toString(),
+          name: file.filename,
+          content: content,
+          path: file.content,
+          lastModified: file.updatedAt || '',
+          size: file.size || 0,
+          author: file.author || 'unknown',
+          type: 'markdown'
+        };
+        loadedFiles.push(knowledgeFile);
+      }
+      setFiles(loadedFiles);
+      setIsLoading(false);
+    };
+    fetchAndSetFiles();
+  }, [domainData]);
   
   // Filter files based on search
   const filteredFiles = files.filter(file => 
@@ -306,7 +272,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainId }) => {
                 {sortedFiles.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                      No files found matching "{search}"
+                      {isLoading ? "Pulling the files..." : `No files found matching "${search}"`}
                     </td>
                   </tr>
                 )}
@@ -353,7 +319,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainId }) => {
             
             {sortedFiles.length === 0 && (
               <div className="col-span-full text-center py-4 text-gray-500">
-                No files found matching "{search}"
+                {isLoading ? "Pulling the files..." : `No files found matching "${search}"`}
               </div>
             )}
           </div>
@@ -375,7 +341,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainId }) => {
             </button>
           </div>
           
-          <div className="bg-gray-50 rounded-lg p-4 mb-3 h-64 overflow-y-auto">
+          <div className="bg-gray-50 rounded-lg p-4 mb-3 h-auto">
             <pre className="text-sm text-gray-700 whitespace-pre-wrap">{selectedFile.content}</pre>
           </div>
           
