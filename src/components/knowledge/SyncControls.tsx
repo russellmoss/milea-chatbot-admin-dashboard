@@ -1,9 +1,14 @@
-import { Settings } from 'lucide-react';
-import React, { useState } from 'react';
-import { getAllUrls } from '../../apis/scraper/apis';
+/* eslint-disable react-hooks/exhaustive-deps */
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { Globe, Settings, Store } from 'lucide-react';
+import { cancelSync, getAllUrls } from '../../apis/scraper/apis';
 import validator from 'validator';
 import { getUrlsBasedOnBaseUrl, updateWebSync, createWebSync } from '../../apis/websync/apis';
-import { set } from 'date-fns';
+import { WebSyncModel } from '../../apis/websync/interfaces';
+import { startSync, SyncStatusWebSocket } from '../../apis/scraper/apis';
+import { getSyncSetting, updateWebSyncSetting } from '../../apis/setting/apis';
+import { SyncSetting } from '../../apis/setting/interfaces';
 
 // Define types
 interface SyncSource {
@@ -28,6 +33,7 @@ interface SyncHistoryItem {
 }
 
 const SyncControls: React.FC = () => {
+  const [syncSettings, setSyncSettings] = useState<SyncSetting | null>(null);
   const [syncSources, setSyncSources] = useState<SyncSource[]>([
     {
       id: 'website',
@@ -65,23 +71,15 @@ const SyncControls: React.FC = () => {
       itemCount: 0
     }
   ]);
-
-  const handleRefreshUrls = async() => {
-    setAvailableUrlsLoading(true);
-    const subUrls = await getAllUrls(webBaseUrl);
-    const objsStoredinDb = await getUrlsBasedOnBaseUrl(webBaseUrl);
-    if (objsStoredinDb.length > 0) {
-      // update available urls with the ones stored in db
-      await updateWebSync(objsStoredinDb[0].id, { urls: subUrls });
-    } else {
-      // create new web sync with the urls
-      await createWebSync({ baseurl: webBaseUrl, urls: subUrls });
-    }
-    setAvailableUrls(subUrls);
-    setSelectedUrls(subUrls);
-    setAvailableUrlsLoading(false);
-  }
-  
+  const [activeSyncSource, setActiveSyncSource] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<number | null>(null);
+  const [schedulingModalOpen, setSchedulingModalOpen] = useState<boolean>(false);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<SyncHistoryItem | null>(null);
+  const [settingOpen, setSettingOpen] = useState<string>("");
+  const [webBaseUrl, setWebBaseUrl] = useState<string>("");
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
+  const [availableUrls, setAvailableUrls] = useState<string[]>([]);
+  const [availableUrlsLoading, setAvailableUrlsLoading] = useState<boolean>(false);
   const [syncHistory, setSyncHistory] = useState<SyncHistoryItem[]>([
     {
       id: 'sync1',
@@ -144,17 +142,96 @@ const SyncControls: React.FC = () => {
       details: 'Failed to sync event calendar. API connection timed out.'
     }
   ]);
-  
-  const [activeSyncSource, setActiveSyncSource] = useState<string | null>(null);
-  const [syncProgress, setSyncProgress] = useState<number | null>(null);
-  const [schedulingModalOpen, setSchedulingModalOpen] = useState<boolean>(false);
-  const [selectedHistoryItem, setSelectedHistoryItem] = useState<SyncHistoryItem | null>(null);
-  const [settingOpen, setSettingOpen] = useState<string>("");
-  const [webBaseUrl, setWebBaseUrl] = useState<string>("");
-  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
-  const [availableUrls, setAvailableUrls] = useState<string[]>([]);
-  const [availableUrlsLoading, setAvailableUrlsLoading] = useState<boolean>(false);
-  
+
+  const continousMonitorWebSyncStatus = useCallback(async(jobId: string) => {
+    const socket = SyncStatusWebSocket(jobId);
+    socket.onmessage = async (event) => {
+      const syncStatus = JSON.parse(event.data);
+      setSyncProgress(syncStatus.progress);
+
+      if (syncStatus.status === "complete") {
+        // update sync settings
+        const updatedSetting = await updateWebSyncSetting({
+          itemCount: syncStatus.completed,
+          status: "Synced",
+          jobId: "",
+        });
+        setSyncSettings(updatedSetting);
+
+        setActiveSyncSource(null);
+        setSyncSources((sources) =>
+          sources.map((source) =>
+            source.id === "website"
+              ? {
+                  ...source,
+                  status: "success",
+                  lastSync: new Date().toISOString(),
+                  itemCount: availableUrls.length,
+                }
+              : source
+          )
+        );
+
+        socket.close();
+      }
+    };
+
+    socket.onerror = async (error) => {
+      console.error("WebSocket error:", error);
+      socket.close();
+      await cancelSync(jobId);
+      await updateWebSyncSetting({jobId: ""});
+      setSyncProgress(null);
+      setActiveSyncSource(null);
+    };
+
+    socket.onclose = async () => {
+      console.log("WebSocket of getting web sync closed");
+    };
+  }, [availableUrls])
+
+  useEffect(() => {
+    const fetchSyncSettings = async () => {
+      const settings = await getSyncSetting();
+      setSyncSettings(settings);
+      setWebBaseUrl(settings.webSyncSetting.baseurl);
+      setAvailableUrls(settings.webSyncSetting.urls);
+      setSelectedUrls(settings.webSyncSetting.selectedUrls);
+
+      if (settings.webSyncSetting.jobId && settings.webSyncSetting.selectedUrls.length > 0) {
+        setActiveSyncSource("website");
+        continousMonitorWebSyncStatus(settings.webSyncSetting.jobId);
+      }
+    };
+
+    fetchSyncSettings();
+  }, []);
+
+  const handleRefreshUrls = async() => {
+    setAvailableUrlsLoading(true);
+    const subUrls = await getAllUrls(webBaseUrl);
+    const objsStoredinDb = await getUrlsBasedOnBaseUrl(webBaseUrl);
+    let webSyncModel: WebSyncModel | null = null;
+    if (objsStoredinDb.length > 0) {
+      // update available urls with the ones stored in db
+      webSyncModel = await updateWebSync(objsStoredinDb[0].id, { urls: subUrls });
+    } else {
+      // create new web sync with the urls
+      webSyncModel = await createWebSync({ baseurl: webBaseUrl, urls: subUrls });
+    }
+    if (webSyncModel) {
+      setWebBaseUrl(webSyncModel.baseurl);
+      setAvailableUrls(webSyncModel.urls);
+      const selected = webSyncModel!.urls.filter((_url, i) => webSyncModel!.urlsChecked?.[i]);
+      setSelectedUrls(selected);
+
+      // also, update the sync settings
+      const updatedSetting = await updateWebSyncSetting({ baseurl: webSyncModel.baseurl, urls: webSyncModel.urls, urlsChecked: webSyncModel.urlsChecked });
+      setSyncSettings(updatedSetting);
+      setAvailableUrlsLoading(false);
+    }
+  };
+
   // Get status label and color
   const getStatusInfo = (status: string) => {
     switch (status) {
@@ -186,82 +263,47 @@ const SyncControls: React.FC = () => {
   };
   
   // Handle sync button click
-  const handleSync = (sourceId: string) => {
-    if (activeSyncSource) return; // Don't start a new sync if one is in progress
-    
-    setActiveSyncSource(sourceId);
-    setSyncProgress(0);
-    
-    // Update status to pending
-    setSyncSources(sources => 
-      sources.map(source => 
-        source.id === sourceId 
-          ? { ...source, status: 'pending' } 
-          : source
+  const handleWebSync = async() => {
+    if (activeSyncSource) {
+      console.warn("A sync operation is already in progress. active one is: ", activeSyncSource);
+      return;
+    }
+
+    setActiveSyncSource("website");
+    setSyncSources((sources) =>
+      sources.map((source) =>
+        source.id === "website" ? { ...source, status: "pending" } : source
       )
     );
-    
-    // Simulate sync progress
-    const interval = setInterval(() => {
-      setSyncProgress(prev => {
-        if (prev === null) return 0;
-        
-        const newProgress = prev + 10;
-        
-        if (newProgress >= 100) {
-          clearInterval(interval);
-          
-          // Simulate sync completion after a small delay
-          setTimeout(() => {
-            const now = new Date().toISOString();
-            
-            // Update source with new sync info
-            setSyncSources(sources => 
-              sources.map(source => 
-                source.id === sourceId 
-                  ? { 
-                      ...source, 
-                      lastSync: now, 
-                      status: Math.random() > 0.8 ? 'warning' : 'success',
-                      itemCount: source.itemCount + Math.floor(Math.random() * 3)
-                    } 
-                  : source
-              )
-            );
-            
-            // Add new sync history item
-            const added = Math.floor(Math.random() * 3);
-            const updated = Math.floor(Math.random() * 5);
-            const sourceName = syncSources.find(s => s.id === sourceId)?.name || sourceId;
-            
-            const newHistoryItem: SyncHistoryItem = {
-              id: `sync${Date.now()}`,
-              timestamp: now,
-              source: sourceName,
-              changes: {
-                added,
-                updated,
-                deleted: 0
-              },
-              status: Math.random() > 0.8 ? 'partial' : 'success',
-              details: `${Math.random() > 0.8 ? 'Partially' : 'Successfully'} synced ${sourceName}. ${added} added, ${updated} updated.`
-            };
-            
-            setSyncHistory([newHistoryItem, ...syncHistory]);
-            
-            // Reset sync state
-            setActiveSyncSource(null);
-            setSyncProgress(null);
-          }, 500);
-          
-          return 100;
-        }
-        
-        return newProgress;
-      });
-    }, 300);
+
+    if (selectedUrls.length === 0) {
+      console.warn("No URLs selected for syncing.");
+      return;
+    }
+    setSyncProgress(0);
+    const startSyncResponse = await startSync(selectedUrls);
+
+    if (!startSyncResponse.job_id) {
+      console.error("No urls found to sync.");
+      setActiveSyncSource(null);
+      setSyncSources((sources) =>
+        sources.map((source) =>
+          source.id === "website"
+            ? { ...source, status: "error", lastSync: null, itemCount: 0 }
+            : source
+        )
+      );
+      setSyncProgress(null);
+      return;
+    }
+    await updateWebSyncSetting({ jobId: startSyncResponse.job_id });
+    continousMonitorWebSyncStatus(startSyncResponse.job_id);
   };
-  
+
+  const handleC7Sync = async() => {
+
+  };
+
   // Handle scheduling button click
   const handleSchedule = () => {
     setSchedulingModalOpen(true);
@@ -305,6 +347,8 @@ const SyncControls: React.FC = () => {
       }
     }
     await updateWebSync(urlRecords[0].id, { urlsChecked: subdomainUrlsChecked });
+    const updatedSetting = await updateWebSyncSetting({ baseurl: baseUrl, urls: subdomainUrls, urlsChecked: subdomainUrlsChecked });
+    setSyncSettings(updatedSetting);
     setSettingOpen("");
   };
 
@@ -345,104 +389,138 @@ const SyncControls: React.FC = () => {
         
         <div className="bg-white overflow-hidden">
           <ul className="divide-y divide-gray-200">
-            {syncSources.map((source) => {
-              const { label, bgColor, textColor } = getStatusInfo(source.status);
-              
-              return (
-                <li key={source.id} className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        {source.id === 'website' && (
-                          <svg className="h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.083 9h1.946c.089-1.546.383-2.97.837-4.118A6.004 6.004 0 004.083 9zM10 2a8 8 0 100 16 8 8 0 000-16zm0 2c-.076 0-.232.032-.465.262-.238.234-.497.623-.737 1.182-.389.907-.673 2.142-.766 3.556h3.936c-.093-1.414-.377-2.649-.766-3.556-.24-.56-.5-.948-.737-1.182C10.232 4.032 10.076 4 10 4zm3.971 5c-.089-1.546-.383-2.97-.837-4.118A6.004 6.004 0 0115.917 9h-1.946zm-2.003 2H8.032c.093 1.414.377 2.649.766 3.556.24.56.5.948.737 1.182.233.23.389.262.465.262.076 0 .232-.032.465-.262.238-.234.498-.623.737-1.182.389-.907.673-2.142.766-3.556zm1.166 4.118c.454-1.147.748-2.572.837-4.118h1.946a6.004 6.004 0 01-2.783 4.118zm-6.268 0C6.412 13.97 6.118 12.546 6.03 11H4.083a6.004 6.004 0 002.783 4.118z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                        {source.id === 'commerce7' && (
-                          <svg className="h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
-                          </svg>
-                        )}
-                        {source.id === 'events' && (
-                          <svg className="h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                        {source.id === 'blog' && (
-                          <svg className="h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" clipRule="evenodd" />
-                            <path d="M15 7h1a2 2 0 012 2v5.5a1.5 1.5 0 01-3 0V7z" />
-                          </svg>
-                        )}
-                        {source.id === 'social' && (
-                          <svg className="h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-                            <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-                          </svg>
-                        )}
+
+            {/* web sync */}
+            <li className="px-4 py-4 sm:px-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0"><Globe className="h-8 w-8 text-gray-400" /></div>
+                    <div className="ml-4">
+                      <h4 className="text-lg font-medium text-gray-900">Website Content</h4>
+                      <div className="flex items-center mt-1">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${syncSettings?.webSyncSetting.status === 'Synced' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {syncSettings?.webSyncSetting.status}
+                        </span>
+                        <span className="ml-2 text-sm text-gray-500">
+                          Last sync: {formatTimestamp(syncSettings?.webSyncSetting.lastSynced ? syncSettings?.webSyncSetting.lastSynced : null)}
+                        </span>
+                        <span className="ml-2 text-sm text-gray-500">
+                          {syncSettings?.webSyncSetting.itemCount} items
+                        </span>
                       </div>
-                      <div className="ml-4">
-                        <h4 className="text-lg font-medium text-gray-900">{source.name}</h4>
-                        <div className="flex items-center mt-1">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} ${textColor}`}>
-                            {label}
-                          </span>
-                          <span className="ml-2 text-sm text-gray-500">
-                            Last sync: {formatTimestamp(source.lastSync)}
-                          </span>
-                          <span className="ml-2 text-sm text-gray-500">
-                            {source.itemCount} items
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="ml-4 flex-shrink-0 flex space-x-2">
-                      {activeSyncSource === source.id ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-primary rounded-full"
-                              style={{ width: `${syncProgress}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-sm text-gray-500">
-                            {syncProgress}%
-                          </span>
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleSync(source.id)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown focus:outline-none"
-                          >
-                            Sync Now
-                          </button>
-                          <button
-                            onClick={() => handleSettingOpen(source.id)}
-                            className="inline-flex items-center px-2 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown focus:outline-none"
-                          >
-                            <Settings size={16} />
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
-                  
-                  {/* Progress bar for syncing source */}
-                  {activeSyncSource === source.id && syncProgress !== null && (
-                    <div className="mt-3">
-                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary rounded-full"
-                          style={{ width: `${syncProgress}%` }}
-                        ></div>
+                    
+                  <div className="ml-4 flex-shrink-0 flex space-x-2">
+                    {activeSyncSource === "website" ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary rounded-full"
+                            style={{ width: `${syncProgress}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {syncProgress}%
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleWebSync()}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown focus:outline-none"
+                        >
+                          Sync Now
+                        </button>
+                        <button
+                          onClick={() => handleSettingOpen("website")}
+                          className="inline-flex items-center px-2 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown focus:outline-none"
+                        >
+                          <Settings size={16} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+              {/* Progress bar for syncing source */}
+              {activeSyncSource === "website" && syncProgress !== null && (
+                <div className="mt-3">
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary rounded-full"
+                      style={{ width: `${syncProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </li>
+
+            {/* Commerce7 Products Sync */}
+            <li className="px-4 py-4 sm:px-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0"><Store className="h-8 w-8 text-gray-400" /></div>
+                    <div className="ml-4">
+                      <h4 className="text-lg font-medium text-gray-900">Commerce7 Products</h4>
+                      <div className="flex items-center mt-1">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${syncSettings?.commerce7SyncSetting.status === 'Synced' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {syncSettings?.commerce7SyncSetting.status}
+                        </span>
+                        <span className="ml-2 text-sm text-gray-500">
+                          Last sync: {formatTimestamp(syncSettings?.commerce7SyncSetting.lastSynced ? syncSettings?.commerce7SyncSetting.lastSynced : null)}
+                        </span>
+                        <span className="ml-2 text-sm text-gray-500">
+                          {syncSettings?.commerce7SyncSetting.itemCount} items
+                        </span>
                       </div>
                     </div>
-                  )}
-                </li>
-              );
-            })}
+                  </div>
+                    
+                  <div className="ml-4 flex-shrink-0 flex space-x-2">
+                    {activeSyncSource === "commerce7" ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary rounded-full"
+                            style={{ width: `${syncProgress}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {syncProgress}%
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleC7Sync()}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown focus:outline-none"
+                        >
+                          Sync Now
+                        </button>
+                        <button
+                          onClick={() => handleSettingOpen("commerce7")}
+                          className="inline-flex items-center px-2 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-darkBrown focus:outline-none"
+                        >
+                          <Settings size={16} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+              {/* Progress bar for syncing source */}
+              {activeSyncSource === "commerce7" && syncProgress !== null && (
+                <div className="mt-3">
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary rounded-full"
+                      style={{ width: `${syncProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </li>
           </ul>
         </div>
       </div>
