@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import FileBrowser from './FileBrowser';
 import swal from 'sweetalert';
 import { createDomain, getAllDomains } from '../../apis/domain/apis';
+import { getAllMarkdownFiles, updateDomainFilenames } from '../../apis/s3/services';
 import { Domain } from '../../apis/domain/interfaces';
+import { getSyncSetting } from '../../apis/setting/apis';
 
 
 const DomainExplorer: React.FC = () => {
@@ -29,7 +31,11 @@ const DomainExplorer: React.FC = () => {
   useEffect(() => {
     const fetchDomains = async () => {
       const domains = await getAllDomains();
-      setAllDomains(domains);
+      const syncSettings = await getSyncSetting();
+      const markdownFiles = await getAllMarkdownFiles(syncSettings.webSyncSetting.baseurl);
+      const updatedDomains = await updateDomainFilenames(domains, markdownFiles);
+      console.debug("Updated domains with filenames: ", updatedDomains);
+      setAllDomains(updatedDomains);
     };
     fetchDomains();
   }, []);

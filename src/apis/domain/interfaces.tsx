@@ -22,3 +22,10 @@ export interface DomainFile {
     createdAt: string;
     updatedAt: string;
 }
+
+export interface DomainUpdateRequest {
+    name?: string;
+    description?: string;
+    icon?: string;
+    filenames?: DomainFile[];
+}

@@ -1,6 +1,7 @@
+import isEqual from "lodash.isequal";
 import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
-import { getAllDomains } from "../domain/apis";
-import { getSyncSetting } from "../setting/apis";
+import { getAllDomains, updateDomain } from "../domain/apis";
+import { Domain } from "../domain/interfaces";
 
 
 const s3 = new S3Client({
@@ -11,9 +12,15 @@ const s3 = new S3Client({
   }
 });
 
-async function listMarkdownFiles(bucket: string, prefix: string): Promise<string[]> {
+interface MarkdownS3File {
+    key: string;
+    lastModified?: Date;
+    size?: number;
+}
+
+async function listMarkdownFiles(bucket: string, prefix: string): Promise<MarkdownS3File[]> {
   let continuationToken: string | undefined = undefined;
-  const mdFiles: string[] = [];
+  const mdFiles: MarkdownS3File[] = [];
 
   do {
     const command: ListObjectsV2Command = new ListObjectsV2Command({
@@ -27,7 +34,11 @@ async function listMarkdownFiles(bucket: string, prefix: string): Promise<string
 
     for (const obj of contents) {
       if (obj.Key && obj.Key.endsWith(".md")) {
-        mdFiles.push(obj.Key);
+        mdFiles.push({
+          key: obj.Key,
+          lastModified: obj.LastModified,
+          size: obj.Size
+        });
       }
     }
 
@@ -37,49 +48,86 @@ async function listMarkdownFiles(bucket: string, prefix: string): Promise<string
   return mdFiles;
 }
 
-function decodeUrlFromFilename(encoded: string): string {
-  return decodeURIComponent(encoded);
+interface MarkdownFileData {
+  filename: string; // decoded name (url)
+  s3Key: string;
+  lastModified?: Date;
+  size?: number;
 }
 
-export const getAllMarkdownFiles = async (baseurl: string): Promise<Record<string, string[]>> => {
+export const getAllMarkdownFiles = async (baseurl: string): Promise<Record<string, MarkdownFileData[]>> => {
     const bucketName = process.env.REACT_APP_AWS_S3_BUCKET!;
     const baseFolderPrefix = "output-" + baseurl.replace("https://", "");
     const allDomains = await getAllDomains();
     const genreNames = allDomains.map(domain => domain.name.toLowerCase());
-    genreNames.push("unknown");
-    console.debug("Genre names: ", genreNames);
+    genreNames.push("unknown"); // this is a default for those md files that ai fails to determine the genre
 
-    let result: Record<string, string[]> = {};
+    let result: Record<string, MarkdownFileData[]> = {};
     for (const genreName of genreNames) {
-        console.debug(`Fetching markdown files for path: ${baseFolderPrefix + genreName}/`);
-        const markdownFiles = await listMarkdownFiles(bucketName, baseFolderPrefix + genreName + "/");
-        console.debug(`Found ${markdownFiles.length} markdown files for genre: ${genreName}`);
-        result[genreName] = markdownFiles.map(file => decodeUrlFromFilename(file.replace(`${baseFolderPrefix}${genreName}/`, "")));
+        const rawFiles = await listMarkdownFiles(bucketName, baseFolderPrefix + genreName + "/");
+        result[genreName] = rawFiles.map(file => {
+            const decodedFilename = decodeURIComponent(file.key.replace(`${baseFolderPrefix}${genreName}/`, ""));
+            return {
+                filename: decodedFilename,
+                s3Key: file.key,
+                lastModified: file.lastModified,
+                size: file.size
+            };
+        });
     }
     console.debug("Markdown files by genre: ", result);
-
-
     const allVals = Object.values(result).flat();
     console.debug("All markdown files fetched successfully. count: ", allVals.length);
     
-    const debugUrls = []
-    for (const val of allVals) {
-        debugUrls.push(`${val.replace(".md", "")}`);
-    }
-    console.debug('debugUrls: ', debugUrls);
-
-    const syncSettings = await getSyncSetting();
-    const urls = syncSettings.webSyncSetting.urls;
-
-    // compare allVals with urls and see which ones are missing
-    let missingUrls: string[] = [];
-    for (const url of urls) {
-        const cleanedUrl = url.replace("https://", "") + ".md";
-        if (!allVals.includes(cleanedUrl)) {
-            missingUrls.push(cleanedUrl.replace(".md", ""));
-        }
-    }
-    console.debug("Missing markdown files: ", missingUrls);
-
     return result;
 }
+
+export async function updateDomainFilenames(domains: Domain[], mapData: Record<string, MarkdownFileData[]>): Promise<Domain[]> {
+    const updatedDomains = domains.map(domain => {
+        const domainKey = domain.name.toLowerCase();
+        const files = mapData[domainKey] || [];
+
+        const newFilenames = files.map(file => ({
+        filename: file.filename,
+        content: file.s3Key,
+        size: file.size || 0,
+        author: "",
+        createdAt: file.lastModified?.toISOString() || "",
+        updatedAt: new Date().toISOString()
+        }));
+
+        if (!isEqual(domain.filenames, newFilenames)) {
+        domain.filenames = newFilenames;
+        }
+
+        return domain;
+    });
+
+    // Wait for all update API calls in parallel
+    await Promise.all(
+        updatedDomains.map(async domain => {
+        const domainKey = domain.name.toLowerCase();
+        const files = mapData[domainKey] || [];
+
+        const expectedFilenames = files.map(file => {
+            const existing = domain.filenames?.find(f => f.content === file.s3Key);
+            return {
+            filename: file.filename,
+            content: file.s3Key,
+            size: file.size || 0,
+            author: "",
+            createdAt: file.lastModified?.toISOString() || "",
+            updatedAt: existing?.updatedAt || new Date().toISOString()
+            };
+        });
+
+        if (!isEqual(domain.filenames, expectedFilenames)) {
+            domain.filenames = expectedFilenames; // keep domain state consistent
+            await updateDomain(domain.id, { filenames: expectedFilenames });
+        }
+        })
+    );
+
+    return updatedDomains;
+}
+
