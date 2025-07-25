@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.850.0",
     "@headlessui/react": "^1.7.19",
     "@heroicons/react": "^2.0.18",
     "@testing-library/jest-dom": "^5.17.0",
