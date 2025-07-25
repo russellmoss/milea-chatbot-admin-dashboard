@@ -5,9 +5,15 @@ import { createDomain, getAllDomains } from '../../apis/domain/apis';
 import { getAllMarkdownFiles, updateDomainFilenames } from '../../apis/s3/services';
 import { Domain } from '../../apis/domain/interfaces';
 import { getSyncSetting } from '../../apis/setting/apis';
+import { KnowledgeFile } from './FileBrowser';
 
 
-const DomainExplorer: React.FC = () => {
+interface DomainExplorerProps {
+  setActiveTab: (tab: string) => void;
+  handleUpdateSelectedFile: (file: KnowledgeFile) => void;
+}
+
+const DomainExplorer: React.FC<DomainExplorerProps> = ({ setActiveTab, handleUpdateSelectedFile }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDomain, setSelectedDomain] = useState<Domain | null>(null);
   const [allDomains, setAllDomains] = useState<Domain[]>([]);
@@ -179,8 +185,8 @@ const DomainExplorer: React.FC = () => {
               </div>
             </div>
           </div>
-          
-          <FileBrowser domainData={selectedDomain} />
+
+          <FileBrowser domainData={selectedDomain} setActiveTab={setActiveTab} handleUpdateSelectedFile={handleUpdateSelectedFile} />
         </div>
       ) : (
         <div>

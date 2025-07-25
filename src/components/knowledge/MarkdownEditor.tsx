@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { KnowledgeFile } from './FileBrowser';
 
 // Define types
 interface FileVersion {
@@ -8,7 +9,7 @@ interface FileVersion {
   content: string;
 }
 
-const MarkdownEditor: React.FC = () => {
+const MarkdownEditor: React.FC<{ selectedFile: KnowledgeFile | null }> = ({ selectedFile }) => {
   const [content, setContent] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [savedContent, setSavedContent] = useState<string>('');
@@ -22,74 +23,25 @@ const MarkdownEditor: React.FC = () => {
   const [autoSaveInterval, setAutoSaveInterval] = useState<number>(30);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   
-  // Sample file data - in a real app, this would be loaded from an API
-  const sampleFile = {
-    id: 'file1',
-    name: 'Cabernet Franc Description.md',
-    content: `# Cabernet Franc
-
-## Overview
-Cabernet Franc is one of our signature wines at Milea Estate Vineyard. It's a medium to full-bodied red wine with excellent structure, balanced acidity, and moderate tannins.
-
-## Tasting Notes
-Our Cabernet Franc showcases notes of:
-- Black cherry
-- Raspberry
-- Bell pepper
-- Graphite
-- Herbs
-- Subtle spice
-
-## Vintages
-We currently offer:
-- 2021 Cabernet Franc (Current release)
-- 2020 Cabernet Franc (Library selection)
-- 2019 Cabernet Franc (Limited availability)
-
-## Food Pairings
-Cabernet Franc pairs well with:
-1. Grilled lamb
-2. Roasted game birds
-3. Tomato-based pasta dishes
-4. Aged cheeses
-5. Mushroom dishes
-
-## Winemaking Process
-The grapes are hand-harvested, destemmed, and fermented in stainless steel tanks. After fermentation, the wine is aged in French oak barrels for 14-18 months before bottling.`,
-    lastModified: '2023-05-12T10:30:00',
-    author: 'Sarah Johnson'
-  };
   
   const sampleVersions: FileVersion[] = [
     {
-      id: 'v3',
-      timestamp: '2023-05-12T10:30:00',
-      author: 'Sarah Johnson',
-      content: sampleFile.content
-    },
-    {
-      id: 'v2',
-      timestamp: '2023-05-10T15:45:00',
-      author: 'Sarah Johnson',
-      content: sampleFile.content.replace('2021 Cabernet Franc (Current release)', '2021 Cabernet Franc (New release)').replace('Roasted game birds', 'Duck breast')
-    },
-    {
       id: 'v1',
-      timestamp: '2023-05-05T09:20:00',
-      author: 'James Wilson',
-      content: sampleFile.content.substring(0, sampleFile.content.indexOf('## Vintages')) + '## Vintages\nWe currently offer 2021 and 2020 vintages of our Cabernet Franc.'
-    }
+      timestamp: selectedFile?.lastModified || new Date().toISOString(),
+      author: selectedFile?.author || 'Unknown',
+      content: selectedFile?.content || ''
+    },
   ];
 
   // Initialize editor with sample file content
   useEffect(() => {
     // Simulate loading a file
-    setFileName(sampleFile.name);
-    setContent(sampleFile.content);
-    setSavedContent(sampleFile.content);
+    setFileName(selectedFile?.name || '');
+    setContent(selectedFile?.content || '');
+    setSavedContent(selectedFile?.content || '');
     setVersions(sampleVersions);
-    setLastSaved(new Date(sampleFile.lastModified).toLocaleString());
-  }, []);
+    setLastSaved(new Date(selectedFile?.lastModified || '').toLocaleString());
+  }, [selectedFile]);
   
   // Auto-save effect
   useEffect(() => {

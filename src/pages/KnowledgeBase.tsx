@@ -2,9 +2,15 @@ import React, { useState } from 'react';
 import DomainExplorer from '../components/knowledge/DomainExplorer';
 import MarkdownEditor from '../components/knowledge/MarkdownEditor';
 import SyncControls from '../components/knowledge/SyncControls';
+import type { KnowledgeFile } from '../components/knowledge/FileBrowser';
 
 const KnowledgeBase: React.FC = () => {
   const [activeTab, setActiveTab] = useState('explorer');
+  const [selectedFile, setSelectedFile] = useState<KnowledgeFile | null>(null);
+
+  const handleUpdateSelectedFile = (file: KnowledgeFile) => {
+    setSelectedFile(file);
+  };
 
   return (
     <div className="space-y-6">
@@ -52,8 +58,8 @@ const KnowledgeBase: React.FC = () => {
         
         {/* Tab content */}
         <div>
-          {activeTab === 'explorer' && <DomainExplorer />}
-          {activeTab === 'editor' && <MarkdownEditor />}
+          {activeTab === 'explorer' && <DomainExplorer setActiveTab={setActiveTab} handleUpdateSelectedFile={handleUpdateSelectedFile} />}
+          {activeTab === 'editor' && <MarkdownEditor selectedFile={selectedFile} />}
           {activeTab === 'sync' && <SyncControls />}
         </div>
       </div>
