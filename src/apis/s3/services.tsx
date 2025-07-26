@@ -1,5 +1,5 @@
 import isEqual from "lodash.isequal";
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getAllDomains, updateDomain } from "../domain/apis";
 import { Domain } from "../domain/interfaces";
 
@@ -142,8 +142,8 @@ export const pullS3MarkdownContent = async (s3_key: string): Promise<string> => 
         const response = await s3.send(command);
         if (!response.Body) {
         throw new Error("No content found for the specified S3 key.");
-        }
-        
+  }
+
         const bodyContents = await streamToString(response.Body);
         return bodyContents;
     } catch (error) {
@@ -165,4 +165,23 @@ function streamToString(stream: any): Promise<string> {
         stream.on("error", reject);
         stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
     });
+}
+
+export const updateS3MarkdownContent = async (s3_key: string, content: string): Promise<void> => {
+    const bucketName = process.env.REACT_APP_AWS_S3_BUCKET!;
+    const command = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: s3_key,
+        Body: content,
+        ContentType: "text/markdown",
+        CacheControl: "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Expires: new Date(0)
+    });
+
+    try {
+        await s3.send(command);
+    } catch (error) {
+        console.error("Error updating S3 content:", error);
+        throw error;
+    }
 }

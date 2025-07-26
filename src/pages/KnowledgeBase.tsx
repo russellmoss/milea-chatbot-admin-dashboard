@@ -59,7 +59,7 @@ const KnowledgeBase: React.FC = () => {
         {/* Tab content */}
         <div>
           {activeTab === 'explorer' && <DomainExplorer setActiveTab={setActiveTab} handleUpdateSelectedFile={handleUpdateSelectedFile} />}
-          {activeTab === 'editor' && <MarkdownEditor selectedFile={selectedFile} />}
+          {activeTab === 'editor' && <MarkdownEditor selectedFile={selectedFile} setSelectedFile={setSelectedFile} />}
           {activeTab === 'sync' && <SyncControls />}
         </div>
       </div>

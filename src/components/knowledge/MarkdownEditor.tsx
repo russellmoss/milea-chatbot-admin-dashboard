@@ -1,46 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { KnowledgeFile } from './FileBrowser';
+import { updateS3MarkdownContent } from '../../apis/s3/services';
+import { pullS3MarkdownContent } from '../../apis/s3/services';
 
-// Define types
-interface FileVersion {
-  id: string;
-  timestamp: string;
-  author: string;
-  content: string;
+interface MarkdownEditorProps {
+  selectedFile: KnowledgeFile | null;
+  setSelectedFile: (file: KnowledgeFile | null) => void;
 }
 
-const MarkdownEditor: React.FC<{ selectedFile: KnowledgeFile | null }> = ({ selectedFile }) => {
+const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ selectedFile, setSelectedFile }) => {
   const [content, setContent] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [savedContent, setSavedContent] = useState<string>('');
-  const [versions, setVersions] = useState<FileVersion[]>([]);
-  const [showVersions, setShowVersions] = useState<boolean>(false);
-  const [selectedVersion, setSelectedVersion] = useState<FileVersion | null>(null);
   const [previewMode, setPreviewMode] = useState<boolean>(true);
   const [editMode, setEditMode] = useState<boolean>(true);
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(true);
   const [autoSaveInterval, setAutoSaveInterval] = useState<number>(30);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
-  
-  
-  const sampleVersions: FileVersion[] = [
-    {
-      id: 'v1',
-      timestamp: selectedFile?.lastModified || new Date().toISOString(),
-      author: selectedFile?.author || 'Unknown',
-      content: selectedFile?.content || ''
-    },
-  ];
 
   // Initialize editor with sample file content
   useEffect(() => {
     // Simulate loading a file
-    setFileName(selectedFile?.name || '');
-    setContent(selectedFile?.content || '');
-    setSavedContent(selectedFile?.content || '');
-    setVersions(sampleVersions);
-    setLastSaved(new Date(selectedFile?.lastModified || '').toLocaleString());
+    if (!selectedFile) return;
+
+    const fetchFileContent = async () => {
+      console.debug('Fetching content from path:', selectedFile.path);
+      const fileContent = await pullS3MarkdownContent(selectedFile.path);
+      // console.debug('Fetched content:', fileContent);
+      setContent(fileContent);
+      setSavedContent(fileContent);
+      setFileName(selectedFile.name);
+      setLastSaved(new Date(selectedFile.lastModified || '').toLocaleString());
+    };
+    fetchFileContent();
   }, [selectedFile]);
   
   // Auto-save effect
@@ -60,45 +53,21 @@ const MarkdownEditor: React.FC<{ selectedFile: KnowledgeFile | null }> = ({ sele
   }, [content, savedContent]);
   
   // Handle save
-  const handleSave = () => {
-    if (!isDirty) return;
+  const handleSave = async() => {
+    if (!isDirty || !selectedFile) return;
     
-    // In a real app, this would be an API call
-    console.log('Saving file:', fileName, content);
-    
-    // Update saved content and lastSaved timestamp
-    setSavedContent(content);
+    console.debug('Saving content to S3, path:', selectedFile.path);
+    await updateS3MarkdownContent(selectedFile.path, content);
+    const newContent = await pullS3MarkdownContent(selectedFile.path);
+    const updatedFile = {
+      ...selectedFile,
+      lastModified: new Date().toISOString()
+    };
+    setSelectedFile(updatedFile);
+    setContent(newContent);
+    setSavedContent(newContent);
     setLastSaved(new Date().toLocaleString());
     setIsDirty(false);
-    
-    // Add new version to versions list
-    const newVersion: FileVersion = {
-      id: `v${versions.length + 1}`,
-      timestamp: new Date().toISOString(),
-      author: 'Current User', // In a real app, this would be the logged-in user
-      content: content
-    };
-    
-    setVersions([newVersion, ...versions]);
-  };
-  
-  // Handle version selection
-  const handleVersionSelect = (version: FileVersion) => {
-    setSelectedVersion(version);
-  };
-  
-  // Restore version
-  const handleRestoreVersion = () => {
-    if (!selectedVersion) return;
-    
-    // Confirm restoration
-    if (window.confirm('Are you sure you want to restore this version? Unsaved changes will be lost.')) {
-      setContent(selectedVersion.content);
-      setSavedContent(selectedVersion.content);
-      setLastSaved(new Date().toLocaleString());
-      setSelectedVersion(null);
-      setShowVersions(false);
-    }
   };
   
   // Preview rendered markdown
@@ -230,16 +199,6 @@ const MarkdownEditor: React.FC<{ selectedFile: KnowledgeFile | null }> = ({ sele
           >
             Save
           </button>
-          
-          <button
-            onClick={() => setShowVersions(!showVersions)}
-            className="text-primary hover:text-darkBrown flex items-center"
-          >
-            <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-            </svg>
-            History
-          </button>
         </div>
       </div>
       
@@ -354,45 +313,6 @@ const MarkdownEditor: React.FC<{ selectedFile: KnowledgeFile | null }> = ({ sele
               className="markdown-preview p-4 prose max-w-none"
               dangerouslySetInnerHTML={renderMarkdown(content)}
             ></div>
-          </div>
-        )}
-        
-        {/* Version history sidebar */}
-        {showVersions && (
-          <div className="w-64 border-l border-gray-200 bg-white overflow-y-auto">
-            <div className="p-3 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">Version History</h3>
-            </div>
-            
-            <div className="p-3">
-              {versions.map((version) => (
-                <div 
-                  key={version.id}
-                  onClick={() => handleVersionSelect(version)}
-                  className={`p-2 mb-2 rounded cursor-pointer ${
-                    selectedVersion?.id === version.id ? 'bg-primary text-white' : 'hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="text-sm font-medium">
-                    {new Date(version.timestamp).toLocaleString()}
-                  </div>
-                  <div className="text-xs">
-                    By: {version.author}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {selectedVersion && (
-              <div className="p-3 border-t border-gray-200">
-                <button
-                  onClick={handleRestoreVersion}
-                  className="w-full px-3 py-2 bg-primary text-white rounded hover:bg-darkBrown"
-                >
-                  Restore This Version
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>

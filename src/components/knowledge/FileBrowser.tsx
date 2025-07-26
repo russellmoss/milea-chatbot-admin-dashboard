@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Domain } from '../../apis/domain/interfaces';
-import { pullS3MarkdownContent } from '../../apis/s3/services';
 
 // Define types
 export interface KnowledgeFile {
@@ -25,7 +24,6 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, han
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [sortField, setSortField] = useState<'name' | 'lastModified' | 'size'>('lastModified');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [selectedFile, setSelectedFile] = useState<KnowledgeFile | null>(null);
   const [search, setSearch] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -36,11 +34,10 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, han
       const loadedFiles: KnowledgeFile[] = [];
       for (let index = 0; index < domainData.filenames.length; index++) {
         const file = domainData.filenames[index];
-        const content = await pullS3MarkdownContent(file.content); // the domain file content is the s3 key
         const knowledgeFile: KnowledgeFile = {
           id: index.toString(),
           name: file.filename,
-          content: content,
+          content: file.content, // This should just be the S3 key
           path: file.content,
           lastModified: file.updatedAt || '',
           size: file.size || 0,
@@ -96,8 +93,6 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, han
   
   // Open file in editor
   const handleOpenFile = (file: KnowledgeFile) => {
-    setSelectedFile(file);
-    // In a real implementation, this might navigate to the editor tab with the file loaded
     alert(`Opening ${file.name} in editor`);
     setActiveTab('editor');
     handleUpdateSelectedFile?.(file);
@@ -329,33 +324,6 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, han
           </div>
         )}
       </div>
-      
-      {/* File preview panel (could be implemented as a modal or sidebar) */}
-      {selectedFile && (
-        <div className="hidden md:block border-t border-gray-200 p-4">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-lg font-medium text-gray-900">{selectedFile.name}</h3>
-            <button 
-              onClick={() => setSelectedFile(null)}
-              className="text-gray-400 hover:text-gray-500"
-            >
-              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-4 mb-3 h-auto">
-            <pre className="text-sm text-gray-700 whitespace-pre-wrap">{selectedFile.content}</pre>
-          </div>
-          
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>Last modified: {new Date(selectedFile.lastModified).toLocaleString()}</span>
-            <span>Size: {formatFileSize(selectedFile.size)}</span>
-            <span>Author: {selectedFile.author}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
