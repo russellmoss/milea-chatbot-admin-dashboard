@@ -780,7 +780,8 @@ const SyncControls: React.FC = () => {
                 </span>
                 <button
                   onClick={() => { handleRefreshUrls(); }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  className={`bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700` + (availableUrlsLoading ? " opacity-50 cursor-not-allowed" : "")}
+                  disabled={availableUrlsLoading} // disable while loading
                 >
                   Refresh URLs
                 </button>
@@ -788,8 +789,8 @@ const SyncControls: React.FC = () => {
 
               {/* URL Structure Display */}
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Available URLs:</h3>
-                {availableUrls.length > 0 ? (
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Available URLs ({availableUrls.length}) :</h3>
+                {availableUrls.length > 0 && !availableUrlsLoading ? (
                   <div className="max-h-60 overflow-auto border rounded-lg p-3 bg-gray-50">
                     <ul className="space-y-2">
                       {availableUrls.map((url, idx) => (
