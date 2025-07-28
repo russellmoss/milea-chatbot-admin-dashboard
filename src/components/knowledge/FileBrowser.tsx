@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Domain } from '../../apis/domain/interfaces';
+import { File } from 'lucide-react';
+import { updateDomainFileLocation } from '../../apis/domain/services';
+import { set } from 'date-fns';
 
 // Define types
 export interface KnowledgeFile {
@@ -14,18 +17,24 @@ export interface KnowledgeFile {
 }
 
 interface FileBrowserProps {
+  allDomains: Domain[];
+  setAllDomains: (domains: Domain[]) => void;
   domainData: Domain
   setActiveTab: (tab: string) => void;
   handleUpdateSelectedFile: (file: KnowledgeFile) => void;
 }
 
-const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, handleUpdateSelectedFile }) => {
+const FileBrowser: React.FC<FileBrowserProps> = ({ allDomains, setAllDomains, domainData, setActiveTab, handleUpdateSelectedFile }) => {
   const [files, setFiles] = useState<KnowledgeFile[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [sortField, setSortField] = useState<'name' | 'lastModified' | 'size'>('lastModified');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [search, setSearch] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [selectedFile, setSelectedFile] = useState<KnowledgeFile | null>(null);
+  const [selectedFromDomain, setSelectedFromDomain] = useState<Domain | null>(null);
+  const [selectedToDomain, setSelectedToDomain] = useState<Domain | null>(null);
+  const [fileEditorModalOpen, setFileEditorModalOpen] = useState<boolean>(false);
 
 
   useEffect(() => {
@@ -97,6 +106,27 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, han
     setActiveTab('editor');
     handleUpdateSelectedFile?.(file);
   };
+
+  const handleDomainChange = async(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+    e.preventDefault();
+    if (!selectedFile || !selectedFromDomain || !selectedToDomain) return;
+    console.log("Moving file:", selectedFile.name, "from Domain (", selectedFromDomain.name, ") to Domain (", selectedToDomain.name, ")");
+    try {
+      setIsLoading(true);
+      const domainFile = domainData.filenames.find(file => file.filename === selectedFile.name)!;
+      const updatedAllDomains = await updateDomainFileLocation(allDomains, selectedFromDomain, selectedToDomain, domainFile);
+      setAllDomains(updatedAllDomains);
+      setFiles(files.filter(file => file.id !== selectedFile.id));
+      setSelectedFromDomain(null);
+      setSelectedToDomain(null);
+      setSelectedFile(null);
+      setIsLoading(false);
+      setFileEditorModalOpen(false);
+    } catch (error) {
+      console.error("Error updating file location:", error);
+      setIsLoading(false);
+    }
+  }
   
   return (
     <div className="bg-white border border-gray-200 rounded-lg">
@@ -231,14 +261,11 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, han
                 {sortedFiles.map(file => (
                   <tr 
                     key={file.id} 
-                    className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleOpenFile(file)}
+                    className="hover:bg-gray-50"
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary cursor-pointer" onClick={() => handleOpenFile(file)}>
                       <div className="flex items-center">
-                        <svg className="h-5 w-5 mr-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                        </svg>
+                        <File className="h-5 w-5 text-gray-500 mr-2" fill='gray'/>
                         {file.name}
                       </div>
                     </td>
@@ -255,8 +282,10 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, han
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          // This would show a dropdown menu in a real implementation
-                          alert(`Options for ${file.name}`);
+                          setSelectedFile(file);
+                          setSelectedFromDomain(domainData);
+                          setSelectedToDomain(domainData);
+                          setFileEditorModalOpen(true);
                         }}
                         className="text-primary hover:text-darkBrown"
                       >
@@ -299,8 +328,10 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, han
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      // This would show a dropdown menu in a real implementation
-                      alert(`Options for ${file.name}`);
+                      setSelectedFile(file);
+                      setSelectedFromDomain(domainData);
+                      setSelectedToDomain(domainData);
+                      setFileEditorModalOpen(true);
                     }}
                     className="text-gray-400 hover:text-darkBrown"
                   >
@@ -321,6 +352,45 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ domainData, setActiveTab, han
                 {isLoading ? "Pulling the files..." : `No files found matching "${search}"`}
               </div>
             )}
+          </div>
+        )}
+        {fileEditorModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-800 bg-opacity-75">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{selectedFile?.name}</h3>
+
+              <h2 className="text-sm text-gray-500 mb-2">Move the file into to a different domain</h2>
+              <select
+                value={selectedToDomain?.name}
+                onChange={(e) => {
+                  e.preventDefault();
+                  setSelectedToDomain(allDomains.find(domain => domain.name === e.target.value)!);
+                }}
+                className="block w-full px-1 py-2 mb-4 border border-gray-300 rounded-md shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+              >
+                {allDomains.map(domain => (
+                  <option key={domain.id} value={domain.name}>
+                    {domain.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* confirm & close buttons */}
+              <div className="flex justify-end gap-4">
+                <button
+                  onClick={(e) => {handleDomainChange(e)}}
+                  className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-gray-200 text-base font-medium text-gray-700 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setFileEditorModalOpen(false)}
+                  className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium text-white hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

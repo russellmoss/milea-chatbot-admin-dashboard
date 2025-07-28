@@ -22,6 +22,7 @@ const DomainExplorer: React.FC<DomainExplorerProps> = ({ setActiveTab, handleUpd
   const [newDomainDescription, setNewDomainDescription] = useState<string>('');
   const [newDomainIcon, setNewDomainIcon] = useState<string>('🍷');
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
 
   // handle errors
@@ -36,12 +37,13 @@ const DomainExplorer: React.FC<DomainExplorerProps> = ({ setActiveTab, handleUpd
   // Fetch all domains on mount
   useEffect(() => {
     const fetchDomains = async () => {
+      setIsLoading(true);
       const domains = await getAllDomains();
       const syncSettings = await getSyncSetting();
       const markdownFiles = await getAllMarkdownFiles(syncSettings.webSyncSetting.baseurl);
       const updatedDomains = await updateDomainFilenames(domains, markdownFiles);
-      console.debug("Updated domains with filenames: ", updatedDomains);
       setAllDomains(updatedDomains);
+      setIsLoading(false);
     };
     fetchDomains();
   }, []);
@@ -186,7 +188,12 @@ const DomainExplorer: React.FC<DomainExplorerProps> = ({ setActiveTab, handleUpd
             </div>
           </div>
 
-          <FileBrowser domainData={selectedDomain} setActiveTab={setActiveTab} handleUpdateSelectedFile={handleUpdateSelectedFile} />
+          <FileBrowser 
+            allDomains={allDomains} 
+            setAllDomains={setAllDomains}
+            domainData={selectedDomain} 
+            setActiveTab={setActiveTab} 
+            handleUpdateSelectedFile={handleUpdateSelectedFile} />
         </div>
       ) : (
         <div>
@@ -215,7 +222,9 @@ const DomainExplorer: React.FC<DomainExplorerProps> = ({ setActiveTab, handleUpd
           
           {filteredDomains.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              {searchQuery ? (
+              {isLoading ? (
+                <span>Loading...</span>
+              ) : searchQuery ? (
                 <span>No domains found matching <span className="font-medium">"{searchQuery}"</span></span>
               ) : (
                 <span>No domains available. Create a new domain to get started.</span>
