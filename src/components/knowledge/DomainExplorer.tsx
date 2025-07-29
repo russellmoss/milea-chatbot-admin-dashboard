@@ -6,6 +6,7 @@ import { getAllMarkdownFiles, updateDomainFilenames } from '../../apis/s3/servic
 import { Domain } from '../../apis/domain/interfaces';
 import { getSyncSetting } from '../../apis/setting/apis';
 import { KnowledgeFile } from './FileBrowser';
+import { updateWebSyncSetting } from '../../apis/setting/apis';
 
 
 interface DomainExplorerProps {
@@ -65,11 +66,10 @@ const DomainExplorer: React.FC<DomainExplorerProps> = ({ setActiveTab, handleUpd
   };
 
   const handleNewDomainCreation = async() => {
-    const newDomain = await createDomain({
-      name: newDomainName,
-      description: newDomainDescription,
-      icon: newDomainIcon,
-    });
+    const [newDomain] = await Promise.all([
+      createDomain({ name: newDomainName, description: newDomainDescription, icon: newDomainIcon }),
+      updateWebSyncSetting({ status: 'Partial Synced' }) // Due to the new domain, sync need to re-run for determining the genre of the files
+    ]);
     setAllDomains([...allDomains, newDomain]);
     setNewDomainWindowOpen(false);
     setNewDomainName('');

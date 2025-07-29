@@ -398,7 +398,13 @@ const SyncControls: React.FC = () => {
                     <div className="ml-4">
                       <h4 className="text-lg font-medium text-gray-900">Website Content</h4>
                       <div className="flex items-center mt-1">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${syncSettings?.webSyncSetting.status === 'Synced' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          syncSettings?.webSyncSetting.status === 'Synced'
+                            ? 'bg-green-100 text-green-800'
+                            : syncSettings?.webSyncSetting.status === 'Partial Synced'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
                           {syncSettings?.webSyncSetting.status}
                         </span>
                         <span className="ml-2 text-sm text-gray-500">

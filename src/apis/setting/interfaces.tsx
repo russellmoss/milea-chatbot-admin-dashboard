@@ -3,7 +3,7 @@ export interface WebSyncSettingUpdateRequest {
     urls?: string[];
     urlsChecked?: boolean[];
     itemCount?: number;
-    status?: "Synced" | "Never Sync";
+    status?: "Synced" | "Never Sync" | "Partial Synced";
     schedule?: "Never" | "Hourly" | "Daily" | "Weekly" | "Monthly" | "Manual";
     jobId?: string;
 }
@@ -15,7 +15,7 @@ export interface WebSyncSetting {
     selectedUrls: string[];
     lastSynced: string;
     itemCount: number;
-    status: "Never Sync" | "Synced";
+    status: "Never Sync" | "Synced" | "Partial Synced";
     schedule: "Never" | "Hourly" | "Daily" | "Weekly" | "Monthly" | "Manual";
     jobId: string;
 }
@@ -23,7 +23,7 @@ export interface WebSyncSetting {
 export interface C7SyncSetting {
     lastSynced: string;
     itemCount: number;
-    status: "Never Sync" | "Synced";
+    status: "Never Sync" | "Synced" | "Partial Synced";
     schedule: "Never" | "Hourly" | "Daily" | "Weekly" | "Monthly" | "Manual";
 }
 
